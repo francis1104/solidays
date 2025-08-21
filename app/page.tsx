@@ -1,30 +1,45 @@
-import { CardStack, Card } from '../components/ui/CardStack';
+'use client'
+import { useEffect, useState } from 'react'
+import { CardStack } from '../components/ui/CardStack'
 
-const cards: Card[] = [
-  {
-    id: 1,
-    name: 'Tyler Durden',
-    designation: 'Manager Project Mayhem',
-    content: 'The first rule of Fight Club is that you do not talk about fight club. The second rule of Fight club is that you DO NOT TALK about fight club.',
-  },
-  {
-    id: 2,
-    name: 'Manu Arora',
-    designation: 'Senior Software Engineer',
-    content: 'These cards are amazing, I want to use them in my project. Framer motion is a godsend ngl tbh fam 🙏',
-  },
-  {
-    id: 3,
-    name: 'Elon Musk',
-    designation: 'Senior Shitposter',
-    content: 'I dont like this Twitter thing, deleting it right away because yolo. Instead, I would like to call it X.com so that it can easily be confused with adult sites.',
-  },
-];
+type Card = {
+  id: number
+  song: string
+  album: string
+  content: string
+}
 
 export default function Page() {
+  const [cards, setCards] = useState<Card[]>([])
+
+  useEffect(() => {
+    fetch(process.env.NEXT_PUBLIC_API_URL  + '/api/cards')
+      .then(res => res.json())
+      .then(data => setCards(data))
+      .catch(() => setCards([]))
+  }, [])
+
+  const defaultCards: Card[] = [
+    {
+      id: 0,
+      song: '歌颂',
+      album: '《Solidays 新曲+精选》',
+      content: '风景裡随身听\n思想裡随心听\n怀著万万万个心的结晶\n炼成时代 最亮发声。',
+    },
+  ]
+
+  const displayCards = cards.length > 0 ? cards : defaultCards
+
   return (
-  <div className="flex items-center justify-center min-h-[70vh]">
-      <CardStack items={cards} />
+    <div className="flex min-h-[70vh] items-center justify-center">
+      <CardStack
+        items={displayCards.map((card) => ({
+          id: card.id,
+          name: card.song,
+          designation: card.album,
+          content: card.content,
+        }))}
+      />
     </div>
-  );
+  )
 }

@@ -26,10 +26,6 @@ services:
     container_name: solidays-frontend
     ports:
       - "80:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_TELEMETRY_DISABLED=1
-      - NEXT_PUBLIC_API_URL=http://111.231.11.69:8081
     restart: unless-stopped
     depends_on:
       - mysql

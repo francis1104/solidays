@@ -10,6 +10,7 @@ RUN corepack enable && corepack prepare yarn@3.6.1 --activate
 # 设置环境变量
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=http://111.231.11.69:8081
 
 # 复制压缩的node_modules和其他必要文件
 COPY node_modules.tar.gz ./

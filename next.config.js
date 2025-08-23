@@ -75,8 +75,6 @@ module.exports = () => {
     },
     experimental: {
       optimizePackageImports: ['@headlessui/react'],
-      optimizeCss: true,
-      dirs: ['app', 'components', 'layouts', 'scripts'],
     },
     images: {
       remotePatterns: [

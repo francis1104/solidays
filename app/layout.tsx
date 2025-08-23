@@ -12,6 +12,7 @@ import MusicDock from '@/components/MusicDock'
 import siteMetadata from '@/data/siteMetadata'
 import Meteors from '@/components/magicui/meteors'
 import { ThemeProviders } from './theme-providers'
+import { SongProvider } from '@/contexts/SongContext'
 import { Metadata } from 'next'
 
 const space_grotesk = Space_Grotesk({
@@ -87,15 +88,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-white pl-[calc(100vw-100%)] text-black antialiased dark:bg-gray-950 dark:text-white">
         <Meteors number={24} className="pointer-events-none fixed inset-0 z-0 h-full w-full" />
         <ThemeProviders>
-          <Analytics analyticsConfig={siteMetadata.analytics as AnalyticsConfig} />
-          <SectionContainer>
-            <SearchProvider searchConfig={siteMetadata.search as SearchConfig}>
-              <Header />
-              <main className="mb-auto">{children}</main>
-            </SearchProvider>
-            <Footer />
-          </SectionContainer>
-          <MusicDock />
+          <SongProvider>
+            <Analytics analyticsConfig={siteMetadata.analytics as AnalyticsConfig} />
+            <SectionContainer>
+              <SearchProvider searchConfig={siteMetadata.search as SearchConfig}>
+                <Header />
+                <main className="mb-auto">{children}</main>
+              </SearchProvider>
+              <Footer />
+            </SectionContainer>
+            <MusicDock />
+          </SongProvider>
         </ThemeProviders>
       </body>
     </html>

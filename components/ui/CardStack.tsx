@@ -33,7 +33,7 @@ export const CardStack = ({
         newArray.unshift(newArray.pop()!)
         return newArray
       })
-    }, 5000)
+    }, 8000) // 从5秒改为8秒，放慢轮播速度
     return () => clearInterval(interval)
   }, [])
 

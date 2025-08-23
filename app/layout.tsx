@@ -8,6 +8,7 @@ import { SearchProvider, SearchConfig } from 'pliny/search'
 import Header from '@/components/Header'
 import SectionContainer from '@/components/SectionContainer'
 import Footer from '@/components/Footer'
+import MusicDock from '@/components/MusicDock'
 import siteMetadata from '@/data/siteMetadata'
 import Meteors from '@/components/magicui/meteors'
 import { ThemeProviders } from './theme-providers'
@@ -68,23 +69,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${space_grotesk.variable} scroll-smooth`}
       suppressHydrationWarning
     >
-      <link
-        rel="apple-touch-icon"
-        sizes="76x76"
-        href={`${basePath}/static/favicons/apple-touch-icon.png`}
-      />
-      <link
-        rel="icon"
-        type="image/png"
-        sizes="32x32"
-        href={`${basePath}/static/favicons/favicon-32x32.png`}
-      />
-      <link
-        rel="icon"
-        type="image/png"
-        sizes="16x16"
-        href={`${basePath}/static/favicons/favicon-16x16.png`}
-      />
+      <link rel="icon" type="image/png" href="/static/favicons/favicon-96x96.png" sizes="96x96" />
+      <link rel="icon" type="image/svg+xml" href="/static/favicons/favicon.svg" />
+      <link rel="shortcut icon" href="/static/favicons/favicon.ico" />
+      <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png" />
+      <meta name="apple-mobile-web-app-title" content="EF site" />
       <link rel="manifest" href={`${basePath}/static/favicons/site.webmanifest`} />
       <link
         rel="mask-icon"
@@ -96,7 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000" />
       <link rel="alternate" type="application/rss+xml" href={`${basePath}/feed.xml`} />
       <body className="bg-white pl-[calc(100vw-100%)] text-black antialiased dark:bg-gray-950 dark:text-white">
-        <Meteors number={24} className="fixed inset-0 w-full h-full pointer-events-none z-0" />
+        <Meteors number={24} className="pointer-events-none fixed inset-0 z-0 h-full w-full" />
         <ThemeProviders>
           <Analytics analyticsConfig={siteMetadata.analytics as AnalyticsConfig} />
           <SectionContainer>
@@ -106,6 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </SearchProvider>
             <Footer />
           </SectionContainer>
+          <MusicDock />
         </ThemeProviders>
       </body>
     </html>

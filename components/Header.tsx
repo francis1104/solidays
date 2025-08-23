@@ -1,10 +1,8 @@
 import siteMetadata from '@/data/siteMetadata'
 import headerNavLinks from '@/data/headerNavLinks'
-import Logo from '@/data/logo.svg'
 import Link from './Link'
 import MobileNav from './MobileNav'
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler'
-import SearchButton from './SearchButton'
 
 const Header = () => {
   let headerClass = 'flex items-center w-full bg-white dark:bg-gray-950 justify-between py-10'
@@ -16,8 +14,22 @@ const Header = () => {
     <header className={headerClass}>
       <Link href="/" aria-label={siteMetadata.headerTitle}>
         <div className="flex items-center justify-between">
-          <div className="mr-3">
-            <Logo />
+          <div className="mt-1.5 mr-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 128 128">
+              <path
+                fill="#fcc21b"
+                d="M63.89 9.64C1.58 9.64.1 79.5.1 93.33s28.56 25.03 63.79 25.03c35.24 0 63.79-11.21 63.79-25.03c0-13.83-1.47-83.69-63.79-83.69"
+              />
+              <path
+                fill="#2f2f2f"
+                d="M63.89 95.08c-14.13 0-22.18-8.14-22.52-8.48a3.254 3.254 0 0 1 4.67-4.53c.25.25 6.58 6.51 17.85 6.51s17.6-6.25 17.87-6.52a3.26 3.26 0 0 1 4.59-.04a3.24 3.24 0 0 1 .06 4.58c-.34.34-8.39 8.48-22.52 8.48"
+              />
+              <path fill="none" d="M.41 0H128v128H.41z" />
+              <path
+                fill="#2f2f2f"
+                d="M42 68c-4.49.04-8.17-4.27-8.22-9.62c-.05-5.37 3.55-9.75 8.04-9.79c4.48-.04 8.17 4.27 8.22 9.64c.05 5.36-3.55 9.73-8.04 9.77m44.11 0c4.48-.01 8.11-4.36 8.1-9.71c-.01-5.37-3.66-9.7-8.14-9.69c-4.49.01-8.13 4.36-8.12 9.73c.02 5.35 3.67 9.68 8.16 9.67"
+              />
+            </svg>{' '}
           </div>
           {typeof siteMetadata.headerTitle === 'string' ? (
             <div className="hidden h-6 text-2xl font-semibold sm:block">
@@ -42,7 +54,6 @@ const Header = () => {
               </Link>
             ))}
         </div>
-        <SearchButton />
         <AnimatedThemeToggler />
         <MobileNav />
       </div>

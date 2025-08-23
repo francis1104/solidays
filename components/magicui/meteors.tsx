@@ -66,7 +66,6 @@ const Meteors: React.FC<MeteorsProps> = ({
       }
     })
     setMeteors(arr)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [number, minDelay, maxDelay, minDuration, maxDuration])
 
   return (
@@ -86,7 +85,7 @@ const Meteors: React.FC<MeteorsProps> = ({
             opacity: meteor.opacity,
             animationDelay: `${meteor.animationDelay}s`,
             animationDuration: `${meteor.animationDuration}s`,
-            ['--angle' as any]: `${angle}deg`,
+            ['--angle' as string]: `${angle}deg`,
             zIndex: Math.round(100 - meteor.depth * 100),
           }}
         >

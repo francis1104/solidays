@@ -13,9 +13,9 @@ export default function Page() {
   const [cards, setCards] = useState<Card[]>([])
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL  + '/api/cards')
-      .then(res => res.json())
-      .then(data => setCards(data))
+    fetch(process.env.NEXT_PUBLIC_API_URL + '/api/cards')
+      .then((res) => res.json())
+      .then((data) => setCards(data))
       .catch(() => setCards([]))
   }, [])
 

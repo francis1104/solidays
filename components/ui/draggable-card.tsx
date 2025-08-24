@@ -1,92 +1,175 @@
 'use client'
-import React, { useRef } from 'react'
-import { motion, useMotionValue, useTransform } from 'framer-motion'
+import { cn } from '@/components/lib/utils'
+import React, { useRef, useState, useEffect } from 'react'
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  animate,
+  useVelocity,
+  useAnimationControls,
+} from 'framer-motion'
 
-export function DraggableCardContainer({
-  children,
+export const DraggableCardBody = ({
   className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return <div className={className}>{children}</div>
-}
-
-export function DraggableCardBody({
   children,
-  className,
 }: {
-  children: React.ReactNode
   className?: string
-}) {
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-  const rotate = useTransform(x, [-300, 300], [-30, 30])
+  children?: React.ReactNode
+}) => {
+  const mouseX = useMotionValue(0)
+  const mouseY = useMotionValue(0)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  // 天平效果：根据鼠标在卡片上的位置动态倾斜
-  const [hoverRotate, setHoverRotate] = React.useState<{ x: number; y: number; opacity: number }>({
-    x: 0,
-    y: 0,
-    opacity: 1,
+  const controls = useAnimationControls()
+  const [constraints, setConstraints] = useState({
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   })
 
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    const rect = cardRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+  // physics biatch
+  const velocityX = useVelocity(mouseX)
+  const velocityY = useVelocity(mouseY)
 
-    // 计算相对中心的偏移比例，范围[-1, 1]
-    const normalizedX = (x - rect.width / 2) / (rect.width / 2)
-    const normalizedY = (y - rect.height / 2) / (rect.height / 2)
-
-    // 最大倾斜角度，调小一些让效果更柔和
-    const maxTilt = 15
-
-    // 让 hover 的方向下沉：X轴控制左右倾斜，Y轴控制上下倾斜
-    const rotateY = normalizedX * maxTilt // 鼠标在右边时，右边下沉（正值）
-    const rotateX = -normalizedY * maxTilt // 鼠标在下边时，下边下沉（负值）
-
-    // 根据距离中心的程度调整透明度，越边缘越透明
-    const distance = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY)
-    const opacity = Math.max(0.95, 1 - distance * 0.05) // 最低0.95，最高1
-
-    setHoverRotate({ x: rotateX, y: rotateY, opacity })
+  const springConfig = {
+    stiffness: 100,
+    damping: 20,
+    mass: 0.5,
   }
 
-  function handleMouseLeave() {
-    setHoverRotate({ x: 0, y: 0, opacity: 1 })
+  const rotateX = useSpring(useTransform(mouseY, [-300, 300], [25, -25]), springConfig)
+  const rotateY = useSpring(useTransform(mouseX, [-300, 300], [-25, 25]), springConfig)
+
+  const opacity = useSpring(useTransform(mouseX, [-300, 0, 300], [0.8, 1, 0.8]), springConfig)
+
+  const glareOpacity = useSpring(useTransform(mouseX, [-300, 0, 300], [0.2, 0, 0.2]), springConfig)
+
+  useEffect(() => {
+    // Update constraints when component mounts or window resizes
+    const updateConstraints = () => {
+      if (typeof window !== 'undefined') {
+        setConstraints({
+          top: -window.innerHeight / 2,
+          left: -window.innerWidth / 2,
+          right: window.innerWidth / 2,
+          bottom: window.innerHeight / 2,
+        })
+      }
+    }
+
+    updateConstraints()
+
+    // Add resize listener
+    window.addEventListener('resize', updateConstraints)
+
+    // Clean up
+    return () => {
+      window.removeEventListener('resize', updateConstraints)
+    }
+  }, [])
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { clientX, clientY } = e
+    const { width, height, left, top } = cardRef.current?.getBoundingClientRect() ?? {
+      width: 0,
+      height: 0,
+      left: 0,
+      top: 0,
+    }
+    const centerX = left + width / 2
+    const centerY = top + height / 2
+    const deltaX = clientX - centerX
+    const deltaY = clientY - centerY
+    mouseX.set(deltaX)
+    mouseY.set(deltaY)
+  }
+
+  const handleMouseLeave = () => {
+    mouseX.set(0)
+    mouseY.set(0)
   }
 
   return (
     <motion.div
       ref={cardRef}
       drag
-      style={{ x, y, rotate }}
-      dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
-      dragElastic={0.18}
-      whileHover={{
-        scale: 1.05,
-        opacity: hoverRotate.opacity,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-        rotateX: hoverRotate.x,
-        rotateY: hoverRotate.y,
+      dragConstraints={constraints}
+      onDragStart={() => {
+        document.body.style.cursor = 'grabbing'
       }}
-      transition={{
-        type: 'spring',
-        stiffness: 150,
-        damping: 30,
-        rotateX: { type: 'spring', stiffness: 80, damping: 20 },
-        rotateY: { type: 'spring', stiffness: 80, damping: 20 },
-        opacity: { type: 'spring', stiffness: 200, damping: 35 },
-        scale: { type: 'spring', stiffness: 180, damping: 25 },
+      onDragEnd={(event, info) => {
+        document.body.style.cursor = 'default'
+
+        controls.start({
+          rotateX: 0,
+          rotateY: 0,
+          transition: {
+            type: 'spring',
+            ...springConfig,
+          },
+        })
+        const currentVelocityX = velocityX.get()
+        const currentVelocityY = velocityY.get()
+
+        const velocityMagnitude = Math.sqrt(
+          currentVelocityX * currentVelocityX + currentVelocityY * currentVelocityY
+        )
+        const bounce = Math.min(0.8, velocityMagnitude / 1000)
+
+        animate(info.point.x, info.point.x + currentVelocityX * 0.3, {
+          duration: 0.8,
+          ease: [0.2, 0, 0, 1],
+          bounce,
+          type: 'spring',
+          stiffness: 50,
+          damping: 15,
+          mass: 0.8,
+        })
+
+        animate(info.point.y, info.point.y + currentVelocityY * 0.3, {
+          duration: 0.8,
+          ease: [0.2, 0, 0, 1],
+          bounce,
+          type: 'spring',
+          stiffness: 50,
+          damping: 15,
+          mass: 0.8,
+        })
       }}
+      style={{
+        rotateX,
+        rotateY,
+        opacity,
+        willChange: 'transform',
+      }}
+      animate={controls}
+      whileHover={{ scale: 1.02 }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`flex h-[400px] w-80 cursor-grab flex-col items-center justify-center rounded-xl bg-gray-100 p-4 shadow-2xl select-none dark:bg-gray-900 ${className}`}
+      className={cn(
+        'relative min-h-96 w-80 overflow-hidden rounded-md bg-neutral-100 p-6 shadow-2xl transform-3d dark:bg-neutral-900',
+        className
+      )}
     >
       {children}
+      <motion.div
+        style={{
+          opacity: glareOpacity,
+        }}
+        className="pointer-events-none absolute inset-0 bg-white select-none"
+      />
     </motion.div>
   )
+}
+
+export const DraggableCardContainer = ({
+  className,
+  children,
+}: {
+  className?: string
+  children?: React.ReactNode
+}) => {
+  return <div className={cn('[perspective:3000px]', className)}>{children}</div>
 }

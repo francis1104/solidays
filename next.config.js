@@ -82,7 +82,13 @@ module.exports = () => {
           protocol: 'https',
           hostname: 'picsum.photos',
         },
+        {
+          protocol: 'https',
+          hostname: 'dlink.host',
+        },
       ],
+      minimumCacheTTL: 60 * 60 * 24 * 7, // 7天缓存
+      qualities: [75, 85, 100], // 添加支持的质量选项
       unoptimized,
     },
     async headers() {
@@ -90,6 +96,25 @@ module.exports = () => {
         {
           source: '/(.*)',
           headers: securityHeaders,
+        },
+        {
+          source: '/fnds',
+          headers: [
+            ...securityHeaders,
+            {
+              key: 'Cache-Control',
+              value: 'public, s-maxage=3600, max-age=3600',
+            },
+          ],
+        },
+        {
+          source: '/_next/image(.*)',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'public, max-age=604800, immutable',
+            },
+          ],
         },
       ]
     },

@@ -68,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang={siteMetadata.language}
       className={`${space_grotesk.variable} scroll-smooth`}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <link rel="icon" type="image/png" href="/static/favicons/favicon-96x96.png" sizes="96x96" />

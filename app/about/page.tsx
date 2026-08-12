@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
+import { mediaUrl } from '@/lib/media'
 
 export const metadata: Metadata = { title: 'About' }
 
@@ -13,6 +15,14 @@ export default function AboutPage() {
 
       <div className="items-start space-y-2 pt-8 xl:grid xl:grid-cols-3 xl:space-y-0 xl:gap-x-8">
         <aside className="flex flex-col items-center space-x-2">
+          <Image
+            src={mediaUrl('profile/avatar.jpg')}
+            alt="Francis 的头像"
+            width={160}
+            height={160}
+            className="h-40 w-40 rounded-full object-cover"
+            unoptimized
+          />
           <h2 className="pt-4 pb-2 text-2xl leading-8 font-bold tracking-tight">Francis</h2>
           <p className="text-gray-500 dark:text-gray-400">Backend Developer</p>
           <div className="flex gap-4 pt-6">

@@ -8,6 +8,7 @@
 - `wrangler.jsonc` 已经预留并启用了 `AI` 绑定，Workers AI 在本地调试时仍然走远程服务。
 - R2 桶 `solidays-media` 已创建，并以 `MEDIA_BUCKET` 绑定到当前 Worker；本地 Worker 调试也会使用这个远程桶。
 - `/fnds` 使用的 7 个图片对象已经上传到 `solidays-media/fnds/`。
+- About 页使用的头像已上传到 `solidays-media/profile/avatar.jpg`。
 - Worker 已部署到 `https://solidays-worker.wangbz1104.workers.dev`，生产环境通过 `/media/<key>` 读取私有 R2 图片。
 - D1 尚未创建，也没有直接绑定 D101 的数据库，避免在没有确认资源归属时改动现有 Cloudflare 资源。
 - `/fnds` 的图片优先使用 `NEXT_PUBLIC_R2_PUBLIC_URL`；当前本地配置和生产 Worker 都通过 `/media/<key>` 读取 R2。

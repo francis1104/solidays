@@ -7,7 +7,7 @@ type MediaRouteContext = {
 }
 
 function isAllowedMediaKey(key: string) {
-  return /^fnds\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')
+  return /^(?:fnds|profile)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')
 }
 
 export async function GET(_request: Request, { params }: MediaRouteContext) {

@@ -24,6 +24,8 @@ interface Song {
   cover?: string
 }
 
+const musicApiUrl = process.env.NEXT_PUBLIC_MUSIC_API_URL
+
 const MusicDock = () => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -227,10 +229,14 @@ const MusicDock = () => {
 
   // 调用API获取歌曲信息
   const fetchSongInfo = async (songName: string): Promise<Song | null> => {
+    if (!musicApiUrl) return null
+
     try {
-      const response = await fetch(
-        `http://lpz.chatc.vip/apiqq.php?msg=${encodeURIComponent(songName)}&type=json&n=1`
-      )
+      const endpoint = new URL(musicApiUrl)
+      endpoint.searchParams.set('msg', songName)
+      endpoint.searchParams.set('type', 'json')
+      endpoint.searchParams.set('n', '1')
+      const response = await fetch(endpoint)
 
       if (!response.ok) {
         console.error(`API请求失败: ${response.status}`)
@@ -338,8 +344,10 @@ const MusicDock = () => {
 
   useEffect(() => {
     // 每次cards变化时都获取新歌曲并添加到队列
-    if (cards.length > 0) {
+    if (cards.length > 0 && musicApiUrl) {
       fetchPlaylist()
+    } else {
+      setLoading(false)
     }
   }, [cards]) // 监听cards变化
 
@@ -616,6 +624,8 @@ const MusicDock = () => {
       </div>
     )
   }
+
+  if (!musicApiUrl && playlist.length === 0) return null
 
   return (
     <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">

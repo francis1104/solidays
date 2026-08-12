@@ -17,6 +17,9 @@
 /out/
 public/sitemap.xml
 .vercel
+/.open-next/
+/.wrangler/
+worker-configuration.d.ts
 
 # production
 /build
@@ -42,11 +45,12 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.dev.vars
+.dev.vars.*
 
-# Contentlayer
+# generated local data
 .contentlayer
 
 .dockerignore
 *.tar
 *.gz
-

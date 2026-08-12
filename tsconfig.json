@@ -20,10 +20,8 @@
       "@/components/*": ["components/*"],
       "@/contexts/*": ["contexts/*"],
       "@/data/*": ["data/*"],
-      "@/layouts/*": ["layouts/*"],
       "@/css/*": ["css/*"],
-      "contentlayer/generated": ["./.contentlayer/generated"],
-      "pliny/*": ["node_modules/pliny/*"]
+      "@/lib/*": ["lib/*"]
     },
     "plugins": [
       {
@@ -39,8 +37,6 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.json",
-    ".contentlayer/generated",
-    ".contentlayer/generated/**/*.json",
     ".next/types/**/*.ts"
   ],
   "exclude": ["node_modules"]

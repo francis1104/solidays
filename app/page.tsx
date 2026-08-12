@@ -1,54 +1,48 @@
 'use client'
+
 import { useEffect, useState } from 'react'
-import { CardStack } from '../components/ui/CardStack'
+import { CardStack } from '@/components/ui/CardStack'
 import { useSongContext } from '@/contexts/SongContext'
+import { defaultCards, type Card } from '@/data/cards'
 
-type Card = {
-  id: number
-  song: string
-  album: string
-  content: string
-}
-
-export default function Page() {
-  const { cards, setCards } = useSongContext()
-  const [localCards, setLocalCards] = useState<Card[]>([])
+export default function HomePage() {
+  const { setCards } = useSongContext()
+  const [localCards, setLocalCards] = useState<Card[]>(defaultCards)
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL + '/api/cards')
-      .then((res) => res.json())
-      .then((data) => {
-        setCards(data) // 更新Context中的数据，供音乐播放器使用
-        setLocalCards(data) // 更新本地状态，供页面显示使用
+    let cancelled = false
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '')
+    const endpoint = `${apiBaseUrl || ''}/api/cards`
+
+    fetch(endpoint, { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Cards API returned ${response.status}`)
+        return response.json()
+      })
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) throw new Error('Cards API returned an invalid payload')
+        const cards = data as Card[]
+        if (!cancelled) {
+          setCards(cards)
+          setLocalCards(cards.length > 0 ? cards : defaultCards)
+        }
       })
       .catch(() => {
-        const defaultCards: Card[] = [
-          {
-            id: 0,
-            song: '歌颂',
-            album: '《Solidays 新曲+精选》',
-            content: '风景裡随身听\n思想裡随心听\n怀著万万万个心的结晶\n炼成时代 最亮发声。',
-          },
-        ]
-        setCards(defaultCards)
-        setLocalCards(defaultCards)
+        if (!cancelled) {
+          setCards(defaultCards)
+          setLocalCards(defaultCards)
+        }
       })
-  }, [setCards])
-  const defaultCards: Card[] = [
-    {
-      id: 0,
-      song: '歌颂',
-      album: '《Solidays 新曲+精选》',
-      content: '风景裡随身听\n思想裡随心听\n怀著万万万个心的结晶\n炼成时代 最亮发声。',
-    },
-  ]
 
-  const displayCards = localCards.length > 0 ? localCards : defaultCards
+    return () => {
+      cancelled = true
+    }
+  }, [setCards])
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <CardStack
-        items={displayCards.map((card) => ({
+        items={localCards.map((card) => ({
           id: card.id,
           name: card.song,
           designation: card.album,

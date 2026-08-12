@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "solidays-worker",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-12",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "observability": {
+    "enabled": true
+  }
+  // R2 and D1 are intentionally not attached yet. Add the real resource names/IDs
+  // after the media bucket and application database are selected; see docs/cloudflare-storage.md.
+}

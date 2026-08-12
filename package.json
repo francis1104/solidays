@@ -10,7 +10,7 @@
     "worker:build": "opennextjs-cloudflare build",
     "worker:dev": "opennextjs-cloudflare build && wrangler dev",
     "worker:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "worker:types": "wrangler types"
+    "worker:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@headlessui/react": "2.2.0",

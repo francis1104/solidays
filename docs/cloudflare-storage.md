@@ -1,7 +1,7 @@
 # Cloudflare 存储规划
 
-这个分支使用 OpenNext 将 Next.js 应用构建成一个 Cloudflare Worker。Worker 的 AI、R2 和 D1
-绑定属于同一个部署单元，不需要把图片或结构化数据继续放进 Git 仓库。
+这个分支使用 OpenNext 将 Next.js 应用构建成一个 Cloudflare Worker。Worker 的 AI、R2 和未来
+D1 绑定属于同一个部署单元，不需要把生产图片或结构化数据继续放进 Git 仓库。
 
 ## 当前状态
 
@@ -9,7 +9,8 @@
 - R2 桶 `solidays-media` 已创建，并以 `MEDIA_BUCKET` 绑定到当前 Worker；本地 Worker 调试也会使用这个远程桶。
 - `/fnds` 使用的 7 个图片对象已经上传到 `solidays-media/fnds/`。
 - About 页使用的头像已上传到 `solidays-media/profile/avatar.jpg`。
-- Worker 已部署到 `https://solidays-worker.wangbz1104.workers.dev`，生产环境通过 `/media/<key>` 读取私有 R2 图片。
+- Worker 已部署到 `https://solidays.win`，`www.solidays.win` 跳转到主域名；生产环境通过 `/media/<key>` 读取私有 R2 图片。
+- `workers.dev` 默认地址已关闭，后续部署必须保留 `"workers_dev": false`。
 - D1 尚未创建，也没有直接绑定 D101 的数据库，避免在没有确认资源归属时改动现有 Cloudflare 资源。
 - `/fnds` 的图片优先使用 `NEXT_PUBLIC_R2_PUBLIC_URL`；当前本地配置和生产 Worker 都通过 `/media/<key>` 读取 R2。
 - `/api/cards` 当前返回 `data/cards.ts` 中的最小默认数据，是将来接入 D1 的明确入口。
@@ -63,6 +64,13 @@ wrangler r2 object put solidays-media/fnds/01-zhi-ming-ri-de-wu.jpg --file ./01.
 yarn worker:build
 yarn worker:dev
 yarn worker:deploy
+```
+
+如果环境中没有 Yarn，使用以下等价部署流程：
+
+```bash
+npm run worker:build
+OPEN_NEXT_DEPLOY=true npx wrangler deploy
 ```
 
 首次绑定资源前先用 `wrangler deploy --dry-run` 检查配置；真正部署前需要登录 Cloudflare，

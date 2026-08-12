@@ -28,9 +28,17 @@ yarn worker:dev
 yarn worker:deploy
 ```
 
-Worker 配置在 `wrangler.jsonc`，R2/D1 的接入步骤见
-[`docs/cloudflare-storage.md`](docs/cloudflare-storage.md)。当前 AI 绑定已预留；R2 和 D1
-需要先确认真实资源后再绑定。
+Worker 配置在 `wrangler.jsonc`，R2 的接入步骤见
+[`docs/cloudflare-storage.md`](docs/cloudflare-storage.md)。当前 Worker 已绑定
+`solidays-media` R2 桶和 Workers AI；D1 尚未创建或绑定。生产环境使用
+`solidays.win`，`workers.dev` 默认地址已关闭。
+
+如果当前环境没有可执行的 Yarn，可以先构建，再直接用 Wrangler 部署：
+
+```bash
+npm run worker:build
+OPEN_NEXT_DEPLOY=true npx wrangler deploy
+```
 
 ## 环境变量
 

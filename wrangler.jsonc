@@ -14,7 +14,12 @@
   },
   "observability": {
     "enabled": true
-  }
-  // R2 and D1 are intentionally not attached yet. Add the real resource names/IDs
-  // after the media bucket and application database are selected; see docs/cloudflare-storage.md.
+  },
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "solidays-media",
+      "remote": true
+    }
+  ]
 }

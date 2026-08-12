@@ -6,13 +6,14 @@
 ## 当前状态
 
 - `wrangler.jsonc` 已经预留并启用了 `AI` 绑定，Workers AI 在本地调试时仍然走远程服务。
-- R2、D1 没有自动创建，也没有直接绑定 D101 的数据库，避免在没有确认资源归属时改动现有 Cloudflare 资源。
+- R2 桶 `solidays-media` 已创建，并以 `MEDIA_BUCKET` 绑定到当前 Worker；本地 Worker 调试也会使用这个远程桶。
+- D1 尚未创建，也没有直接绑定 D101 的数据库，避免在没有确认资源归属时改动现有 Cloudflare 资源。
 - `/fnds` 的图片通过 `NEXT_PUBLIC_R2_PUBLIC_URL` 切换到 R2；未配置时使用现有远程回退地址，因此页面不会因为迁移未完成而失图。
 - `/api/cards` 当前返回 `data/cards.ts` 中的最小默认数据，是将来接入 D1 的明确入口。
 
 ## 图片迁移到 R2
 
-先创建或选择一个媒体桶，再在 `wrangler.jsonc` 增加真实绑定：
+媒体桶已经创建并在 `wrangler.jsonc` 中绑定：
 
 ```jsonc
 "r2_buckets": [

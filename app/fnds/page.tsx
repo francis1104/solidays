@@ -8,58 +8,37 @@ import { mediaUrl } from '@/lib/media'
 const items = [
   {
     title: '致明日的舞',
-    image: mediaUrl(
-      'fnds/01-zhi-ming-ri-de-wu.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL3UvYy9hNzRkYWEzODEyMTFlMzljL0VXUzBEQktSYkM1T21pZzJ5OTJLNlRVQmRjSXZjb19aN3l3dm5kaDhrOXdEMVE_ZT12NXY2alo.jpg'
-    ),
+    image: mediaUrl('fnds/01-zhi-ming-ri-de-wu.jpg'),
     className: 'absolute top-10 left-[20%] rotate-[-5deg]',
   },
   {
     title: 'Melody',
-    image: mediaUrl(
-      'fnds/02-melody.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL2kvYy9hNzRkYWEzODEyMTFlMzljL0VmV001bENOeEdoTnVRZkdCdlRHanBjQl83cnNLMmlMbUo5UVctRkZoa0w2RWc_ZT04TFJoUTA.jpg'
-    ),
+    image: mediaUrl('fnds/02-melody.jpg'),
     className: 'absolute top-40 left-[25%] rotate-[-7deg]',
   },
   {
     title: '我们',
-    image: mediaUrl(
-      'fnds/03-wo-men.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL3UvYy9hNzRkYWEzODEyMTFlMzljL0ViMmJVM2s2NEZ4TmxSX0doeUx3aExzQnBYek9CMVVMWGp6SGdHZE50bjJKeGc_ZT15QWJqcHo.jpg'
-    ),
+    image: mediaUrl('fnds/03-wo-men.jpg'),
     className: 'absolute top-5 left-[40%] rotate-[8deg]',
   },
   {
     title: '杭州站',
-    image: mediaUrl(
-      'fnds/04-hang-zhou.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL2kvYy9hNzRkYWEzODEyMTFlMzljL0VaempFUkk0cWswZ2dLZXh2UUVBQUFBQmhJOXF6WndnWW5ZVm8zMl96WW5fakE_ZT1iYlBKTGQ.jpg'
-    ),
+    image: mediaUrl('fnds/04-hang-zhou.jpg'),
     className: 'absolute top-32 left-[55%] rotate-[10deg]',
   },
   {
     title: '任我行',
-    image: mediaUrl(
-      'fnds/05-ren-wo-xing.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL2kvYy9hNzRkYWEzODEyMTFlMzljL0VaempFUkk0cWswZ2dLY2V2Z0VBQUFBQlU4LWU2Q01oMTFmYWttX1ZyakR1MXc_ZT02NFhtU28.jpg'
-    ),
+    image: mediaUrl('fnds/05-ren-wo-xing.jpg'),
     className: 'absolute top-20 right-[35%] rotate-[2deg]',
   },
   {
     title: '澳门8.3',
-    image: mediaUrl(
-      'fnds/06-ao-men.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL3UvYy9hNzRkYWEzODEyMTFlMzljL0VkZ01SVXBOTVk5Q2txV25oUHB0QlBBQjNUVXJ2X0d2bTFoSjc2Snh2SjB4QXc_ZT03VkZZdWE.jpg'
-    ),
+    image: mediaUrl('fnds/06-ao-men.jpg'),
     className: 'absolute top-24 left-[45%] rotate-[-7deg]',
   },
   {
     title: '忽然007',
-    image: mediaUrl(
-      'fnds/07-hu-ran-007.jpg',
-      'https://dlink.host/1drv/aHR0cHM6Ly8xZHJ2Lm1zL3UvYy9hNzRkYWEzODEyMTFlMzljL0VTdnp0OEhfeVA1Q3FXM3F5X2duSlZ3QlE1MnFuLUhMUjhGMDhhdGpnTlhHRGc_ZT1YM2JMY3Y.jpg'
-    ),
+    image: mediaUrl('fnds/07-hu-ran-007.jpg'),
     className: 'absolute top-8 left-[30%] rotate-[4deg]',
   },
 ]

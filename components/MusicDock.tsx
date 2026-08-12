@@ -24,6 +24,16 @@ interface Song {
   cover?: string
 }
 
+interface MusicApiResponse {
+  code: number
+  data?: {
+    song_name: string
+    song_singer: string
+    music_url: string
+    cover?: string
+  } | null
+}
+
 const musicApiUrl = process.env.NEXT_PUBLIC_MUSIC_API_URL
 
 const MusicDock = () => {
@@ -243,7 +253,7 @@ const MusicDock = () => {
         return null
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as MusicApiResponse
 
       if (data.code !== 200 || !data.data) {
         console.error(`API返回错误: ${data.code}`)

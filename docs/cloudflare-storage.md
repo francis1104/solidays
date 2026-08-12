@@ -7,8 +7,10 @@
 
 - `wrangler.jsonc` 已经预留并启用了 `AI` 绑定，Workers AI 在本地调试时仍然走远程服务。
 - R2 桶 `solidays-media` 已创建，并以 `MEDIA_BUCKET` 绑定到当前 Worker；本地 Worker 调试也会使用这个远程桶。
+- `/fnds` 使用的 7 个图片对象已经上传到 `solidays-media/fnds/`。
+- Worker 已部署到 `https://solidays-worker.wangbz1104.workers.dev`，生产环境通过 `/media/<key>` 读取私有 R2 图片。
 - D1 尚未创建，也没有直接绑定 D101 的数据库，避免在没有确认资源归属时改动现有 Cloudflare 资源。
-- `/fnds` 的图片通过 `NEXT_PUBLIC_R2_PUBLIC_URL` 切换到 R2；未配置时使用现有远程回退地址，因此页面不会因为迁移未完成而失图。
+- `/fnds` 的图片优先使用 `NEXT_PUBLIC_R2_PUBLIC_URL`；当前本地配置和生产 Worker 都通过 `/media/<key>` 读取 R2。
 - `/api/cards` 当前返回 `data/cards.ts` 中的最小默认数据，是将来接入 D1 的明确入口。
 
 ## 图片迁移到 R2
@@ -31,8 +33,9 @@
 wrangler r2 object put solidays-media/fnds/01-zhi-ming-ri-de-wu.jpg --file ./01.jpg
 ```
 
-然后把 `NEXT_PUBLIC_R2_PUBLIC_URL` 设置为 R2 公共域名或自定义域名。`app/fnds/page.tsx`
-会自动请求 `fnds/01-zhi-ming-ri-de-wu.jpg` 等 key。
+如果配置了 R2 公共域名，把 `NEXT_PUBLIC_R2_PUBLIC_URL` 设置为该域名；否则生产 Worker
+会通过 `/media/<key>` 读取私有桶。`app/fnds/page.tsx` 会请求
+`fnds/01-zhi-ming-ri-de-wu.jpg` 等 key。
 
 ## 结构化数据接入 D1
 

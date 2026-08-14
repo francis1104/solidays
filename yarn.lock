@@ -2862,6 +2862,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@shadcn/react@npm:0.3.0":
+  version: 0.3.0
+  resolution: "@shadcn/react@npm:0.3.0"
+  peerDependencies:
+    "@types/react": ">=19"
+    react: ">=19"
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    react:
+      optional: true
+  checksum: 1416b8da0b2fbb4da12f7ab70b17f6d9da0b63bf3e06871c969428dead6e857a74222ea61545f96ac1343f7609e8638431037037aea48230930d6ebc324a2705
+  languageName: node
+  linkType: hard
+
 "@sindresorhus/is@npm:^7.0.2":
   version: 7.2.0
   resolution: "@sindresorhus/is@npm:7.2.0"
@@ -8394,6 +8409,7 @@ __metadata:
     "@radix-ui/react-separator": ^1.1.7
     "@radix-ui/react-slot": ^1.2.3
     "@radix-ui/react-tooltip": ^1.2.8
+    "@shadcn/react": 0.3.0
     "@tailwindcss/postcss": ^4.0.5
     "@tailwindcss/typography": ^0.5.15
     "@types/react": ^19.0.8

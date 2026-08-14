@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react'
 import Image from 'next/image'
 import { DraggableCardBody, DraggableCardContainer } from '@/components/ui/draggable-card'
+import { SquigglyText } from '@/components/ui/squiggly-text'
 import { mediaUrl } from '@/lib/media'
 
 const items = [
@@ -64,10 +65,17 @@ export default function FndsPage() {
           FEAR <span className="text-[#DD345E]">and DREAMS</span>
         </div>
 
-        <div className="text-5xl leading-tight font-extrabold text-[#FBF050] uppercase md:text-7xl lg:text-[6rem]">
+        <div
+          className="text-5xl leading-tight font-extrabold text-[#FBF050] uppercase md:text-7xl lg:text-[6rem]"
+          style={{ fontFamily: 'var(--font-oswald)' }}
+        >
           <div>NOW IS</div>
           <div>THE ONLY</div>
-          <div>REALITY</div>
+          <div>
+            <SquigglyText as="span" steps={5} stepDuration={100} scale={[5, 7]}>
+              REALITY
+            </SquigglyText>
+          </div>
         </div>
       </div>
       {items.map((item, index) => (

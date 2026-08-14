@@ -3,26 +3,44 @@
 这份文件是 Solidays Worker 项目的维护交接说明。开始修改前先阅读本文件和
 `wrangler.jsonc`，不要把 Cloudflare Token、`.env.local` 或其他凭据写入仓库。
 
+本文件记录的是当前 `cloudflare-worker` 分支的实际状态；如果部署配置、数据来源或本地
+启动方式发生变化，完成验证后同步更新这里。
+
 ## 项目概况
 
 - 项目：`solidays-worker`，Next.js App Router + Tailwind CSS + Framer Motion。
 - 构建方式：OpenNext for Cloudflare，把 Next.js 应用构建为 Cloudflare Worker。
 - 当前维护分支：`cloudflare-worker`。
 - 当前展示页：`/`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
+- 首页当前固定使用 `data/cards.ts` 中的一条默认卡片；首页不再请求 `/api/cards`，但该接口
+  暂时保留作为以后接入 D1 的数据边界。
+- 首页 CardStack 保留 3 层静态堆叠视觉：1 张真实卡片和 2 个空白后层框，不自动轮播、不
+  做数据切换。
 - 当前生产域名：`https://solidays.win`；`https://www.solidays.win` 会跳转到主域名。
 - `workers.dev` 默认地址已经关闭，不要把它当作生产入口。
 
-## 主要目录
+## 主要目录与当前约定
 
-- `app/`：页面、API 路由和 App Router 入口。
-- `app/fnds/page.tsx`：FNDs 图片卡片页，图片使用 R2 object key。
-- `app/about/page.tsx`：个人介绍页，头像使用 R2 object key。
-- `app/media/[...key]/route.ts`：从 R2 读取媒体的 Worker 路由。
-- `components/`、`contexts/`：页面组件、主题和交互状态。
-- `data/`：当前仍在仓库内的最小默认结构化数据。
-- `lib/media.ts`：媒体 URL 生成；未设置公共 R2 URL 时走 Worker 的 `/media` 路由。
-- `wrangler.jsonc`：Worker、域名、R2、AI 和静态资源绑定的部署源配置。
-- `open-next.config.ts`：OpenNext Cloudflare 构建配置。
+- `app/`：页面、API 路由和 App Router 入口；`fnds`、`about` 的图片/头像通过 R2 object key
+  访问，`app/media/[...key]/route.ts` 负责私有媒体读取。
+- `components/`、`contexts/`：页面组件、主题和交互状态；`lib/media.ts` 负责媒体 URL。
+- `data/cards.ts`：当前唯一的默认卡片数据。`app/page.tsx` 直接使用它，不要恢复客户端
+  fetch、本地镜像状态或自动轮播。
+- `components/ui/CardStack.tsx`：3 层静态堆叠（1 张真实卡片 + 2 个空白后层框），当前不做
+  数据切换；`SongContext` 仍使用同一份默认卡片供 `MusicDock` 查找歌曲。
+- `app/api/cards/route.ts`：当前不是首页运行时依赖，作为未来 D1 数据边界保留；修改前确认
+  没有外部调用方。
+- `components/chat/`：Floating Glass Chat；全局挂载于 `app/layout.tsx`，前端展示为“匿名留言”，
+  已接入 `/api/chat/*`，不调用 Workers AI，也不伪造 owner/assistant 回复。
+- `app/api/chat/`、`lib/chat/`：匿名留言 V1 的同源接口、安全校验、访客 Cookie、Turnstile、限流和
+  D1 访问层。后端保留 `owner`/`system` 消息角色，便于后续回复扩展。
+- `migrations/0001_chat.sql`：D1 的 visitors、conversations、messages 表、索引，以及每个访客只能有
+  一个 open conversation 的唯一部分索引。
+- 聊天使用现有 `framer-motion` 的 `LayoutGroup`/`layoutId` 和 `@shadcn/react` 的消息滚动
+  runtime；不要再安装第二套 `motion`。玻璃效果使用本项目 CSS fallback。
+- 二期已按“匿名留言 V1”开始实施：接入 D1、Turnstile、Rate Limiting、访客 Cookie 和三个留言 API；
+  保留 `owner` 消息角色和后续回复扩展，但本期不做 owner 登录、后台、实时通信、邮件或 AI。
+- `wrangler.jsonc`、`open-next.config.ts`：Worker、域名、R2、AI 和 OpenNext 构建配置。
 
 ## 当前 Cloudflare 资源
 
@@ -35,7 +53,13 @@
 - `MEDIA_BUCKET`：R2 桶 `solidays-media`，当前为远程绑定。
 - `AI`：Workers AI 远程绑定，当前配置已预留；代码中暂未接入具体模型调用。
 - Observability：已启用。
-- 当前没有 D1 绑定，也没有创建本项目专属 D1。以后接入结构化数据前，先确认数据库归属和 ID，再添加 migration 与绑定。
+- `CHAT_DB`：独立 D1 `solidays-chat`，database ID 已写入 `wrangler.jsonc`；远程和本地均已应用
+  `migrations/0001_chat.sql`。
+- `CHAT_RATE_LIMITER`：Workers Rate Limiting binding，匿名留言和结束留言均按访客 Cookie/IP 限制
+  为每 60 秒 10 次。
+- `TURNSTILE_SECRET_KEY`：已写入 `solidays-worker` 的 Worker Secret；正式 Turnstile widget
+  `solidays-chat-turnstile` 已覆盖 `solidays.win`、`localhost`、`127.0.0.1`，前端公开 Site Key
+  通过未提交的 `.env.local` 注入构建。
 
 ### R2 媒体约定
 
@@ -47,44 +71,43 @@
 
 ## 本地开发和检查
 
-项目声明使用 Yarn 3.6.1，版本文件位于 `.yarn/releases/`，配置位于 `.yarnrc.yml`：
+项目声明使用 Yarn 3.6.1，版本文件位于 `.yarn/releases/`，配置位于 `.yarnrc.yml`。当前机器
+没有全局 `yarn`，统一通过项目自带 Yarn 运行，不要生成 `package-lock.json`：
 
 ```bash
-corepack enable
-yarn install
-yarn dev
+node .yarn/releases/yarn-3.6.1.cjs install
+node .yarn/releases/yarn-3.6.1.cjs dev --hostname 127.0.0.1 --port 3001
+node .yarn/releases/yarn-3.6.1.cjs lint
+node .yarn/releases/yarn-3.6.1.cjs build
+node .yarn/releases/yarn-3.6.1.cjs worker:build
+node .yarn/releases/yarn-3.6.1.cjs worker:types
+node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
 ```
 
-常用检查：
+`worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是 `remote: true`，
+本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除或 AI 调用。
 
-```bash
-yarn lint
-yarn worker:build
-yarn worker:types
-```
+本地 Worker 聊天提交还需要在未提交的 `.dev.vars` 中配置 `TURNSTILE_SECRET_KEY`；生产 Worker
+Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth 登录写入。公开的
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` 已配置在未提交的 `.env.local`，不要把任何 Secret 写入仓库。
 
-`yarn worker:dev` 会先构建，再启动 Wrangler 本地 Worker。注意 `wrangler.jsonc` 中的 R2
-和 AI 是 `remote: true`，本地调试可能访问真实 Cloudflare 资源；不要在未确认的情况下
-做上传、删除或 AI 调用。
+构建前先停止开发服务器。`build`/`worker:build` 会重写 `.next`/`.open-next`，和运行中的
+Next dev 共用目录可能导致 Webpack manifest、chunk 或 CSS 404。若侧边浏览器变成无样式 HTML，
+先检查 `/_next/static/css/...` 是否 404，再重启 3001 上属于本项目的旧开发进程。
 
 ## 生产部署流程
 
-### 正常流程（环境中有 Yarn 时）
+当前机器推荐先用项目自带 Yarn 构建，再调用全局 Wrangler；全局 Wrangler 已通过 macOS 钥匙串
+保存 OAuth 登录，不需要把 API Token 放进命令：
 
 ```bash
-yarn worker:build
-yarn worker:deploy
+node .yarn/releases/yarn-3.6.1.cjs worker:build
+node .yarn/releases/yarn-3.6.1.cjs worker:deploy
 ```
 
-### 当前机器的可靠流程
-
-本次部署时，项目虽然声明了 `yarn@3.6.1`，但当前 shell 找不到 `yarn` 命令。OpenNext
-构建可以成功，封装的 deploy 阶段会失败。因此当前机器使用：
-
-```bash
-npm run worker:build
-OPEN_NEXT_DEPLOY=true npx wrangler deploy
-```
+`worker:deploy` 会先用项目自带 Yarn 构建，再通过 `OPEN_NEXT_DEPLOY=true` 调用 Wrangler；当前
+Turnstile 配置和生产部署均已完成。部署后验证 `GET /api/chat/conversation`、Turnstile 失败返回和
+正式留言写入，不要用生产 token 绕过验证。
 
 `OPEN_NEXT_DEPLOY=true` 用来告诉 Wrangler 当前已经由 OpenNext 生成了
 `.open-next/worker.js`，避免 OpenNext 和 Wrangler 互相递归调用。构建产物位于
@@ -95,35 +118,48 @@ OPEN_NEXT_DEPLOY=true npx wrangler deploy
 ```bash
 curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://solidays.win/
 curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://www.solidays.win/
-curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://solidays-worker.<account-subdomain>.workers.dev/
 ```
 
-当前预期分别是自定义域名 `200`、`www` 跳转主域名后 `200`，关闭后的
-`workers.dev` 返回 `404`。由于 `workers_dev` 已关闭，Preview URLs 也默认关闭；确实需要
-预览地址时，显式在 Wrangler 配置中评估并设置 `preview_urls`。
+预期是自定义域名 `200`、`www` 跳转主域名后 `200`；`workers_dev` 已关闭，不把
+`workers.dev` 当作生产入口。构建产物 `.open-next/` 不应手工编辑或提交。
 
-## 本次会话记录的坑
+## 高风险注意事项
 
-1. **OpenNext 的部署命令依赖 package manager。** `npm run worker:deploy` 能完成 Next.js
-   和 OpenNext build，但因为 `package.json` 的 `packageManager` 是 Yarn、环境没有 Yarn，
-   最后报 `/bin/sh: yarn: command not found`。优先启用项目自带 Yarn；否则按上面的“当前机器
-   可靠流程”先 build，再直接 Wrangler deploy。
-2. **只在 Dashboard 关闭 `workers.dev` 不够。** 必须把 `workers_dev` 保持为 `false` 并
-   重新部署，否则后续 Wrangler 部署可能重新开启默认地址。
-3. **不要把账单 Token 当部署 Token。** `CLOUDFLARE_API_TOKEN` 会优先于 Wrangler OAuth；
-   账单只读 Token 没有 Worker/R2 写权限，不能设置成全局部署凭据。Token 只能通过安全的
-   环境或交互式命令提供，不得写入本文件、代码、日志或提交记录。
-4. **远程绑定会触碰生产资源。** R2 和 Workers AI 的 `remote: true` 不是本地模拟；本地
-   调试时读取、写入和模型调用都要按生产操作对待。
-5. **构建有现存 React Hook 警告。** `components/MusicDock.tsx` 有若干缺少依赖的
-   `useEffect` lint warning；它们本次没有阻断构建或部署，但修改音乐组件时应单独修复并验证。
-6. **媒体路由不是任意文件代理。** 新媒体必须遵守 `fnds/`、`profile/` 前缀和 key 约定，
-   不要为了绕过 404 放宽路径校验。
+1. Token 只能通过安全环境或交互式命令提供，绝不写入本文件、代码、日志或提交记录；账单
+   只读 Token 不能代替 Worker/R2 部署权限。
+2. R2 和 Workers AI 的 `remote: true` 会触碰真实资源；本地调试时不要未经确认上传、删除
+   文件或调用模型。
+3. 媒体路由只接受 `fnds/`、`profile/` 前缀和合法 object key，不要为了绕过 404 放宽路径
+   校验。
+4. 不要让生产构建和 dev server 同时运行；若侧边浏览器出现无样式 HTML，先查 CSS 404，
+   再重启 3001 端口上属于本项目的旧进程。
+5. `components/MusicDock.tsx` 仍有已知的 React Hook lint warnings；修改音乐逻辑时单独
+   处理，不要把 warning 当成本期功能错误。
+6. `npx tsc --noEmit` 可能因生成类型文件引用 `.open-next/worker` 报 TS6307；以 Next/
+   OpenNext 正式 build 为准，不要手改生成的 `cloudflare-env.d.ts` 或 `worker-configuration.d.ts`。
+7. 本机 Wrangler 4.121.0 的 workerd 最高支持 `2026-08-11`；若本地启动提示 compatibility date
+   超前，先检查 Wrangler/workerd 版本，不要为了绕过错误关闭绑定或改用 npm。
+
+## 当前匿名留言 V1 状态
+
+- [x] 接入 `GET /api/chat/conversation`、`POST /api/chat/messages` 和
+      `POST /api/chat/conversation/close`。
+- [x] 创建并迁移独立 D1 `solidays-chat`，配置 `CHAT_DB`、`CHAT_RATE_LIMITER` 和必需的
+      `TURNSTILE_SECRET_KEY`，并生成 Cloudflare 绑定类型。
+- [x] 前端展示、读取历史、真实提交、关闭会话和关闭后新会话的代码路径已完成；不追加假回复。
+- [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；Widget
+      允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，并通过官方 siteverify 完成 Secret 校验。
+- [x] 部署包含本期后端的 Worker，版本为 `520863e3-4fd7-44ad-989d-f45caf4338f0`；首页、CSS、会话
+      GET 和伪造 token 拒绝检查已通过。
+- [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生 1 个访客、1 个开放会话和
+      3 条 visitor 消息。
+- [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后新会话；不阻塞当前线上版本。
+- [ ] 后续再做 owner 登录、后台回复、邮件通知或实时能力；本期不实现。
 
 ## 变更和提交约定
 
 - 先检查 `git status --short`，保留用户已有改动，不要使用破坏性重置命令。
-- 修改 `wrangler.jsonc` 后至少执行一次 `yarn worker:build` 或等价的
-  `npm run worker:build`。
+- 修改 `wrangler.jsonc` 后至少执行一次
+  `node .yarn/releases/yarn-3.6.1.cjs worker:build`。
 - 线上部署后验证主域名、`www` 跳转和关键媒体路径。
 - 生成的 `.next/`、`.open-next/`、`.wrangler/` 和本地环境文件不应提交；凭据绝不提交。

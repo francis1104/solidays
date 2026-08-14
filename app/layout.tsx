@@ -1,6 +1,6 @@
 import 'css/tailwind.css'
 
-import { Space_Grotesk } from 'next/font/google'
+import { Oswald, Space_Grotesk } from 'next/font/google'
 import Header from '@/components/Header'
 import SectionContainer from '@/components/SectionContainer'
 import MusicDock from '@/components/MusicDock'
@@ -8,12 +8,20 @@ import siteMetadata from '@/data/siteMetadata'
 import Meteors from '@/components/magicui/meteors'
 import { ThemeProviders } from './theme-providers'
 import { SongProvider } from '@/contexts/SongContext'
+import FloatingChat from '@/components/chat/floating-chat'
 import { Metadata } from 'next'
 
 const space_grotesk = Space_Grotesk({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-space-grotesk',
+})
+
+const oswald = Oswald({
+  subsets: ['latin'],
+  weight: ['600', '700'],
+  display: 'swap',
+  variable: '--font-oswald',
 })
 
 export const metadata: Metadata = {
@@ -59,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang={siteMetadata.language}
-      className={`${space_grotesk.variable} scroll-smooth`}
+      className={`${space_grotesk.variable} ${oswald.variable} scroll-smooth`}
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
@@ -87,6 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </SectionContainer>
             <MusicDock />
           </SongProvider>
+          <FloatingChat />
         </ThemeProviders>
       </body>
     </html>

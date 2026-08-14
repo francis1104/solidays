@@ -5,7 +5,8 @@ export type Card = {
   content: string
 }
 
-// Temporary fallback data. Replace this source with D1 when structured content is ready.
+// Static homepage content for the current Worker build. Replace this source with D1 when
+// structured content is ready; the homepage does not need a client-side fetch for this data.
 export const defaultCards: Card[] = [
   {
     id: 0,

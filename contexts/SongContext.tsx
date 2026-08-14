@@ -1,13 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react'
-
-type Card = {
-  id: number
-  song: string
-  album: string
-  content: string
-}
+import { defaultCards, type Card } from '@/data/cards'
 
 type Song = {
   id: string
@@ -19,7 +13,6 @@ type Song = {
 
 type SongContextType = {
   cards: Card[]
-  setCards: (cards: Card[]) => void
   songQueue: Song[]
   addToSongQueue: (songs: Song[], currentSong?: Song) => void
 }
@@ -27,7 +20,8 @@ type SongContextType = {
 const SongContext = createContext<SongContextType | undefined>(undefined)
 
 export function SongProvider({ children }: { children: ReactNode }) {
-  const [cards, setCards] = useState<Card[]>([])
+  // Keep the music lookup aligned with the single static card shown on the homepage.
+  const cards = defaultCards
   const [songQueue, setSongQueue] = useState<Song[]>([])
 
   // 从localStorage加载队列
@@ -117,7 +111,7 @@ export function SongProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SongContext.Provider value={{ cards, setCards, songQueue, addToSongQueue }}>
+    <SongContext.Provider value={{ cards, songQueue, addToSongQueue }}>
       {children}
     </SongContext.Provider>
   )

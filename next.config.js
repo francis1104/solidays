@@ -1,12 +1,12 @@
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline';
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com;
   style-src 'self' 'unsafe-inline';
   img-src 'self' https: blob: data:;
   media-src 'self' https: blob: data:;
   connect-src 'self' https:;
   font-src 'self' https: data:;
-  frame-src 'self';
+  frame-src 'self' https://challenges.cloudflare.com;
 `
 
 const securityHeaders = [

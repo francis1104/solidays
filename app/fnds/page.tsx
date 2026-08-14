@@ -59,9 +59,9 @@ export default function FndsPage() {
   }, [])
 
   return (
-    <DraggableCardContainer className="relative flex min-h-screen w-full items-center justify-center overflow-clip">
+    <DraggableCardContainer className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-clip">
       <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-3/4 flex-col items-center text-center">
-        <div className="mb-4 text-sm font-extrabold tracking-wider text-neutral-400 md:text-base dark:text-neutral-500">
+        <div className="mb-2 text-sm font-extrabold tracking-wider text-neutral-400 md:text-base dark:text-neutral-500">
           FEAR <span className="text-[#DD345E]">and DREAMS</span>
         </div>
 

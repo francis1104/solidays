@@ -10,7 +10,6 @@ type TurnstileApi = {
     options: {
       sitekey: string
       action: string
-      size: 'invisible'
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
@@ -101,7 +100,6 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
             widgetIdRef.current = window.turnstile.render(containerRef.current, {
               sitekey: siteKey,
               action: 'chat_message',
-              size: 'invisible',
               callback: (token) => {
                 tokenRef.current = token
                 pendingResolveRef.current?.(token)

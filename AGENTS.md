@@ -3,8 +3,8 @@
 这份文件是 Solidays Worker 项目的维护交接说明。开始修改前先阅读本文件和
 `wrangler.jsonc`，不要把 Cloudflare Token、`.env.local` 或其他凭据写入仓库。
 
-本文件记录的是当前 `cloudflare-worker` 分支的实际状态；如果部署配置、数据来源或本地
-启动方式发生变化，完成验证后同步更新这里。
+本文件记录的是当前 `cloudflare-worker-DEV` 开发分支的实际状态；生产分支是
+`cloudflare-worker`。如果部署配置、数据来源或本地启动方式发生变化，完成验证后同步更新这里。
 
 ## Cloudflare 操作原则
 
@@ -12,17 +12,30 @@
   Dashboard 或浏览器。
 - 日常部署、版本查询、绑定检查、D1/R2 操作、Worker 日志和线上冒烟测试都通过 CLI 完成；
   需要账号、网络或 macOS Keychain 时，在沙箱外运行，并设置 `WRANGLER_WRITE_LOGS=false`。
-- GitHub → Cloudflare Workers Builds 的仓库连接已经完成，不要重复进入浏览器配置；正常发布
-  只需提交并推送 `cloudflare-worker` 分支。
+- GitHub → Cloudflare Workers Builds 的仓库连接已经完成，不要重复进入浏览器配置。日常开发只
+  在 `cloudflare-worker-DEV` 分支进行；只有合并到 `cloudflare-worker` 并推送生产分支时才发布线上版本。
 - 只有 CLI/API 不支持的操作，或用户明确要求查看 Dashboard 时，才使用浏览器；不要为了
   查询部署状态切换到浏览器。
 - 绝不在命令参数、日志、提交记录或文档中输出 Cloudflare Token、Worker Secret 或其他凭据。
+
+## 分支与发布约定
+
+- `cloudflare-worker-DEV`：日常开发、调试和功能提交分支；以后默认切换到这个分支工作。
+- `cloudflare-worker`：生产分支；只接受已经在 DEV 分支验证过的改动。
+- 日常开发流程：切到 DEV → 修改和本地验证 → 提交 → 推送 `cloudflare-worker-DEV`。DEV 推送不应
+  更新生产 Worker。
+- 发布流程：停止本地开发服务器 → 在 DEV 完成检查和提交 → 切到生产分支并同步 → 合并
+  `cloudflare-worker-DEV` → 推送 `cloudflare-worker` → 等待 Workers Builds 自动部署 → 用 Wrangler
+  CLI 和线上 HTTP 请求核验。
+- 不要直接在 `cloudflare-worker` 上开发或提交；不要用本地 `worker:deploy` 绕过生产 CI，除非
+  Workers Builds 明确失败或用户明确要求手工回退。
 
 ## 项目概况
 
 - 项目：`solidays-worker`，Next.js App Router + Tailwind CSS + Framer Motion。
 - 构建方式：OpenNext for Cloudflare，把 Next.js 应用构建为 Cloudflare Worker。
-- 当前维护分支：`cloudflare-worker`。
+- 当前维护分支：`cloudflare-worker-DEV`。
+- 当前生产分支：`cloudflare-worker`。
 - 当前展示页：`/`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
 - 首页当前固定使用 `data/cards.ts` 中的一条默认卡片；首页不再请求 `/api/cards`，但该接口
   暂时保留作为以后接入 D1 的数据边界。
@@ -110,18 +123,33 @@ Next dev 共用目录可能导致 Webpack manifest、chunk 或 CSS 404。若侧�
 ## 生产部署流程
 
 当前生产主流程是 GitHub → Cloudflare Workers Builds，目标仓库是
-`francis1104/tailwind-nextjs-starter-blog`，生产分支是 `cloudflare-worker`。Workers Builds
-中的命令已经配置为：
+`francis1104/tailwind-nextjs-starter-blog`，生产分支是 `cloudflare-worker`。日常开发分支是
+`cloudflare-worker-DEV`；只有生产分支推送才触发线上发布。Workers Builds 中的命令已经配置为：
 
 ```text
 构建命令：yarn worker:build
 部署命令：yarn worker:deploy:ci
 ```
 
+### 日常开发
+
+```bash
+git switch cloudflare-worker-DEV
+git pull --ff-only origin cloudflare-worker-DEV
+# 修改、检查和本地验证
+git add -A
+git commit -m "<describe change>"
+git push origin cloudflare-worker-DEV
+```
+
+### 发布生产
+
 正常发布按以下顺序执行：
 
-1. 确认工作区和分支：`git status --short --branch`。
-2. 使用项目自带 Yarn 做检查和构建：
+1. 在 DEV 分支确认工作区和分支：`git status --short --branch`。
+2. 停止本地开发服务器。构建和开发服务器不能同时运行，否则可能互相覆盖 `.next` 或
+   `.open-next` 产物。
+3. 使用项目自带 Yarn 做检查和构建：
 
    ```bash
    node .yarn/releases/yarn-3.6.1.cjs lint
@@ -130,24 +158,38 @@ Next dev 共用目录可能导致 Webpack manifest、chunk 或 CSS 404。若侧�
    WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs worker:deploy:ci --dry-run
    ```
 
-3. 提交并推送：
+4. 在 DEV 分支提交并推送：
 
    ```bash
    git add -A
    git commit -m "<describe change>"
+   git push origin cloudflare-worker-DEV
+   ```
+
+5. 切到生产分支并同步，然后合并 DEV：
+
+   ```bash
+   git switch cloudflare-worker
+   git pull --ff-only origin cloudflare-worker
+   git merge --no-ff cloudflare-worker-DEV -m "merge cloudflare-worker-DEV into production"
+   ```
+
+6. 推送生产分支：
+
+   ```bash
    git push origin cloudflare-worker
    ```
 
-4. 推送后由 Workers Builds 自动运行构建和部署；正常发布不要再手动执行
+7. 推送后由 Workers Builds 自动运行构建和部署；正常发布不要再手动执行
    `worker:deploy`，避免重复构建或绕过 CI。
-5. 用 Wrangler CLI 核验最新部署和绑定：
+8. 用 Wrangler CLI 核验最新部署和绑定：
 
    ```bash
    WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs exec wrangler deployments list --name solidays-worker --json
    WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs exec wrangler versions view <VERSION_ID> --json
    ```
 
-6. 用 CLI 做线上冒烟测试：
+9. 用 CLI 做线上冒烟测试：
 
    ```bash
    curl -sS -o /dev/null -w '%{http_code} %{url_effective}\n' https://solidays.win/
@@ -218,10 +260,13 @@ curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://www.solida
 
 ## 变更和提交约定
 
-- 先检查 `git status --short`，保留用户已有改动，不要使用破坏性重置命令。
+- 先检查 `git status --short --branch`，默认在 `cloudflare-worker-DEV` 上工作；保留用户已有改动，
+  不要使用破坏性重置命令。
 - 修改 `wrangler.jsonc` 后至少执行一次
   `node .yarn/releases/yarn-3.6.1.cjs worker:build`。
 - 线上部署后验证主域名、`www` 跳转和关键媒体路径。
 - Cloudflare 操作优先走 CLI，不要主动打开浏览器；若使用 Workers Builds，推送后用 Wrangler
   `deployments list`/`versions view` 核验，不要把“GitHub 已推送”直接当成“线上已发布”。
+- 生产发布必须通过 `cloudflare-worker-DEV` → `cloudflare-worker` 的合并流程；不要直接在生产分支
+  修改后推送。
 - 生成的 `.next/`、`.open-next/`、`.wrangler/` 和本地环境文件不应提交；凭据绝不提交。

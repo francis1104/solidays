@@ -91,7 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SongProvider>
             <SectionContainer>
               <Header />
-              <main className="mb-auto">{children}</main>
+              <main className="flex min-h-0 flex-1 flex-col">{children}</main>
             </SectionContainer>
             <MusicDock />
           </SongProvider>

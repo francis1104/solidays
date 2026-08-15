@@ -6,8 +6,38 @@ import { CHAT_LIMITS } from './lib/chat/limits'
 
 const MAX_PURGE_BATCHES_PER_RUN = 10
 
+function isExplicitlyCacheable(request: Request, response: Response) {
+  const url = new URL(request.url)
+  const contentType = response.headers.get('content-type') ?? ''
+
+  return (
+    (request.method === 'GET' || request.method === 'HEAD') &&
+    url.pathname.startsWith('/media/') &&
+    response.status === 200 &&
+    contentType.toLowerCase().startsWith('image/') &&
+    !response.headers.has('set-cookie')
+  )
+}
+
 export default {
-  fetch: openNextHandler.fetch,
+  async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+    const response = await openNextHandler.fetch(request, env, ctx)
+
+    if (isExplicitlyCacheable(request, response)) {
+      return response
+    }
+
+    const headers = new Headers(response.headers)
+    headers.set('Cache-Control', 'private, no-store, max-age=0')
+    headers.set('CDN-Cache-Control', 'no-store')
+    headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+  },
 
   async scheduled(controller: ScheduledController, env: CloudflareEnv) {
     if (controller.cron !== CHAT_LIMITS.cleanupCron) return

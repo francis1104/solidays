@@ -77,9 +77,10 @@
 - Custom Domains：`solidays.win`、`www.solidays.win`。
 - `workers_dev: false`：关闭默认 `workers.dev` 地址；如果只在 Dashboard 里关闭而不保留这个配置，下次部署可能重新启用。
 - `ASSETS`：OpenNext 静态资源绑定。
-- `cache.enabled: false`：关闭 Workers Caching。OpenNext 静态页会带 `s-maxage=31536000`，
-  打开这一层会把 `/` 的 HTML 或 RSC 缓存一年，区级 purge 清不掉；在单独设计 HTML/RSC
-  缓存之前不要重新打开。`cross_version_cache` 未启用。`open-next.config.ts` 使用
+- `cache.enabled: true`：打开 Workers Caching，不加 `cross_version_cache`。`custom-worker.ts`
+  只允许 `GET/HEAD /media/*` 且响应为 `200`、`image/*`、无 `Set-Cookie` 的结果保留原
+  Cache-Control；其余动态 Worker 响应改为 `no-store`。`/_next/static/*` 仍由 Static Assets
+  服务，不靠这层出口。区级 purge 清不掉 Workers Caching。`open-next.config.ts` 使用
   `defineCloudflareConfig({})`，增量缓存是 dummy，没有 R2 incremental cache。
 - `MEDIA_BUCKET`：R2 桶 `solidays-media`，当前为远程绑定。
 - `AI`：Workers AI 远程绑定，当前配置已预留；代码中暂未接入具体模型调用。

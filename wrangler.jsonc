@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "solidays-worker",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "keep_names": false,
   "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -36,6 +36,9 @@
   },
   "observability": {
     "enabled": true,
+  },
+  "triggers": {
+    "crons": ["0 3 * * *"],
   },
   "r2_buckets": [
     {

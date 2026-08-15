@@ -21,4 +21,6 @@ export type ChatApiResponse = {
     updatedAt: string
   } | null
   messages: ChatApiMessage[]
+  hasMore: boolean
+  nextCursor: string | null
 }

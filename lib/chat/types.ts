@@ -39,6 +39,8 @@ export type ChatConversationDto = {
 export type ChatConversationPayload = {
   conversation: ChatConversationDto | null
   messages: ChatMessageDto[]
+  hasMore: boolean
+  nextCursor: string | null
 }
 
 export type ChatMessageInput = {

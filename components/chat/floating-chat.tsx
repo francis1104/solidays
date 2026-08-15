@@ -42,6 +42,9 @@ export default function FloatingChat() {
   const [isSending, setIsSending] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null)
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -121,6 +124,40 @@ export default function FloatingChat() {
     }
   }, [isClosing])
 
+  const loadMoreHistory = useCallback(async () => {
+    const cursor = historyCursor
+    if (!cursor || isLoadingMoreHistory) return
+
+    setIsLoadingMoreHistory(true)
+    try {
+      const response = await fetch('/api/chat/conversation?cursor=' + encodeURIComponent(cursor), {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
+      }
+
+      const body = (await response.json()) as ChatApiResponse
+      const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+      setMessages((current) => {
+        const currentIds = new Set(current.map((message) => message.id))
+        const uniqueOlderMessages = olderMessages.filter((message) => !currentIds.has(message.id))
+        return [
+          initialMessages[0],
+          ...uniqueOlderMessages,
+          ...current.filter((message) => message.id !== initialMessages[0].id),
+        ]
+      })
+      setHistoryCursor(body.nextCursor ?? null)
+      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
+    } finally {
+      setIsLoadingMoreHistory(false)
+    }
+  }, [historyCursor, isLoadingMoreHistory])
+
   useEffect(() => {
     if (!open || historyRequestedRef.current) return
 
@@ -137,6 +174,8 @@ export default function FloatingChat() {
       .then((body) => {
         const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
         setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
+        setHistoryCursor(body.nextCursor ?? null)
+        setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
         setConversationStatus(body.conversation?.status ?? null)
         setError(null)
       })
@@ -191,12 +230,15 @@ export default function FloatingChat() {
             <ChatPanel
               key="chat-panel"
               messages={messages}
+              hasMoreHistory={hasMoreHistory}
+              isLoadingMoreHistory={isLoadingMoreHistory}
               input={input}
               panelId={PANEL_ID}
               textareaRef={textareaRef}
               onChange={setInput}
               onClose={closeChat}
               onEndConversation={endConversation}
+              onLoadMoreHistory={loadMoreHistory}
               onSubmit={sendMessage}
               conversationStatus={conversationStatus}
               isClosing={isClosing}

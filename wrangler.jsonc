@@ -2,6 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "solidays-worker",
   "main": ".open-next/worker.js",
+  "keep_names": false,
   "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,

@@ -16,11 +16,8 @@ type ChatPanelProps = {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onChange: (value: string) => void
   onClose: () => void
-  onEndConversation: () => void
   onLoadMoreHistory: () => void
   onSubmit: () => void
-  conversationStatus: 'open' | 'closed' | null
-  isClosing: boolean
   isSending: boolean
   error: string | null
   reducedMotion: boolean
@@ -35,11 +32,8 @@ export function ChatPanel({
   textareaRef,
   onChange,
   onClose,
-  onEndConversation,
   onLoadMoreHistory,
   onSubmit,
-  conversationStatus,
-  isClosing,
   isSending,
   error,
   reducedMotion,
@@ -72,12 +66,7 @@ export function ChatPanel({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <ChatHeader
-            onClose={onClose}
-            onEndConversation={onEndConversation}
-            conversationStatus={conversationStatus}
-            isClosing={isClosing}
-          />
+          <ChatHeader onClose={onClose} />
           <ChatMessages
             messages={messages}
             hasMore={hasMoreHistory}
@@ -89,7 +78,7 @@ export function ChatPanel({
             onChange={onChange}
             onSubmit={onSubmit}
             textareaRef={textareaRef}
-            disabled={isSending || isClosing}
+            disabled={isSending}
             error={error}
           />
         </motion.div>

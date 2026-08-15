@@ -38,9 +38,7 @@ export default function FloatingChat() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
-  const [conversationStatus, setConversationStatus] = useState<'open' | 'closed' | null>(null)
   const [isSending, setIsSending] = useState(false)
-  const [isClosing, setIsClosing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
@@ -89,7 +87,6 @@ export default function FloatingChat() {
         message: ChatApiMessage
       }
       setMessages((current) => [...current, mapApiMessage(body.message)])
-      setConversationStatus(body.conversation?.status ?? 'open')
       setInput('')
     } catch (submissionError) {
       setError(
@@ -102,27 +99,6 @@ export default function FloatingChat() {
       setIsSending(false)
     }
   }, [input, isSending, siteKey])
-
-  const endConversation = useCallback(async () => {
-    if (isClosing) return
-
-    setError(null)
-    setIsClosing(true)
-    try {
-      const response = await fetch('/api/chat/conversation/close', {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
-      if (!response.ok) {
-        throw new Error(await getResponseMessage(response, '留言关闭失败，请稍后再试。'))
-      }
-      setConversationStatus('closed')
-    } catch (closeError) {
-      setError(closeError instanceof Error ? closeError.message : '留言关闭失败，请稍后再试。')
-    } finally {
-      setIsClosing(false)
-    }
-  }, [isClosing])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -176,7 +152,6 @@ export default function FloatingChat() {
         setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
         setHistoryCursor(body.nextCursor ?? null)
         setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
-        setConversationStatus(body.conversation?.status ?? null)
         setError(null)
       })
       .catch((loadError) => {
@@ -237,11 +212,8 @@ export default function FloatingChat() {
               textareaRef={textareaRef}
               onChange={setInput}
               onClose={closeChat}
-              onEndConversation={endConversation}
               onLoadMoreHistory={loadMoreHistory}
               onSubmit={sendMessage}
-              conversationStatus={conversationStatus}
-              isClosing={isClosing}
               isSending={isSending}
               error={error}
               reducedMotion={reducedMotion}

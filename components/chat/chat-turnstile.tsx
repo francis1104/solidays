@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 
 type TurnstileWidgetId = string | number
 
@@ -119,6 +119,21 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
     const pendingTimeoutRef = useRef<TurnstileTimeoutHandle | null>(null)
     const readyPromiseRef = useRef<Promise<TurnstileWidgetId | null> | null>(null)
     const readyResolveRef = useRef<ReadyResolve | null>(null)
+    const challengeInFlightRef = useRef(false)
+
+    const startChallenge = useCallback(() => {
+      const widgetId = widgetIdRef.current
+      const turnstile = window.turnstile
+      if (!widgetId || !turnstile || tokenRef.current || challengeInFlightRef.current) return
+
+      challengeInFlightRef.current = true
+      try {
+        turnstile.execute(widgetId)
+      } catch {
+        challengeInFlightRef.current = false
+        settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+      }
+    }, [])
 
     useEffect(() => {
       if (!siteKey || !containerRef.current) return
@@ -157,26 +172,32 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
               execution: 'execute',
               callback: (token) => {
                 tokenRef.current = token
+                challengeInFlightRef.current = false
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, token)
               },
               'expired-callback': () => {
                 tokenRef.current = null
+                challengeInFlightRef.current = false
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
               'error-callback': () => {
                 tokenRef.current = null
+                challengeInFlightRef.current = false
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
               'timeout-callback': () => {
                 tokenRef.current = null
+                challengeInFlightRef.current = false
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
               'unsupported-callback': () => {
                 tokenRef.current = null
+                challengeInFlightRef.current = false
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
             })
             settleReady(readyResolveRef, resolveReady, widgetIdRef.current)
+            startChallenge()
           } catch {
             settleReady(readyResolveRef, resolveReady, null)
           }
@@ -193,12 +214,13 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
         }
         settleReady(readyResolveRef, resolveReady, null)
         settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+        challengeInFlightRef.current = false
         if (widgetIdRef.current !== null) {
           window.turnstile?.remove?.(widgetIdRef.current)
           widgetIdRef.current = null
         }
       }
-    }, [siteKey])
+    }, [siteKey, startChallenge])
 
     useImperativeHandle(
       ref,
@@ -227,20 +249,18 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
             pendingTimeoutRef.current = window.setTimeout(() => {
               settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
             }, TURNSTILE_TOKEN_TIMEOUT_MS)
-            try {
-              turnstile.execute(widgetId)
-            } catch {
-              settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
-            }
+            startChallenge()
           })
         },
         reset: () => {
           tokenRef.current = null
+          challengeInFlightRef.current = false
           settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
           if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current)
+          startChallenge()
         },
       }),
-      [siteKey]
+      [siteKey, startChallenge]
     )
 
     return <div ref={containerRef} aria-hidden="true" className="sr-only" />

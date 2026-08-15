@@ -44,7 +44,11 @@ const MusicDock = () => {
   const [playlist, setPlaylist] = useState<Song[]>([])
   const [loading, setLoading] = useState(true)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const nextSongRef = useRef<() => Promise<void>>(async () => {})
+  const fetchPlaylistRef = useRef<() => Promise<void>>(async () => {})
+  const savePlayerStateRef = useRef<() => void>(() => {})
   const { cards, songQueue, addToSongQueue } = useSongContext()
+  const currentSong = playlist[currentSongIndex]
 
   // 从localStorage加载播放状态
   useEffect(() => {
@@ -75,8 +79,8 @@ const MusicDock = () => {
             }, 100)
           }
         }
-      } catch (error) {
-        console.error('加载播放状态失败:', error)
+      } catch {
+        // Ignore malformed persisted state and use the default player state.
       }
     }
   }, [])
@@ -95,32 +99,34 @@ const MusicDock = () => {
           audioSrc: audio?.src || '', // 保存音频源URL以便对比
         }
         localStorage.setItem('musicPlayerState', JSON.stringify(state))
-      } catch (error) {
-        console.error('保存播放状态失败:', error)
+      } catch {
+        // Ignore storage failures; they should not interrupt playback.
       }
     }
   }
+
+  savePlayerStateRef.current = savePlayerState
 
   // 定期保存播放状态
   useEffect(() => {
     const interval = setInterval(() => {
       if (playlist.length > 0) {
-        savePlayerState()
+        savePlayerStateRef.current()
       }
     }, 10000) // 每10秒保存一次
 
     return () => clearInterval(interval)
-  }, [currentSongIndex, currentTime, playlist])
+  }, [playlist.length])
 
   // 页面卸载前保存状态
   useEffect(() => {
     const handleBeforeUnload = () => {
-      savePlayerState()
+      savePlayerStateRef.current()
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [currentSongIndex, currentTime, playlist])
+  }, [])
 
   // 使用全局音频实例避免页面切换时中断
   useEffect(() => {
@@ -144,7 +150,7 @@ const MusicDock = () => {
         setDuration(audio.duration || 0)
 
         // 如果全局音频有内容但本地状态为空，尝试恢复
-        if (audio.src && (!currentSong || playlist.length === 0)) {
+        if (audio.src) {
           setTimeout(() => {
             try {
               const savedState = localStorage.getItem('musicPlayerState')
@@ -153,7 +159,6 @@ const MusicDock = () => {
 
                 // 优先使用保存的currentSong信息进行快速恢复
                 if (parsedState.currentSong && parsedState.audioSrc === audio.src) {
-                  console.log('快速恢复歌曲信息:', parsedState.currentSong.title)
                   setPlaylist([parsedState.currentSong])
                   setCurrentSongIndex(0)
                   // 如果还有完整播放列表，后续恢复
@@ -168,12 +173,11 @@ const MusicDock = () => {
                   if (savedCurrentSong && savedCurrentSong.url === audio.src) {
                     setPlaylist(parsedState.playlist)
                     setCurrentSongIndex(parsedState.currentSongIndex || 0)
-                    console.log('恢复播放状态:', savedCurrentSong.title)
                   }
                 }
               }
-            } catch (error) {
-              console.error('恢复播放状态失败:', error)
+            } catch {
+              // Ignore malformed persisted state and keep the current audio state.
             }
           }, 100)
         }
@@ -193,7 +197,7 @@ const MusicDock = () => {
       setIsPlaying(false)
       // 使用setTimeout确保状态更新完成
       setTimeout(() => {
-        nextSong()
+        void nextSongRef.current()
       }, 0)
     }
     const handleLoadedData = () => {
@@ -202,9 +206,8 @@ const MusicDock = () => {
       }
     }
     const handleError = () => {
-      console.log('音频加载错误')
       setTimeout(() => {
-        nextSong()
+        void nextSongRef.current()
       }, 0)
     }
 
@@ -248,17 +251,11 @@ const MusicDock = () => {
       endpoint.searchParams.set('n', '1')
       const response = await fetch(endpoint)
 
-      if (!response.ok) {
-        console.error(`API请求失败: ${response.status}`)
-        return null
-      }
+      if (!response.ok) return null
 
       const data = (await response.json()) as MusicApiResponse
 
-      if (data.code !== 200 || !data.data) {
-        console.error(`API返回错误: ${data.code}`)
-        return null
-      }
+      if (data.code !== 200 || !data.data) return null
 
       return {
         id: `${songName}-${Date.now()}`,
@@ -267,8 +264,7 @@ const MusicDock = () => {
         url: data.data.music_url,
         cover: data.data.cover,
       }
-    } catch (error) {
-      console.error(`获取歌曲信息失败 ${songName}:`, error)
+    } catch {
       return null
     }
   }
@@ -280,10 +276,7 @@ const MusicDock = () => {
       const cardNames = getCardNames()
 
       // 如果没有cards，直接返回，不做任何处理
-      if (cardNames.length === 0) {
-        console.log('[播放列表] 没有卡片，跳过获取歌曲')
-        return
-      }
+      if (cardNames.length === 0) return
 
       const songPromises = cardNames.map((name) => fetchSongInfo(name))
       const songResults = await Promise.all(songPromises)
@@ -298,31 +291,12 @@ const MusicDock = () => {
           song.artist.includes('Eason') ||
           song.artist.includes('Eason Chan')
 
-        if (!isEasonChan) {
-          console.log(`过滤掉非陈奕迅歌曲: ${song.title} - ${song.artist}`)
-        }
-
         return isEasonChan
       })
-
-      console.log(`[卡片歌曲] 找到 ${validSongs.length} 首陈奕迅的歌曲`)
 
       // 将cards歌曲添加到队列
       const currentPlayingSong = playlist[currentSongIndex]
       addToSongQueue(validSongs, currentPlayingSong)
-
-      console.log(
-        `[歌单变动] 新增歌曲到队列:`,
-        validSongs.map((song) => `${song.title} - ${song.artist}`)
-      )
-
-      // 显示当前完整队列
-      if (songQueue.length > 0) {
-        console.log(
-          `[当前队列]`,
-          songQueue.map((song) => `${song.title} - ${song.artist}`)
-        )
-      }
 
       // 检查是否正在播放音乐
       const audio = audioRef.current
@@ -330,38 +304,29 @@ const MusicDock = () => {
 
       if (isCurrentlyPlaying) {
         // 如果正在播放，只更新队列，不更改当前播放列表
-        console.log('音乐正在播放，已将新歌曲添加到队列，但保持当前播放状态')
       } else {
         // 如果没有播放或播放列表为空，且有有效歌曲，设置播放列表
         if (playlist.length === 0 && validSongs.length > 0) {
           setPlaylist(validSongs)
-          console.log(
-            `[播放列表初始化]`,
-            validSongs.map((song) => `${song.title} - ${song.artist}`)
-          )
         }
       }
-
-      if (validSongs.length === 0) {
-        console.log('过滤后没有找到陈奕迅的歌曲')
-      }
-    } catch (error) {
-      console.error('获取播放列表失败:', error)
+    } catch {
+      // A failed optional music lookup should leave the rest of the site usable.
     } finally {
       setLoading(false)
     }
   }
 
+  fetchPlaylistRef.current = fetchPlaylist
+
   useEffect(() => {
     // 每次cards变化时都获取新歌曲并添加到队列
     if (cards.length > 0 && musicApiUrl) {
-      fetchPlaylist()
+      void fetchPlaylistRef.current()
     } else {
       setLoading(false)
     }
   }, [cards]) // 监听cards变化
-
-  const currentSong = playlist[currentSongIndex]
 
   // 当歌曲变化时，更新全局音频实例的src
   useEffect(() => {
@@ -409,8 +374,8 @@ const MusicDock = () => {
                 }
               }
             }
-          } catch (error) {
-            console.error('恢复当前歌曲失败:', error)
+          } catch {
+            // Ignore malformed persisted state and keep the current audio state.
           }
         }
       }
@@ -423,7 +388,7 @@ const MusicDock = () => {
     const interval = setInterval(syncAudioState, 1000)
 
     return () => clearInterval(interval)
-  }, [currentSong])
+  }, [currentSong, playlist.length])
 
   const togglePlay = async () => {
     const audio = audioRef.current
@@ -432,7 +397,6 @@ const MusicDock = () => {
     // 如果没有播放列表或当前歌曲，尝试从队列中获取
     if (!currentSong && playlist.length === 0) {
       if (songQueue.length > 0) {
-        console.log('[播放控制] 从队列中选择歌曲播放')
         // 从队列中选择第一首歌曲
         const selectedSong = songQueue[0]
         setPlaylist([selectedSong])
@@ -443,7 +407,6 @@ const MusicDock = () => {
         }, 100)
         return
       } else {
-        console.log('[播放控制] 没有可播放的歌曲')
         return
       }
     }
@@ -475,8 +438,8 @@ const MusicDock = () => {
         audio.pause()
         setIsPlaying(false)
       }
-    } catch (error) {
-      console.log('音频播放失败:', error)
+    } catch {
+      // Browser autoplay and unavailable audio sources are expected failure cases.
     }
   }
 
@@ -486,11 +449,6 @@ const MusicDock = () => {
       if (songQueue.length > 0) {
         // 上一首选择队列前部的歌曲
         const selectedSong = songQueue[0]
-        console.log(`[切换歌曲] 上一首: ${selectedSong.title} - ${selectedSong.artist}`)
-        console.log(
-          `[当前队列]`,
-          songQueue.map((song) => `${song.title} - ${song.artist}`)
-        )
         setPlaylist([selectedSong])
         setCurrentSongIndex(0)
         setIsPlaying(false)
@@ -503,8 +461,8 @@ const MusicDock = () => {
             try {
               await audio.play()
               setIsPlaying(true)
-            } catch (error) {
-              console.log('自动播放失败:', error)
+            } catch {
+              // Autoplay can be blocked by the browser; leave the song paused.
             }
           }
         }, 100)
@@ -513,12 +471,6 @@ const MusicDock = () => {
     }
 
     const prevIndex = (currentSongIndex - 1 + playlist.length) % playlist.length
-
-    console.log(`[切换歌曲] 上一首: ${playlist[prevIndex].title} - ${playlist[prevIndex].artist}`)
-    console.log(
-      `[当前播放列表]`,
-      playlist.map((song) => `${song.title} - ${song.artist}`)
-    )
 
     setCurrentSongIndex(prevIndex)
     setIsPlaying(false)
@@ -532,8 +484,8 @@ const MusicDock = () => {
         try {
           await audio.play()
           setIsPlaying(true)
-        } catch (error) {
-          console.log('自动播放失败:', error)
+        } catch {
+          // Autoplay can be blocked by the browser; leave the song paused.
         }
       }
     }, 100)
@@ -545,11 +497,6 @@ const MusicDock = () => {
       if (songQueue.length > 0) {
         // 优先从后进入的往前播放，所以从队列末尾开始选择
         const selectedSong = songQueue[songQueue.length - 1]
-        console.log(`[切换歌曲] 下一首: ${selectedSong.title} - ${selectedSong.artist}`)
-        console.log(
-          `[当前队列]`,
-          songQueue.map((song) => `${song.title} - ${song.artist}`)
-        )
         setPlaylist([selectedSong])
         setCurrentSongIndex(0)
         setIsPlaying(false)
@@ -562,8 +509,8 @@ const MusicDock = () => {
             try {
               await audio.play()
               setIsPlaying(true)
-            } catch (error) {
-              console.log('自动播放失败:', error)
+            } catch {
+              // Autoplay can be blocked by the browser; leave the song paused.
             }
           }
         }, 100)
@@ -595,16 +542,6 @@ const MusicDock = () => {
     setCurrentTime(0)
     setDuration(0)
 
-    // 打印切换后的歌曲和播放列表信息
-    const nextSongInfo = playlist[nextIndex] || playlist[0] // 防止索引越界
-    if (nextSongInfo) {
-      console.log(`[切换歌曲] 下一首: ${nextSongInfo.title} - ${nextSongInfo.artist}`)
-      console.log(
-        `[当前播放列表]`,
-        playlist.map((song) => `${song.title} - ${song.artist}`)
-      )
-    }
-
     // 无论之前是否在播放，切歌后都自动播放
     setTimeout(async () => {
       const audio = audioRef.current
@@ -612,12 +549,14 @@ const MusicDock = () => {
         try {
           await audio.play()
           setIsPlaying(true)
-        } catch (error) {
-          console.log('自动播放失败:', error)
+        } catch {
+          // Autoplay can be blocked by the browser; leave the song paused.
         }
       }
     }, 100) // 稍微延迟确保新音频已加载
   }
+
+  nextSongRef.current = nextSong
 
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60)

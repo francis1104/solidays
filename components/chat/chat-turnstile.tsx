@@ -90,23 +90,20 @@ function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve()
   if (scriptPromise) return scriptPromise
 
-  scriptPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById(TURNSTILE_SCRIPT_ID) as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true })
-      existing.addEventListener('error', () => reject(new Error('Turnstile failed to load')), {
-        once: true,
-      })
-      return
-    }
+  document.getElementById(TURNSTILE_SCRIPT_ID)?.remove()
 
+  scriptPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.id = TURNSTILE_SCRIPT_ID
     script.src = TURNSTILE_SCRIPT_SRC
     script.async = true
     script.defer = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Turnstile failed to load'))
+    script.onerror = () => {
+      script.remove()
+      scriptPromise = null
+      reject(new Error('Turnstile failed to load'))
+    }
     document.head.appendChild(script)
   })
 

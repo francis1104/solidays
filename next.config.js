@@ -56,6 +56,8 @@ const nextConfig = {
     optimizePackageImports: ['@headlessui/react'],
   },
   images: {
+    deviceSizes: [320, 480, 640],
+    imageSizes: [320, 480, 640],
     remotePatterns: [
       {
         protocol: 'https',

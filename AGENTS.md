@@ -77,6 +77,8 @@
 - `ASSETS`：OpenNext 静态资源绑定。
 - `MEDIA_BUCKET`：R2 桶 `solidays-media`，当前为远程绑定。
 - `AI`：Workers AI 远程绑定，当前配置已预留；代码中暂未接入具体模型调用。
+- `IMAGES`：Cloudflare Images Binding，负责从 R2 原图生成 FNDS 卡片图片变体；原图仍保存在
+  `MEDIA_BUCKET`，不迁移到 Images 存储。
 - Observability：已启用。
 - `CHAT_DB`：独立 D1 `solidays-chat`，database ID 已写入 `wrangler.jsonc`；远程和本地均已应用
   `migrations/0001_chat.sql`。
@@ -92,6 +94,8 @@
 - 头像放在 `profile/` 前缀下，例如 `profile/avatar.jpg`。
 - `/media/[...key]` 只允许 `fnds/` 和 `profile/` 前缀，并拒绝包含 `..` 的路径。
 - 当前生产站通过 Worker 读取私有 R2 对象，不依赖 `r2.dev` 公共地址。
+- FNDS 卡片通过 `variant=card` 请求 320/480/640 宽度的 WebP 变体，Worker 使用 Images Binding
+  从 R2 原图按 `fit=cover` 生成并缓存；不要把原图直接重新写入页面。
 - 新增图片时，先上传到 R2，再在页面中引用对应 object key；不要把同一批生产图片重新放回 Git。
 
 ## 本地开发和检查

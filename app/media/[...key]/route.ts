@@ -6,11 +6,27 @@ type MediaRouteContext = {
   params: Promise<{ key: string[] }>
 }
 
+const CARD_WIDTHS = [320, 480, 640] as const
+
 function isAllowedMediaKey(key: string) {
   return /^(?:fnds|profile)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')
 }
 
-export async function GET(_request: Request, { params }: MediaRouteContext) {
+function getCardTransform(request: Request) {
+  const url = new URL(request.url)
+
+  if (url.searchParams.get('variant') !== 'card') {
+    return null
+  }
+
+  const requestedWidth = Number.parseInt(url.searchParams.get('width') ?? '', 10)
+  const width = CARD_WIDTHS.find((candidate) => candidate >= requestedWidth) ?? CARD_WIDTHS.at(-1)!
+  const quality = width === 320 ? 72 : width === 480 ? 76 : 80
+
+  return { width, quality }
+}
+
+export async function GET(request: Request, { params }: MediaRouteContext) {
   const key = (await params).key.join('/')
 
   if (!isAllowedMediaKey(key)) {
@@ -23,6 +39,32 @@ export async function GET(_request: Request, { params }: MediaRouteContext) {
 
     if (!object) {
       return new Response('Not found', { status: 404 })
+    }
+
+    const cardTransform = getCardTransform(request)
+
+    if (cardTransform && env.IMAGES) {
+      try {
+        const transformed = await env.IMAGES.input(object.body)
+          .transform({
+            width: cardTransform.width,
+            height: cardTransform.width,
+            fit: 'cover',
+          })
+          .output({
+            format: 'image/webp',
+            quality: cardTransform.quality,
+          })
+        const response = transformed.response()
+        const headers = new Headers(response.headers)
+        headers.set('cache-control', 'public, max-age=31536000, immutable')
+        headers.set('x-content-type-options', 'nosniff')
+
+        return new Response(response.body, { status: response.status, headers })
+      } catch (error) {
+        console.error('Failed to transform media object', { key, error })
+        return new Response('Media transformation unavailable', { status: 503 })
+      }
     }
 
     const headers = new Headers()

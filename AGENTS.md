@@ -87,7 +87,7 @@
 - `CHAT_RATE_LIMITER`：Workers Rate Limiting binding，匿名留言、结束留言和历史读取均按可信 IP/
   已验证访客 Cookie 限制为每 60 秒 10 次。
 - `TURNSTILE_SECRET_KEY`：已写入 `solidays-worker` 的 Worker Secret；正式 Turnstile widget
-  `solidays-chat-turnstile` 已覆盖 `solidays.win`、`localhost`、`127.0.0.1`，前端公开 Site Key
+  `solidays-chat-turnstile` 为 Invisible，已覆盖 `solidays.win`、`localhost`、`127.0.0.1`，前端公开 Site Key
   通过版本化的 `.env.production` 注入生产构建；Site Key 本身是公开值，真正的 Secret 仍只放在
   Worker Secret 或本地未提交的 `.dev.vars` 中。
 

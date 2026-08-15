@@ -33,6 +33,7 @@ worker-configuration.d.ts
 
 # misc
 .DS_Store
+*.tsbuildinfo
 
 # debug
 *.log

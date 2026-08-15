@@ -58,7 +58,7 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 ## Turnstile 配置
 
 正式 widget 为 `solidays-chat-turnstile`，允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，
-模式为 Managed；公开 Site Key 配置在未提交的 `.env.local`。Worker secret 只能通过安全命令写入：
+模式为 Invisible；公开 Site Key 配置在未提交的 `.env.local`。Worker secret 只能通过安全命令写入：
 
 ```bash
 wrangler secret put TURNSTILE_SECRET_KEY

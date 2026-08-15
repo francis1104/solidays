@@ -33,8 +33,8 @@ export function SongProvider({ children }: { children: ReactNode }) {
           const parsedQueue = JSON.parse(savedQueue)
           setSongQueue(parsedQueue)
         }
-      } catch (error) {
-        console.error('加载音乐队列失败:', error)
+      } catch {
+        // Ignore malformed persisted state and keep the in-memory queue empty.
       }
     }
   }, [])
@@ -44,8 +44,8 @@ export function SongProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('musicQueue', JSON.stringify(queue))
-      } catch (error) {
-        console.error('保存音乐队列失败:', error)
+      } catch {
+        // Ignore storage failures; music playback should remain non-blocking.
       }
     }
   }

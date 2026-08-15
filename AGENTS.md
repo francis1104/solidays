@@ -88,7 +88,8 @@
   已验证访客 Cookie 限制为每 60 秒 10 次。
 - `TURNSTILE_SECRET_KEY`：已写入 `solidays-worker` 的 Worker Secret；正式 Turnstile widget
   `solidays-chat-turnstile` 已覆盖 `solidays.win`、`localhost`、`127.0.0.1`，前端公开 Site Key
-  通过未提交的 `.env.local` 注入构建。
+  通过版本化的 `.env.production` 注入生产构建；Site Key 本身是公开值，真正的 Secret 仍只放在
+  Worker Secret 或本地未提交的 `.dev.vars` 中。
 
 ### R2 媒体约定
 
@@ -123,7 +124,8 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 
 本地 Worker 聊天提交还需要在未提交的 `.dev.vars` 中配置 `TURNSTILE_SECRET_KEY`；生产 Worker
 Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth 登录写入。公开的
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` 已配置在未提交的 `.env.local`，不要把任何 Secret 写入仓库。
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` 位于版本化的 `.env.production`，本地 `.env.local` 可以覆盖它；
+不要把 `TURNSTILE_SECRET_KEY` 或其他 Secret 写入仓库。
 
 构建前先停止开发服务器。`build`/`worker:build` 会重写 `.next`/`.open-next`，和运行中的
 Next dev 共用目录可能导致 Webpack manifest、chunk 或 CSS 404。若侧边浏览器变成无样式 HTML，

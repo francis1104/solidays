@@ -12,6 +12,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
+  "cache": {
+    "enabled": true,
+  },
+  "images": {
+    "binding": "IMAGES",
+    "remote": true,
+  },
   "routes": [
     {
       "pattern": "solidays.win",

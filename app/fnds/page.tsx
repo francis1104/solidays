@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useEffect } from 'react'
 import Image from 'next/image'
 import { DraggableCardBody, DraggableCardContainer } from '@/components/ui/draggable-card'
 import { SquigglyText } from '@/components/ui/squiggly-text'
 import { mediaUrl } from '@/lib/media'
+import mediaImageLoader from '@/lib/media-image-loader'
 
 const items = [
   {
@@ -45,19 +45,6 @@ const items = [
 ]
 
 export default function FndsPage() {
-  useEffect(() => {
-    const preloadLinks = items.map((item) => {
-      const link = document.createElement('link')
-      link.rel = 'preload'
-      link.as = 'image'
-      link.href = item.image
-      document.head.appendChild(link)
-      return link
-    })
-
-    return () => preloadLinks.forEach((link) => link.remove())
-  }, [])
-
   return (
     <DraggableCardContainer className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-clip">
       <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-3/4 flex-col items-center text-center">
@@ -81,15 +68,16 @@ export default function FndsPage() {
       {items.map((item, index) => (
         <DraggableCardBody key={item.title} className={item.className}>
           <Image
+            loader={mediaImageLoader}
             src={item.image}
             alt={item.title}
             width={320}
             height={320}
+            sizes="320px"
             className="pointer-events-none relative z-10 h-80 w-80 object-cover"
-            priority={index > 2}
-            loading={index > 2 ? undefined : 'lazy'}
-            quality={85}
-            unoptimized
+            priority={index >= items.length - 2}
+            loading={index >= items.length - 2 ? undefined : 'lazy'}
+            quality={75}
           />
           <h3 className="mt-4 text-center text-2xl font-bold text-neutral-700 dark:text-neutral-300">
             {item.title}

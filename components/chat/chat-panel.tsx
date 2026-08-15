@@ -9,12 +9,15 @@ import type { ChatMessage } from './chat-types'
 
 type ChatPanelProps = {
   messages: ChatMessage[]
+  hasMoreHistory: boolean
+  isLoadingMoreHistory: boolean
   input: string
   panelId: string
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onChange: (value: string) => void
   onClose: () => void
   onEndConversation: () => void
+  onLoadMoreHistory: () => void
   onSubmit: () => void
   conversationStatus: 'open' | 'closed' | null
   isClosing: boolean
@@ -25,12 +28,15 @@ type ChatPanelProps = {
 
 export function ChatPanel({
   messages,
+  hasMoreHistory,
+  isLoadingMoreHistory,
   input,
   panelId,
   textareaRef,
   onChange,
   onClose,
   onEndConversation,
+  onLoadMoreHistory,
   onSubmit,
   conversationStatus,
   isClosing,
@@ -72,7 +78,12 @@ export function ChatPanel({
             conversationStatus={conversationStatus}
             isClosing={isClosing}
           />
-          <ChatMessages messages={messages} />
+          <ChatMessages
+            messages={messages}
+            hasMore={hasMoreHistory}
+            isLoadingMore={isLoadingMoreHistory}
+            onLoadMore={onLoadMoreHistory}
+          />
           <ChatComposer
             value={input}
             onChange={onChange}

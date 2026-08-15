@@ -25,7 +25,7 @@
 - 日常开发流程：切到 DEV → 修改和本地验证 → 提交 → 推送 `cloudflare-worker-DEV`。DEV 推送不应
   更新生产 Worker。
 - 发布流程：停止本地开发服务器 → 在 DEV 完成检查和提交 → 切到生产分支并同步 → 合并
-  `cloudflare-worker-DEV` → 推送 `cloudflare-worker` → 等待 Workers Builds 自动部署 → 用 Wrangler
+  `cloudflare-worker-DEV` → 推送 `cloudflare-worker` → 等待 Workers Builds 自动部署（每 2 分钟用 CLI 检查一次）→ 用 Wrangler
   CLI 和线上 HTTP 请求核验。
 - 不要直接在 `cloudflare-worker` 上开发或提交；不要用本地 `worker:deploy` 绕过生产 CI，除非
   Workers Builds 明确失败或用户明确要求手工回退。
@@ -59,8 +59,10 @@
   已接入 `/api/chat/*`，不调用 Workers AI，也不伪造 owner/assistant 回复。
 - `app/api/chat/`、`lib/chat/`：匿名留言 V1 的同源接口、安全校验、访客 Cookie、Turnstile、限流和
   D1 访问层。后端保留 `owner`/`system` 消息角色，便于后续回复扩展。
-- `migrations/0001_chat.sql`：D1 的 visitors、conversations、messages 表、索引，以及每个访客只能有
-  一个 open conversation 的唯一部分索引。
+- `migrations/0001_chat.sql`、`migrations/0002_chat_quotas.sql`：D1 的留言表结构、配额计数/触发器、
+  历史游标索引和每个访客只能有一个 open conversation 的唯一部分索引。
+- `custom-worker.ts`：复用 OpenNext fetch handler，并通过每天 UTC 03:00 的 Cron 清理 30 天前 closed
+  和 90 天未活跃的 open 会话。
 - 聊天使用现有 `framer-motion` 的 `LayoutGroup`/`layoutId` 和 `@shadcn/react` 的消息滚动
   runtime；不要再安装第二套 `motion`。玻璃效果使用本项目 CSS fallback。
 - 二期已按“匿名留言 V1”开始实施：接入 D1、Turnstile、Rate Limiting、访客 Cookie 和三个留言 API；
@@ -80,10 +82,10 @@
 - `IMAGES`：Cloudflare Images Binding，负责从 R2 原图生成 FNDS 卡片图片变体；原图仍保存在
   `MEDIA_BUCKET`，不迁移到 Images 存储。
 - Observability：已启用。
-- `CHAT_DB`：独立 D1 `solidays-chat`，database ID 已写入 `wrangler.jsonc`；远程和本地均已应用
-  `migrations/0001_chat.sql`。
-- `CHAT_RATE_LIMITER`：Workers Rate Limiting binding，匿名留言和结束留言均按访客 Cookie/IP 限制
-  为每 60 秒 10 次。
+- `CHAT_DB`：独立 D1 `solidays-chat`，database ID 已写入 `wrangler.jsonc`；远程已应用
+  `migrations/0001_chat.sql`，`migrations/0002_chat_quotas.sql` 已在本地应用，生产部署前由 CI 迁移。
+- `CHAT_RATE_LIMITER`：Workers Rate Limiting binding，匿名留言、结束留言和历史读取均按可信 IP/
+  已验证访客 Cookie 限制为每 60 秒 10 次。
 - `TURNSTILE_SECRET_KEY`：已写入 `solidays-worker` 的 Worker Secret；正式 Turnstile widget
   `solidays-chat-turnstile` 已覆盖 `solidays.win`、`localhost`、`127.0.0.1`，前端公开 Site Key
   通过未提交的 `.env.local` 注入构建。
@@ -116,6 +118,9 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 `worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是 `remote: true`，
 本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除或 AI 调用。
 
+每次改动后都要主动检查本地浏览器控制台和终端输出；无论是 Error 还是 Warning，都要定位并处理，
+不能默认忽略。如果问题涉及行为取舍、权限或无法安全判断，先明确告诉用户再继续。
+
 本地 Worker 聊天提交还需要在未提交的 `.dev.vars` 中配置 `TURNSTILE_SECRET_KEY`；生产 Worker
 Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth 登录写入。公开的
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 已配置在未提交的 `.env.local`，不要把任何 Secret 写入仓库。
@@ -132,7 +137,7 @@ Next dev 共用目录可能导致 Webpack manifest、chunk 或 CSS 404。若侧�
 
 ```text
 构建命令：yarn worker:build
-部署命令：yarn worker:deploy:ci
+部署命令：yarn worker:deploy:ci（先应用 D1 远程迁移，再部署 Worker）
 ```
 
 ### 日常开发
@@ -184,9 +189,15 @@ git push origin cloudflare-worker-DEV
    git push origin cloudflare-worker
    ```
 
-7. 推送后由 Workers Builds 自动运行构建和部署；正常发布不要再手动执行
-   `worker:deploy`，避免重复构建或绕过 CI。
-8. 用 Wrangler CLI 核验最新部署和绑定：
+7. 推送后由 Workers Builds 自动运行构建和部署；`worker:deploy:ci` 会先应用 D1 远程迁移，
+   再部署 Worker。正常发布不要再手动执行 `worker:deploy`，避免重复构建或绕过 CI。
+   等待 CI 时每 2 分钟检查一次，不要高频轮询：
+
+   ```bash
+   sleep 120
+   ```
+
+8. 用 Wrangler CLI 核验最新部署和绑定；每次检查间隔 120 秒，直到新版本出现并接收 100% 流量：
 
    ```bash
    WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs exec wrangler deployments list --name solidays-worker --json
@@ -252,6 +263,10 @@ curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://www.solida
 - [x] 创建并迁移独立 D1 `solidays-chat`，配置 `CHAT_DB`、`CHAT_RATE_LIMITER` 和必需的
       `TURNSTILE_SECRET_KEY`，并生成 Cloudflare 绑定类型。
 - [x] 前端展示、读取历史、真实提交、关闭会话和关闭后新会话的代码路径已完成；不追加假回复。
+- [x] 完成 Finding 1 的配额、分页、读取限流和 Cron 清理：单会话 50 条/128 KiB，单访客 200 条/
+      512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天。
+- [x] `migrations/0002_chat_quotas.sql` 已在本地应用并验证触发器拒绝第 51 条消息；生产迁移由
+      `worker:deploy:ci` 在部署前执行，当前尚未发布。
 - [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；Widget
       允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，并通过官方 siteverify 完成 Secret 校验。
 - [x] Workers Builds 已自动发布包含本期后端的 Worker，当前核验版本为

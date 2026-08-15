@@ -108,7 +108,8 @@ components/ui/message.tsx 和 components/ui/bubble.tsx。
 3. 空内容时禁用发送按钮。
 4. 提交时 trim，先获取 Turnstile token，再 POST `/api/chat/messages`；只把服务端返回的留言追加到列表，
    不追加本地假 assistant 回复。
-5. 使用 `chat_visitor` Cookie 维持当前匿名会话；历史通过 GET `/api/chat/conversation` 恢复。
+5. 使用 `chat_visitor` Cookie 维持当前匿名会话；历史通过 GET `/api/chat/conversation` 按 20 条一页
+   恢复，存在更早消息时允许继续加载。
 
 ### Step 5：滚动与焦点
 
@@ -177,6 +178,8 @@ component。聊天层使用 z-[60]，并验证与 Header、MobileNav、MusicDock
 - [x] `node .yarn/releases/yarn-3.6.1.cjs lint`、`node .yarn/releases/yarn-3.6.1.cjs build` 和
       `node .yarn/releases/yarn-3.6.1.cjs worker:build` 通过；现有 `MusicDock` hook warning 未在本期扩大处理范围。
 - [x] 接入 D1 migration、访客 Cookie、Turnstile 校验和 Rate Limiting；保留 owner/system 角色供后续回复扩展。
+- [x] 按安全审查补充会话/访客消息与字节配额、游标分页、GET 读取限流和过期会话 Cron 清理；
+      前端提供“加载更早留言”入口。
 - [x] 配置正式 Turnstile widget 的 site key/secret，并完成 Worker 部署；手机端真实 token 留言写入已验证。
 - [ ] 可选回归：重复 token、429、关闭幂等和关闭后新会话；不阻塞当前匿名留言 V1。
 

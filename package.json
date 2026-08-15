@@ -9,8 +9,9 @@
     "lint": "eslint app components contexts data lib",
     "worker:build": "opennextjs-cloudflare build",
     "worker:dev": "opennextjs-cloudflare build && wrangler dev --var CHAT_LOCAL_DEV:true",
-    "worker:deploy": "opennextjs-cloudflare build && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
-    "worker:deploy:ci": "cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
+    "worker:migrate:remote": "wrangler d1 migrations apply solidays-chat --remote --config wrangler.jsonc",
+    "worker:deploy": "opennextjs-cloudflare build && yarn worker:migrate:remote && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
+    "worker:deploy:ci": "yarn worker:migrate:remote && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
     "worker:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { closeOpenConversation } from '@/lib/chat/db'
+import { closeOpenConversation, findVisitor } from '@/lib/chat/db'
 import { emptyResponse, errorResponse } from '@/lib/chat/http'
-import { buildRateLimitKey, checkRateLimit } from '@/lib/chat/rate-limit'
+import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin } from '@/lib/chat/security'
 import { getVisitorId } from '@/lib/chat/session'
 
@@ -16,8 +16,8 @@ function getEnv(): CloudflareEnv | null {
 }
 
 export async function POST(request: Request) {
-  const visitorId = getVisitorId(request)
-  if (!visitorId) return emptyResponse()
+  const candidateVisitorId = getVisitorId(request)
+  if (!candidateVisitorId) return emptyResponse()
 
   const env = getEnv()
   if (!env) return errorResponse(503, 'CHAT_UNAVAILABLE', '留言服务暂时不可用，请稍后再试。')
@@ -26,9 +26,27 @@ export async function POST(request: Request) {
     return errorResponse(403, 'ORIGIN_FORBIDDEN', '请求来源不受支持。')
   }
 
-  const rateLimit = await checkRateLimit(env, buildRateLimitKey(request, visitorId, 'close'))
-  if (!rateLimit.success) {
-    if (rateLimit.unavailable) {
+  const ipRateLimit = await checkIpRateLimit(env, request, 'close')
+  if (!ipRateLimit.success) {
+    if (ipRateLimit.unavailable) {
+      return errorResponse(503, 'RATE_LIMIT_UNAVAILABLE', '访问保护服务暂时不可用，请稍后再试。')
+    }
+    return errorResponse(429, 'RATE_LIMITED', '操作太频繁了，请稍后再试。', {
+      headers: { 'retry-after': '60' },
+    })
+  }
+
+  let visitorId: string | null = null
+  try {
+    visitorId = await findVisitor(env.CHAT_DB, candidateVisitorId)
+  } catch {
+    return errorResponse(503, 'CHAT_UNAVAILABLE', '留言服务暂时不可用，请稍后再试。')
+  }
+  if (!visitorId) return emptyResponse()
+
+  const visitorRateLimit = await checkVisitorRateLimit(env, visitorId, 'close')
+  if (!visitorRateLimit.success) {
+    if (visitorRateLimit.unavailable) {
       return errorResponse(503, 'RATE_LIMIT_UNAVAILABLE', '访问保护服务暂时不可用，请稍后再试。')
     }
     return errorResponse(429, 'RATE_LIMITED', '操作太频繁了，请稍后再试。', {

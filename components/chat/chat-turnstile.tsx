@@ -11,7 +11,6 @@ type TurnstileApi = {
       sitekey: string
       action: string
       execution: 'execute'
-      size: 'invisible'
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
@@ -43,6 +42,7 @@ const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 const TURNSTILE_TOKEN_TIMEOUT_MS = 10_000
 type TurnstileTimeoutHandle = number
+type ReadyResolve = (widgetId: TurnstileWidgetId | null) => void
 
 let scriptPromise: Promise<void> | null = null
 
@@ -59,6 +59,29 @@ function settlePendingToken(
   const resolve = pendingResolveRef.current
   pendingResolveRef.current = null
   resolve?.(token)
+}
+
+function settleReady(
+  readyResolveRef: { current: ReadyResolve | null },
+  owner: ReadyResolve | null,
+  widgetId: TurnstileWidgetId | null
+) {
+  if (!owner || readyResolveRef.current !== owner) return
+  readyResolveRef.current = null
+  owner(widgetId)
+}
+
+function waitForReady(
+  readyPromise: Promise<TurnstileWidgetId | null>,
+  timeoutMs: number
+): Promise<TurnstileWidgetId | null> {
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(() => resolve(null), timeoutMs)
+    void readyPromise.then((widgetId) => {
+      window.clearTimeout(timeoutId)
+      resolve(widgetId)
+    })
+  })
 }
 
 function loadTurnstileScript(): Promise<void> {
@@ -98,35 +121,35 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
     const pendingResolveRef = useRef<((token: string | null) => void) | null>(null)
     const pendingTimeoutRef = useRef<TurnstileTimeoutHandle | null>(null)
     const readyPromiseRef = useRef<Promise<TurnstileWidgetId | null> | null>(null)
-    const readyResolveRef = useRef<((widgetId: TurnstileWidgetId | null) => void) | null>(null)
+    const readyResolveRef = useRef<ReadyResolve | null>(null)
 
     useEffect(() => {
       if (!siteKey || !containerRef.current) return
 
       let cancelled = false
-      readyPromiseRef.current = new Promise((resolve) => {
+      let resolveReady: ReadyResolve | null = null
+      const readyPromise = new Promise<TurnstileWidgetId | null>((resolve) => {
+        resolveReady = resolve
         readyResolveRef.current = resolve
       })
+      readyPromiseRef.current = readyPromise
 
       void loadTurnstileScript()
         .then(() => {
           if (cancelled) {
-            readyResolveRef.current?.(null)
-            readyResolveRef.current = null
+            settleReady(readyResolveRef, resolveReady, null)
             return
           }
 
           const container = containerRef.current
           const turnstile = window.turnstile
           if (!container || !turnstile) {
-            readyResolveRef.current?.(null)
-            readyResolveRef.current = null
+            settleReady(readyResolveRef, resolveReady, null)
             return
           }
 
           if (widgetIdRef.current !== null) {
-            readyResolveRef.current?.(widgetIdRef.current)
-            readyResolveRef.current = null
+            settleReady(readyResolveRef, resolveReady, widgetIdRef.current)
             return
           }
 
@@ -135,7 +158,6 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
               sitekey: siteKey,
               action: 'chat_message',
               execution: 'execute',
-              size: 'invisible',
               callback: (token) => {
                 tokenRef.current = token
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, token)
@@ -157,23 +179,22 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
                 settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
             })
-            readyResolveRef.current?.(widgetIdRef.current)
-            readyResolveRef.current = null
+            settleReady(readyResolveRef, resolveReady, widgetIdRef.current)
           } catch {
-            readyResolveRef.current?.(null)
-            readyResolveRef.current = null
+            settleReady(readyResolveRef, resolveReady, null)
           }
         })
         .catch(() => {
-          readyResolveRef.current?.(null)
-          readyResolveRef.current = null
+          settleReady(readyResolveRef, resolveReady, null)
           settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
         })
 
       return () => {
         cancelled = true
-        readyResolveRef.current?.(null)
-        readyResolveRef.current = null
+        if (readyPromiseRef.current === readyPromise) {
+          readyPromiseRef.current = null
+        }
+        settleReady(readyResolveRef, resolveReady, null)
         settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
         if (widgetIdRef.current !== null) {
           window.turnstile?.remove?.(widgetIdRef.current)
@@ -186,19 +207,17 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
       ref,
       () => ({
         getToken: async () => {
-          const turnstile = window.turnstile
-          if (!siteKey || !turnstile) return null
+          if (!siteKey) return null
 
           let widgetId = widgetIdRef.current
-          if (widgetId === null && readyPromiseRef.current) {
-            widgetId = await Promise.race([
-              readyPromiseRef.current,
-              new Promise<null>((resolve) => {
-                window.setTimeout(() => resolve(null), TURNSTILE_TOKEN_TIMEOUT_MS)
-              }),
-            ])
+          if (widgetId === null) {
+            if (!readyPromiseRef.current) return null
+            widgetId = await waitForReady(readyPromiseRef.current, TURNSTILE_TOKEN_TIMEOUT_MS)
           }
           if (widgetId === null) return null
+
+          const turnstile = window.turnstile
+          if (!turnstile) return null
 
           if (tokenRef.current) {
             const token = tokenRef.current
@@ -227,12 +246,6 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
       [siteKey]
     )
 
-    return (
-      <div
-        ref={containerRef}
-        aria-hidden="true"
-        className="pointer-events-none absolute size-0 overflow-hidden"
-      />
-    )
+    return <div ref={containerRef} aria-hidden="true" className="sr-only" />
   }
 )

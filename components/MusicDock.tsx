@@ -149,7 +149,6 @@ const MusicDock = () => {
         setCurrentTime(audio.currentTime || 0)
         setDuration(audio.duration || 0)
 
-        // 如果全局音频有内容但本地状态为空，尝试恢复
         if (audio.src) {
           setTimeout(() => {
             try {
@@ -302,13 +301,8 @@ const MusicDock = () => {
       const audio = audioRef.current
       const isCurrentlyPlaying = audio && audio.src && !audio.paused && !audio.ended
 
-      if (isCurrentlyPlaying) {
-        // 如果正在播放，只更新队列，不更改当前播放列表
-      } else {
-        // 如果没有播放或播放列表为空，且有有效歌曲，设置播放列表
-        if (playlist.length === 0 && validSongs.length > 0) {
-          setPlaylist(validSongs)
-        }
+      if (!isCurrentlyPlaying && playlist.length === 0 && validSongs.length > 0) {
+        setPlaylist(validSongs)
       }
     } catch {
       // A failed optional music lookup should leave the rest of the site usable.

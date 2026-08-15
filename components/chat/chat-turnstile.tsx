@@ -10,9 +10,13 @@ type TurnstileApi = {
     options: {
       sitekey: string
       action: string
+      execution: 'execute'
+      size: 'invisible'
       callback: (token: string) => void
       'expired-callback': () => void
       'error-callback': () => void
+      'timeout-callback': () => void
+      'unsupported-callback': () => void
     }
   ) => TurnstileWidgetId
   execute: (widgetId: TurnstileWidgetId) => void
@@ -37,8 +41,25 @@ type ChatTurnstileProps = {
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+const TURNSTILE_TOKEN_TIMEOUT_MS = 10_000
+type TurnstileTimeoutHandle = number
 
 let scriptPromise: Promise<void> | null = null
+
+function settlePendingToken(
+  pendingResolveRef: { current: ((token: string | null) => void) | null },
+  pendingTimeoutRef: { current: TurnstileTimeoutHandle | null },
+  token: string | null
+) {
+  if (pendingTimeoutRef.current !== null) {
+    clearTimeout(pendingTimeoutRef.current)
+    pendingTimeoutRef.current = null
+  }
+
+  const resolve = pendingResolveRef.current
+  pendingResolveRef.current = null
+  resolve?.(token)
+}
 
 function loadTurnstileScript(): Promise<void> {
   if (typeof window === 'undefined')
@@ -75,6 +96,7 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
     const widgetIdRef = useRef<TurnstileWidgetId | null>(null)
     const tokenRef = useRef<string | null>(null)
     const pendingResolveRef = useRef<((token: string | null) => void) | null>(null)
+    const pendingTimeoutRef = useRef<TurnstileTimeoutHandle | null>(null)
     const readyPromiseRef = useRef<Promise<TurnstileWidgetId | null> | null>(null)
     const readyResolveRef = useRef<((widgetId: TurnstileWidgetId | null) => void) | null>(null)
 
@@ -88,32 +110,51 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
 
       void loadTurnstileScript()
         .then(() => {
-          if (
-            cancelled ||
-            !containerRef.current ||
-            !window.turnstile ||
-            widgetIdRef.current !== null
-          )
+          if (cancelled) {
+            readyResolveRef.current?.(null)
+            readyResolveRef.current = null
             return
+          }
+
+          const container = containerRef.current
+          const turnstile = window.turnstile
+          if (!container || !turnstile) {
+            readyResolveRef.current?.(null)
+            readyResolveRef.current = null
+            return
+          }
+
+          if (widgetIdRef.current !== null) {
+            readyResolveRef.current?.(widgetIdRef.current)
+            readyResolveRef.current = null
+            return
+          }
 
           try {
-            widgetIdRef.current = window.turnstile.render(containerRef.current, {
+            widgetIdRef.current = turnstile.render(container, {
               sitekey: siteKey,
               action: 'chat_message',
+              execution: 'execute',
+              size: 'invisible',
               callback: (token) => {
                 tokenRef.current = token
-                pendingResolveRef.current?.(token)
-                pendingResolveRef.current = null
+                settlePendingToken(pendingResolveRef, pendingTimeoutRef, token)
               },
               'expired-callback': () => {
                 tokenRef.current = null
-                pendingResolveRef.current?.(null)
-                pendingResolveRef.current = null
+                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
               'error-callback': () => {
                 tokenRef.current = null
-                pendingResolveRef.current?.(null)
-                pendingResolveRef.current = null
+                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+              },
+              'timeout-callback': () => {
+                tokenRef.current = null
+                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+              },
+              'unsupported-callback': () => {
+                tokenRef.current = null
+                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
               },
             })
             readyResolveRef.current?.(widgetIdRef.current)
@@ -126,14 +167,18 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
         .catch(() => {
           readyResolveRef.current?.(null)
           readyResolveRef.current = null
-          pendingResolveRef.current?.(null)
-          pendingResolveRef.current = null
+          settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
         })
 
       return () => {
         cancelled = true
         readyResolveRef.current?.(null)
         readyResolveRef.current = null
+        settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+        if (widgetIdRef.current !== null) {
+          window.turnstile?.remove?.(widgetIdRef.current)
+          widgetIdRef.current = null
+        }
       }
     }, [siteKey])
 
@@ -141,13 +186,19 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
       ref,
       () => ({
         getToken: async () => {
-          if (!siteKey || !window.turnstile) return null
+          const turnstile = window.turnstile
+          if (!siteKey || !turnstile) return null
 
           let widgetId = widgetIdRef.current
           if (widgetId === null && readyPromiseRef.current) {
-            widgetId = await readyPromiseRef.current
+            widgetId = await Promise.race([
+              readyPromiseRef.current,
+              new Promise<null>((resolve) => {
+                window.setTimeout(() => resolve(null), TURNSTILE_TOKEN_TIMEOUT_MS)
+              }),
+            ])
           }
-          if (widgetId === null || !window.turnstile) return null
+          if (widgetId === null) return null
 
           if (tokenRef.current) {
             const token = tokenRef.current
@@ -157,16 +208,19 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
 
           return new Promise((resolve) => {
             pendingResolveRef.current = resolve
+            pendingTimeoutRef.current = window.setTimeout(() => {
+              settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+            }, TURNSTILE_TOKEN_TIMEOUT_MS)
             try {
-              window.turnstile?.execute(widgetId)
+              turnstile.execute(widgetId)
             } catch {
-              pendingResolveRef.current = null
-              resolve(null)
+              settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
             }
           })
         },
         reset: () => {
           tokenRef.current = null
+          settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
           if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current)
         },
       }),

@@ -24,7 +24,7 @@ export function ChatMessages({ messages, hasMore, isLoadingMore, onLoadMore }: C
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="h-full">
           <MessageScrollerViewport aria-label="Messages">
-            <MessageScrollerContent className="justify-end px-4 py-4">
+            <MessageScrollerContent className="px-4 py-4">
               {hasMore ? (
                 <div className="flex justify-center pb-3">
                   <button
@@ -41,12 +41,7 @@ export function ChatMessages({ messages, hasMore, isLoadingMore, onLoadMore }: C
                 const isUser = message.role === 'user'
 
                 return (
-                  <MessageScrollerItem
-                    key={message.id}
-                    messageId={message.id}
-                    scrollAnchor={isUser}
-                    className="w-full"
-                  >
+                  <MessageScrollerItem key={message.id} messageId={message.id} className="w-full">
                     <Message align={isUser ? 'end' : 'start'}>
                       <MessageContent className="w-full">
                         <Bubble

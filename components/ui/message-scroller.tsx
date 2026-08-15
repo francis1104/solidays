@@ -38,7 +38,10 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
-      className={cn('size-full min-h-0 min-w-0 overflow-y-auto overscroll-contain', className)}
+      className={cn(
+        'flex size-full min-h-0 min-w-0 flex-col overflow-y-auto overscroll-contain',
+        className
+      )}
       {...props}
     />
   )
@@ -51,7 +54,7 @@ function MessageScrollerContent({
   return (
     <MessageScrollerPrimitive.Content
       data-slot="message-scroller-content"
-      className={cn('flex h-max min-h-full flex-col gap-3', className)}
+      className={cn('mt-auto flex w-full flex-col gap-3', className)}
       {...props}
     />
   )

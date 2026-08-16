@@ -18,21 +18,53 @@ Token、Worker Secret 或其他凭据。
 
 ## 模块与路由
 
-| 路由 | 说明 | 代码位置 |
-| --- | --- | --- |
-| `/` | 卡片式首页 | `app/page.tsx`、`components/magicui/CardStack.tsx`、`data/cards.ts` |
-| `/fnds` | FNDS 图片卡片页 | `app/fnds/` |
-| `/about` | 个人介绍页 | `app/about/` |
-| `/api/cards` | 卡片数据接口（未来 D1 数据边界） | `app/api/cards/route.ts` |
-| `/api/chat/conversation` | 读取当前留言会话（GET） | `app/api/chat/conversation/route.ts` |
-| `/api/chat/messages` | 提交匿名留言（POST） | `app/api/chat/messages/route.ts` |
-| `/api/chat/conversation/close` | 结束当前会话（POST） | `app/api/chat/conversation/close/route.ts` |
-| `/media/*` | 私有 R2 媒体读取与卡片变体 | `app/media/[...key]/route.ts`、`lib/media.ts` |
-| 中间件 | www → 主域名 308 跳转 | `middleware.ts` |
-| Cron `0 3 * * *` | 清理过期留言会话 | `custom-worker.ts` |
+```text
+solidays.win/
+│
+├── / ······················ 首页：CardStack 静态卡片堆叠
+│     app/page.tsx
+│     ├── components/magicui/CardStack.tsx   # 3 层堆叠（1 真卡 + 2 空白后层）
+│     └── data/cards.ts                      # 默认卡片数据（首页唯一数据源）
+│
+├── /fnds ·················· FNDS 图片卡片页
+│     app/fnds/page.tsx
+│     ├── components/magicui/draggable-card.tsx
+│     ├── components/magicui/squiggly-text.tsx
+│     └── lib/media.ts + lib/media-image-loader.ts   # R2 key → /media URL
+│
+├── /about ················· 个人介绍页（头像走 /media/profile/）
+│     app/about/page.tsx → lib/media.ts
+│
+├── /api/cards ············· GET 卡片数据（force-static；未来 D1 数据边界）
+│     app/api/cards/route.ts → data/cards.ts
+│
+├── /api/chat/ ············· 匿名留言（三个接口共用下列模块）
+│     ├── conversation ····· GET   读当前开放会话（游标分页）
+│     ├── messages ········· POST  提交留言（同源 Origin+Turnstile+限流+D1 配额）
+│     └── conversation/close POST  幂等关闭会话
+│     app/api/chat/**/route.ts               # 三个 route handler
+│     ├── lib/chat/                          # db(D1)·validation·security·turnstile·
+│     │                                      #   rate-limit·session·limits
+│     ├── migrations/0001_chat.sql           # 表结构 + 单开放会话唯一索引
+│     ├── migrations/0002_chat_quotas.sql    # 配额触发器（50 条/128KiB/会话，
+│     │                                      #   200 条/512KiB/访客）
+│     └── components/chat/                   # Floating Glass Chat 前端
+│
+├── /media/<key> ··········· 私有 R2 媒体（fnds/ · profile/ 前缀白名单）
+│     │                        ?variant=card&width=320|480|640 → Images 变体
+│     app/media/[...key]/route.ts
+│     ├── R2  solidays-media（MEDIA_BUCKET 绑定）
+│     └── lib/media.ts                       # key 校验 + 宽度契约
+│
+├── middleware.ts ·········· www.solidays.win → solidays.win 308 跳转
+│
+└── Cron 0 3 * * * ········· custom-worker.ts 清理过期会话
+                              （closed 30 天 / stale open 90 天）
 
-聊天前端：`components/chat/`（全局挂载于 `app/layout.tsx`）；音乐 Dock：
-`components/site/MusicDock.tsx`；主题与歌曲状态：`contexts/`。
+全局挂载（app/layout.tsx）：
+site/Header · site/MusicDock · chat/floating-chat · magicui/meteors
+状态：contexts/SongContext.tsx（卡片歌曲 → MusicDock 播放队列）
+```
 
 组件分组约定：`components/site/` 是项目自己写的页面组件；
 `components/chat/` 是聊天前端；`components/ui/` 是 shadcn 来源、

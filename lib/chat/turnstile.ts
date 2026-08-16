@@ -7,6 +7,7 @@ type SiteverifyResponse = {
   success?: boolean
   action?: string
   hostname?: string
+  metadata?: { result_with_testing_key?: boolean }
 }
 
 export type TurnstileResult = { ok: true } | { ok: false; reason: 'invalid' | 'unavailable' }
@@ -58,13 +59,18 @@ export async function verifyTurnstile(
 
     if (!response.ok) return { ok: false, reason: 'unavailable' }
 
+    // official testing keys answer with a fixed hostname and no action;
+    // accept them in local dev only, detected via metadata.result_with_testing_key
+    const isLocalDevelopment = String(env.CHAT_LOCAL_DEV) === 'true'
     const result = (await response.json()) as SiteverifyResponse
-    if (
-      result.success !== true ||
-      result.action !== EXPECTED_ACTION ||
-      !result.hostname ||
-      !allowedHostnames(request, String(env.CHAT_LOCAL_DEV) === 'true').has(result.hostname)
-    ) {
+    const testingKeyAccepted =
+      isLocalDevelopment && result.metadata?.result_with_testing_key === true
+    const standardChecksPassed =
+      result.action === EXPECTED_ACTION &&
+      !!result.hostname &&
+      allowedHostnames(request, isLocalDevelopment).has(result.hostname)
+
+    if (result.success !== true || !(testingKeyAccepted || standardChecksPassed)) {
       return { ok: false, reason: 'invalid' }
     }
 

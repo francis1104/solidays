@@ -1,5 +1,5 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { ChatQuotaExceededError, findVisitor, persistVisitorMessage } from '@/lib/chat/db'
+import { ChatQuotaExceededError, findVisitor, persistVisitorMessage } from '@/lib/chat/repository'
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin, normalizePageUrl } from '@/lib/chat/security'

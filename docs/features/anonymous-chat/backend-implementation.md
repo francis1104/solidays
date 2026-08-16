@@ -86,8 +86,26 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求映射到
 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS Origin 校验。
 
-## 当前状态
+## 当前状态（原 AGENTS.md「匿名留言 V1 状态」清单，2026-08-16 合并）
 
-代码、配额迁移、分页、读取限流、Cron 清理、Turnstile widget 和 Worker 配置均已完成；`0002_chat_quotas.sql`
-已在本地验证，尚未随本次 DEV 改动发布到生产。生产发布前必须由 `worker:deploy:ci` 先应用远程迁移，
-再部署 Worker。剩余的本地测试 key 回归和重复 token/关闭流程属于后续可选回归。
+- [x] 接入 `GET /api/chat/conversation`、`POST /api/chat/messages` 和
+      `POST /api/chat/conversation/close`。
+- [x] 创建并迁移独立 D1 `solidays-chat`，配置 `CHAT_DB`、`CHAT_RATE_LIMITER` 和必需的
+      `TURNSTILE_SECRET_KEY`，并生成 Cloudflare 绑定类型。
+- [x] 前端展示、读取历史、真实提交、关闭会话和关闭后新会话的代码路径已完成；
+      不追加假回复。
+- [x] 完成配额、分页、读取限流和 Cron 清理：单会话 50 条/128 KiB，单访客 200 条/
+      512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天。
+- [x] `migrations/0002_chat_quotas.sql` 已在本地应用并验证触发器拒绝第 51 条消息；
+      生产迁移由 `worker:deploy:ci` 在部署前执行。
+- [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；
+      Widget 允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，并通过官方
+      siteverify 完成 Secret 校验。
+- [x] Workers Builds 已自动发布包含本期后端的 Worker，当前核验版本为
+      `6b1bc459-ed63-43e4-96bd-832199ecca08`，100% 流量生效；首页、CSS、会话 GET、
+      聊天路由和伪造 token 拒绝检查已通过。
+- [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
+      1 个访客、1 个开放会话和 3 条 visitor 消息。
+- [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
+      新会话；不阻塞当前线上版本。
+- [ ] 后续再做 owner 登录、后台回复、邮件通知或实时能力；本期不实现。

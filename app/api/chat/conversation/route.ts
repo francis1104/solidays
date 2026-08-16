@@ -1,6 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
-import { decodeMessageCursor, findVisitor, loadOpenConversation } from '@/lib/chat/db'
+import { decodeMessageCursor, findVisitor, loadOpenConversation } from '@/lib/chat/repository'
 import { CHAT_LIMITS } from '@/lib/chat/limits'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { getVisitorId } from '@/lib/chat/session'

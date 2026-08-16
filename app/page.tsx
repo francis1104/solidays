@@ -1,4 +1,4 @@
-import { CardStack } from '@/components/ui/CardStack'
+import { CardStack } from '@/components/magicui/CardStack'
 import { defaultCards } from '@/data/cards'
 
 export default function HomePage() {

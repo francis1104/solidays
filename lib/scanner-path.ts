@@ -4,38 +4,40 @@
  * replace .gitignore / .assetsignore / build-output secret checks.
  */
 
-const SCANNER_EXACT_PATHS = new Set([
-  '/wp-login.php',
-  '/xmlrpc.php',
-  '/phpmyadmin',
-  '/pma',
-  '/adminer.php',
-  '/server-status',
-  '/server-info',
-  '/phpinfo.php',
-  '/info.php',
+const SCANNER_EXACT_FILES = new Set([
+  'wp-login.php',
+  'xmlrpc.php',
+  'adminer.php',
+  'server-status',
+  'server-info',
+  'phpinfo.php',
+  'info.php',
+  'composer.json',
+  'composer.lock',
+  '.htaccess',
+  '.htpasswd',
 ])
 
-const SCANNER_DIRECTORY_PREFIXES = [
-  '/wp-admin',
-  '/wp-content',
-  '/wp-includes',
-  '/wordpress',
-  '/phpmyadmin',
-  '/pma',
-  '/cgi-bin',
-  '/actuator',
-] as const
+const SCANNER_DIRECTORY_SEGMENTS = new Set([
+  'wp-admin',
+  'wp-content',
+  'wp-includes',
+  'wordpress',
+  'phpmyadmin',
+  'pma',
+  'cgi-bin',
+  'actuator',
+])
 
-const SCANNER_DOT_PREFIXES = [
-  '/.git',
-  '/.env',
-  '/.svn',
-  '/.hg',
-  '/.bzr',
-  '/.aws',
-  '/.ssh',
-  '/.docker',
+const SCANNER_DOT_SEGMENT_PREFIXES = [
+  '.git',
+  '.env',
+  '.svn',
+  '.hg',
+  '.bzr',
+  '.aws',
+  '.ssh',
+  '.docker',
 ] as const
 
 const DUMP_SUFFIXES = ['.sql', '.sql.gz', '.sql.bz2', '.sql.xz', '.sql.zip'] as const
@@ -44,20 +46,28 @@ const ARCHIVE_DUMP_BASENAME =
 
 function normalizePathname(pathname: string) {
   const withoutQuery = pathname.split('?')[0] ?? pathname
-  const collapsed = withoutQuery.replace(/\/{2,}/g, '/')
+  let decoded = withoutQuery
+
+  try {
+    decoded = decodeURIComponent(withoutQuery)
+  } catch {
+    // malformed encoding: keep raw path
+  }
+
+  const collapsed = decoded.replace(/\/{2,}/g, '/')
   if (collapsed.length > 1 && collapsed.endsWith('/')) {
     return collapsed.slice(0, -1).toLowerCase()
   }
   return collapsed.toLowerCase() || '/'
 }
 
-function basename(pathname: string) {
-  const index = pathname.lastIndexOf('/')
-  return index === -1 ? pathname : pathname.slice(index + 1)
+function pathSegments(pathname: string) {
+  return pathname.split('/').filter(Boolean)
 }
 
-function hasDirectoryPrefix(pathname: string, prefix: string) {
-  return pathname === prefix || pathname.startsWith(`${prefix}/`)
+function basename(pathname: string) {
+  const segments = pathSegments(pathname)
+  return segments[segments.length - 1] ?? ''
 }
 
 function isPreservedPath(pathname: string) {
@@ -85,32 +95,11 @@ function isDumpOrBackup(pathname: string) {
   return ARCHIVE_DUMP_BASENAME.test(basename(pathname))
 }
 
-export function isScannerPath(pathname: string) {
-  const normalized = normalizePathname(pathname)
+function isStrongScannerPath(pathname: string) {
+  const fileName = basename(pathname)
+  const segments = pathSegments(pathname)
 
-  if (isPreservedPath(normalized)) {
-    return false
-  }
-
-  if (SCANNER_EXACT_PATHS.has(normalized)) {
-    return true
-  }
-
-  if (SCANNER_DOT_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
-    return true
-  }
-
-  if (SCANNER_DIRECTORY_PREFIXES.some((prefix) => hasDirectoryPrefix(normalized, prefix))) {
-    return true
-  }
-
-  const fileName = basename(normalized)
-
-  if (fileName === '.htaccess' || fileName === '.htpasswd') {
-    return true
-  }
-
-  if (fileName === 'composer.json' || fileName === 'composer.lock') {
+  if (SCANNER_EXACT_FILES.has(fileName)) {
     return true
   }
 
@@ -118,8 +107,30 @@ export function isScannerPath(pathname: string) {
     return true
   }
 
-  if (normalized.includes('/phpunit/') && normalized.endsWith('/eval-stdin.php')) {
+  if (segments.some((segment) => SCANNER_DIRECTORY_SEGMENTS.has(segment))) {
     return true
+  }
+
+  if (
+    SCANNER_DOT_SEGMENT_PREFIXES.some((prefix) =>
+      segments.some((segment) => segment.startsWith(prefix))
+    )
+  ) {
+    return true
+  }
+
+  return pathname.includes('/phpunit/') && pathname.endsWith('/eval-stdin.php')
+}
+
+export function isScannerPath(pathname: string) {
+  const normalized = normalizePathname(pathname)
+
+  if (isStrongScannerPath(normalized)) {
+    return true
+  }
+
+  if (isPreservedPath(normalized)) {
+    return false
   }
 
   return isDumpOrBackup(normalized)

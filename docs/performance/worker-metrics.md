@@ -205,15 +205,17 @@ schema，不是查询失败。需要单独确认是不是有意清空，**不是
 **改哪里**：`custom-worker.ts` 的 `fetch`，在调用 `openNextHandler.fetch`
 **之前**匹配。放在后面就晚了，CPU 已经花掉。
 
-**边界语义**：目录用 `=== prefix || startsWith(prefix + '/')`，避免
-`/wp-admin` 误伤 `/wp-administer`。点文件前缀按整段拦截，例如
-`pathname.startsWith('/.git')` 会连 `/.github`、`/.gitignore` 一起 404。
-本站没有理由通过 HTTP 暴露这些根路径，所以不给 `/.github` 留例外。
+**边界语义**：强 scanner signature（`.git*`、`.env*`、`wp-admin`、
+`wp-config.php*`、`composer.json` 等）先于 preserve namespace 判断，所以
+`/api/.env`、`/admin/wp-config.php` 也会 early 404；`/admin` 本身不受影响。
+目录按 path segment 精确匹配，避免 `/wp-admin` 误伤 `/wp-administer`。
+点文件前缀按 segment 前缀拦截，`/.git` 会连 `/.github`、`/.gitignore` 一起
+404。matcher 只对副本做一次安全 `decodeURIComponent`，不改 request URL。
 
-实现见 `lib/scanner-path.ts`：WordPress / PHP 扫描、VCS 与敏感文件、常见
-服务器探测三类高置信度路径；`/admin`、`/api/*`、`/media/*`、`/_next/*`、
-`/fnds`、`/about`、`/static/*`、`/favicon.ico` 显式保留。不拦所有 `.php` /
-`.json` / `.yaml`。
+实现见 `lib/scanner-path.ts`；用例见 `lib/scanner-path.test.ts`。真实应用
+路径 `/admin`、`/api/*`、`/media/*`、`/_next/*`、`/fnds`、`/about`、
+`/static/*`、`/favicon.ico` 仍显式保留。不拦所有 `.php` / `.json` / `.yaml`。
+dump/archive 启发式放在 preserve 之后。
 
 返回极短 `404`，不要 SSR，不要 HTML 壳。第一版用：
 
@@ -250,7 +252,8 @@ early-return 只用于减少 OpenNext SSR CPU，不替代 `.gitignore` /
 - 本地终端 / 生产日志看不到这些路径的 OpenNext render
 - Worker 总 CPU 使用量下降
 - 回归：`/`、`/fnds`、`/about`、`/admin`、`/api/chat/*`、`/media/*` 行为不变
-- `/.github`、`/.gitignore`、`/.env.local` 应被拦；`/wp-administer` **不能**被拦
+- `/.github`、`/.gitignore`、`/.env.local`、`/api/.env`、`/%2eenv` 应被拦；
+  `/wp-administer` **不能**被拦
 
 早返回之后 `/wp-admin/install.php` 还是 404，只是从“OpenNext SSR 400ms 的
 404”变成“入口几乎零 CPU 的 404”。404 占比不会因此下降。

@@ -151,7 +151,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
 | `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
-| `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（Changes Required：favicon、扫描器早 404、/media 同 colo smoke） |
+| `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（favicon 与扫描器早 404 已落地；/media 同 colo smoke 未做） |
 | `docs/incidents/` | 生产事故报告 |
 
 ## 通用工作规则

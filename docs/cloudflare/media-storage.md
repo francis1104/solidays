@@ -32,3 +32,10 @@ Worker 会通过 `/media/<key>` 读取私有桶。`app/fnds/page.tsx` 会请求
 
 新增图片时，先上传到 R2，再在页面中引用对应 object key；不要把同一批生产图片重新
 放回 Git。
+
+## Gallery 视频（规划，尚未落地）
+
+游戏短片计划放在 `gallery/gaming/` 前缀下，经 R2 custom domain（`media.solidays.win`）
+直出，不走当前 `/media` 图片通路。处理规则、转码决策表和元数据契约见
+`docs/features/gallery/metadata-processing.md`。未接好自定义域名、未写入
+`data/gallery.ts` 之前，不要上传或引用这批对象。

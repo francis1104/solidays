@@ -47,13 +47,13 @@ const items = [
 export default function FndsPage() {
   return (
     <DraggableCardContainer className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-clip">
-      <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-3/4 flex-col items-center text-center">
+      <div className="absolute inset-x-0 top-1/2 flex -translate-y-3/4 flex-col items-center text-center">
         <div className="mb-2 text-sm font-extrabold tracking-wider text-neutral-400 md:text-base dark:text-neutral-500">
           FEAR <span className="text-[#DD345E]">and DREAMS</span>
         </div>
 
         <div
-          className="text-5xl leading-tight font-extrabold text-[#FBF050] uppercase md:text-7xl lg:text-[6rem]"
+          className="text-5xl leading-tight font-extrabold whitespace-nowrap text-[#FBF050] uppercase md:text-7xl lg:text-[6rem]"
           style={{ fontFamily: 'var(--font-oswald)' }}
         >
           <div>NOW IS</div>

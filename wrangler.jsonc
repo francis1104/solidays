@@ -6,8 +6,9 @@
   "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
-  // CHAT_LOCAL_DEV 只通过 `worker:dev --var CHAT_LOCAL_DEV:true` 注入本地环境；
-  // 绝不在 vars 里配置它，避免生产误开 Turnstile hostname 放宽分支。
+  "vars": {
+    "CHAT_LOCAL_DEV": "false",
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",

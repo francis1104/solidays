@@ -325,7 +325,7 @@ https://media.solidays.win/gaming/<id>.webp
 
 Wrangler 的 `r2 object` 只有 `get` / `put` / `delete`，没有 object list；`get` 会下载整段视频，不能当存在性探测。更关键的是「先检查再 put」是 check-then-write，并发时两个进程都可能判定不存在然后都写入。因此 **write-once 必须落在存储层**：用 R2 的 S3 兼容 API 做条件 `PutObject`，带 `If-None-Match: *`。对象已存在则返回 `412 Precondition Failed`，请求失败，不覆盖。
 
-HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint，凭证用本地 API token，不进仓库、不进命令历史。每个对象一次条件 PUT：
+HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint。凭证使用 R2 S3 API credentials（Access Key ID / Secret Access Key，由 R2 API Token 生成），仅从本地环境变量或凭证存储读取，不进仓库、不进命令历史。每个对象一次条件 PUT：
 
 | 对象 | Key | `Content-Type` | `Cache-Control` | 条件头 |
 | --- | --- | --- | --- | --- |
@@ -345,7 +345,7 @@ new PutObjectCommand({
 })
 ```
 
-写上传脚本时把 `@aws-sdk/client-s3` 加为 **devDependency**，只属于开发/媒体处理工具链，不进网站运行时依赖。凭证用本地 R2 S3 API token，不进仓库。
+写上传脚本时把 `@aws-sdk/client-s3` 加为 **devDependency**，只属于开发/媒体处理工具链，不进网站运行时依赖。S3Client 配置 `accessKeyId` / `secretAccessKey`（由 R2 API Token 生成），从本地环境变量（如 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`）或凭证存储读取，不把 Cloudflare API token 字符串直接塞进 SDK，也不进仓库。
 
 不要用 `wrangler r2 object put` 做首次发布。它没有条件写入，会静默覆盖。该命令只适合对照 MIME / Cache-Control 字段，或在已经决定覆盖并准备 purge 的例外路径。
 

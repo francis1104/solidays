@@ -134,6 +134,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/testing/post-deployment-verification.md` | 发布后必走：线上站点 Chrome DevTools 验证流程 |
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
+| `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
 | `docs/incidents/` | 生产事故报告 |
 
 ## 通用工作规则

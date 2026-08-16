@@ -1,8 +1,8 @@
 # Gallery 页面元数据处理方案
 
-> 建立于 2026-08-17。状态：已评审（2026-08-17），**Approved with minor changes**。
-> 第二轮小改（write-once 条件写入、Gallery 基址常量、`wnam` hint 措辞）已写进正文。
-> 架构可进入 A/B 与建桶；新桶、域名、A/B 和页面均未实施。评审记录见第 9 节。
+> 建立于 2026-08-17。状态：已评审（2026-08-17），**Approved — implementation ready**。
+> 可进入第 4.3 节 A/B 与 `solidays-gallery` 建桶。新桶、域名、A/B 和页面均未实施。
+> 评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
 
@@ -332,7 +332,20 @@ HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint，凭证用�
 | 视频 | `gaming/<id>.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
 | poster | `gaming/<id>.webp` | `image/webp` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
 
-已存在 → `412 Precondition Failed`，脚本失败退出。aws-sdk 需要按 R2 文档把该条件头注入请求；不要先 `HeadObject` / `GetObject` 再决定是否上传。
+已存在 → `412 Precondition Failed`，脚本失败退出。使用 AWS SDK for JavaScript v3 的 `PutObjectCommand.IfNoneMatch: '*'`，无需先 HEAD/GET，也无需自定义 middleware 手工注入条件头：
+
+```ts
+new PutObjectCommand({
+  Bucket: 'solidays-gallery',
+  Key: key,
+  Body: body,
+  ContentType: 'video/mp4',
+  CacheControl: 'public, max-age=31536000, immutable',
+  IfNoneMatch: '*',
+})
+```
+
+写上传脚本时把 `@aws-sdk/client-s3` 加为 **devDependency**，只属于开发/媒体处理工具链，不进网站运行时依赖。凭证用本地 R2 S3 API token，不进仓库。
 
 不要用 `wrangler r2 object put` 做首次发布。它没有条件写入，会静默覆盖。该命令只适合对照 MIME / Cache-Control 字段，或在已经决定覆盖并准备 purge 的例外路径。
 
@@ -495,12 +508,10 @@ A/B 或批量转码改变 CRF / maxrate 之后，回写第 4.2 节的实际采�
 
 ### 2026-08-17 第二轮：Approved with minor changes
 
-架构可进入 A/B 和建桶。三处小改已写进正文：
+三处小改已写进正文：条件 `PutObject`、`lib/gallery.ts` 常量、`wnam` 只是 Location Hint。
 
-| 项 | 问题 | 现行约定 |
-| --- | --- | --- |
-| 建议 | `get` / list 做 write-once 检查不可用，且不是原子的 | S3 `PutObject` + `If-None-Match: *`；已存在则 412 |
-| 建议 | `NEXT_PUBLIC_GALLERY_BASE_URL` 未标明是 build-time | 不用该变量；`lib/gallery.ts` 常量 `https://media.solidays.win` |
-| 建议 | 「位置与现有私有桶对齐」过满 | `--location wnam` 只是 Location Hint，best-effort |
+### 2026-08-17 第三轮：Approved — implementation ready
+
+不阻塞实施。一处准确性已改：条件头用 AWS SDK v3 `PutObjectCommand.IfNoneMatch: '*'`，不需要自定义 middleware。上传脚本落地时再把 `@aws-sdk/client-s3` 加为 devDependency。
 
 初版里应保留的部分未改：82 条 inventory、remux 2 / transcode 80、三类 A/B、不强制 CFR 60、720p 不放大、faststart、原片与 Web 成品分离、key 与展示名分离、`data/gallery.ts` 静态源、生产不用 `r2.dev`。

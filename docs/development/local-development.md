@@ -30,10 +30,18 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 
 ## 环境变量与 Secret
 
-- 本地 Worker 聊天提交需要在未提交的 `.dev.vars` 中配置 `TURNSTILE_SECRET_KEY`；
-  生产 Worker Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth 登录写入。
-- 公开的 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 位于版本化的 `.env.production`，本地
-  `.env.local` 可以覆盖它。
+- 本地 Worker 聊天提交使用 Cloudflare 官方 dummy 测试密钥对（不提交仓库）：
+  `.env.local` 配 `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000BB`
+  （invisible 永过），`.dev.vars` 配
+  `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`（永过校验）。
+  两把必须配套，dummy token 只被 dummy secret 接受。dummy 密钥下 siteverify
+  固定返回 `hostname: "example.com"`、无 `action`，并带
+  `metadata.result_with_testing_key: true` 标记；后端在 `CHAT_LOCAL_DEV` 下
+  凭该标记接受校验结果（实测为准，勿信文档摘要）。测 403 路径可临时换
+  永失败 sitekey `2x00000000000000000000BB`。
+- 真实密钥只用于生产：公开的 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 位于版本化的
+  `.env.production`，Worker Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth
+  登录写入。
 - 不要把 `TURNSTILE_SECRET_KEY` 或其他 Secret 写入仓库。
 - `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求
   映射到 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS
@@ -56,6 +64,10 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 3. 本机 Wrangler 4.121.0 的 workerd 最高支持 `2026-08-11`；若本地启动提示
    compatibility date 超前，先检查 Wrangler/workerd 版本，不要为了绕过错误关闭
    绑定或改用 npm。
+4. Turnstile widget 管理有内置 CLI：`wrangler turnstile widget list/get/create/
+   update/delete`（alpha），本机 OAuth 凭据含 `challenge-widgets.write` 权限，
+   widget 增删改查走 CLI，不进 Dashboard。核对配置用 `list --json`，展示前
+   过滤掉 secret 字段。
 
 ## 聊天本地回归（可选）
 

@@ -115,14 +115,16 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   security(Origin/IP)·turnstile·rate-limit·
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
-│   └── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
 │
 ├── css/tailwind.css                  # 全局样式入口
 ├── public/                           # 静态资源（favicon 等）
 │
 ├── migrations/                       # D1 迁移：0001 表结构 · 0002 配额触发器
 ├── docs/                             # 分类文档：overview·cloudflare·development·
-│                                     #   deployment·features·testing·incidents
+│                                     #   deployment·features·testing·incidents·
+│                                     #   performance
 │
 ├── middleware.ts                     # www → 主域名 308 跳转
 ├── custom-worker.ts                  # Worker 入口：缓存出口策略 + Cron 清理
@@ -149,6 +151,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
 | `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
+| `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（favicon 与扫描器早 404 已落地；/media 同 colo smoke 未做） |
 | `docs/incidents/` | 生产事故报告 |
 
 ## 通用工作规则

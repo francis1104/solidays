@@ -14,7 +14,7 @@ const compat = new FlatCompat({
 
 export default [
   {
-    ignores: [],
+    ignores: ['**/*.test.ts'],
   },
   js.configs.recommended,
   ...compat.extends(

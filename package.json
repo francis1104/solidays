@@ -7,6 +7,7 @@
     "build": "next build",
     "serve": "next start",
     "lint": "eslint app components contexts data lib",
+    "test:scanner-path": "node --experimental-strip-types --test lib/scanner-path.test.ts",
     "worker:build": "opennextjs-cloudflare build",
     "worker:dev": "opennextjs-cloudflare build && wrangler dev --var CHAT_LOCAL_DEV:true",
     "worker:migrate:remote": "wrangler d1 migrations apply solidays-chat --remote --config wrangler.jsonc",

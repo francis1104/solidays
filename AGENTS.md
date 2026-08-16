@@ -43,7 +43,7 @@ solidays.win/
 │     ├── messages ········· POST  提交留言（同源 Origin+Turnstile+限流+D1 配额）
 │     └── conversation/close POST  幂等关闭会话
 │     app/api/chat/**/route.ts               # 三个 route handler
-│     ├── lib/chat/                          # db(D1)·validation·security·turnstile·
+│     ├── lib/chat/                          # repository(D1)·validation·security·turnstile·
 │     │                                      #   rate-limit·session·limits
 │     ├── migrations/0001_chat.sql           # 表结构 + 单开放会话唯一索引
 │     ├── migrations/0002_chat_quotas.sql    # 配额触发器（50 条/128KiB/会话，

@@ -1,5 +1,5 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { closeOpenConversation, findVisitor } from '@/lib/chat/db'
+import { closeOpenConversation, findVisitor } from '@/lib/chat/repository'
 import { emptyResponse, errorResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin } from '@/lib/chat/security'

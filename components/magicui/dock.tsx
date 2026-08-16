@@ -19,7 +19,6 @@ export function Dock({
   children,
   magnification = DEFAULT_MAGNIFICATION,
   distance = DEFAULT_DISTANCE,
-  direction = 'bottom',
 }: DockProps) {
   const mouseX = useMotionValue(Infinity)
 
@@ -69,7 +68,6 @@ export interface DockIconProps {
 }
 
 export function DockIcon({
-  size,
   magnification = DEFAULT_MAGNIFICATION,
   distance = DEFAULT_DISTANCE,
   mouseX,

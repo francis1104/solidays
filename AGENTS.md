@@ -56,8 +56,9 @@ Token、Worker Secret 或其他凭据。
    `docs/deployment/release-process.md`。
 3. 凭据：`.env.local`、`.dev.vars`、Token、Secret 不提交、不打印；账单只读 Token
    不能代替 Worker/R2 部署权限。
-4. Cloudflare：操作优先 Wrangler CLI，不主动打开 Dashboard 或浏览器；推送后用
-   `deployments list` 核验，"GitHub 已推送"不等于"线上已发布"。
+4. Cloudflare：Cloudflare 相关操作优先用 Wrangler CLI 完成，不要通过 Cloudflare
+   Dashboard/浏览器 UI 执行 Cloudflare 操作；推送后用 `deployments list` 核验，
+   "GitHub 已推送"不等于"线上已发布"。
 5. 远程绑定：`wrangler.jsonc` 中 R2/AI/Images 为 `remote: true`，本地调试会触真实
    资源；未经确认不做上传、删除文件或模型调用。
 6. 构建互斥：`build`/`worker:build` 会重写 `.next`/`.open-next`，不要和 dev server

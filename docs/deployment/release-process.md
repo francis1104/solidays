@@ -5,14 +5,14 @@
 
 ## Cloudflare 操作原则
 
-- Cloudflare 相关操作默认优先使用项目自带 Yarn 和 Wrangler CLI，不要主动打开
-  Cloudflare Dashboard 或浏览器。
+- Cloudflare 相关操作默认优先使用项目自带 Yarn 和 Wrangler CLI 完成，不要通过
+  Cloudflare Dashboard/浏览器 UI 执行 Cloudflare 操作。
 - 日常部署、版本查询、绑定检查、D1/R2 操作、Worker 日志和线上冒烟测试都通过 CLI
   完成；需要账号、网络或 macOS Keychain 时，在沙箱外运行，并设置
   `WRANGLER_WRITE_LOGS=false`。
 - GitHub → Cloudflare Workers Builds 的仓库连接已经完成，不要重复进入浏览器配置。
-- 只有 CLI/API 不支持的操作，或用户明确要求查看 Dashboard 时，才使用浏览器；不要
-  为了查询部署状态切换到浏览器。
+- 只有 CLI/API 不支持的 Cloudflare 操作，或用户明确要求时，才使用 Dashboard；不要
+  为了查询部署状态切换到 Dashboard。
 - 绝不在命令参数、日志、提交记录或文档中输出 Cloudflare Token、Worker Secret 或
   其他凭据。
 

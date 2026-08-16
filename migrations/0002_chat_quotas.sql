@@ -47,6 +47,10 @@ SET
 CREATE INDEX idx_messages_conversation_cursor
   ON messages(conversation_id, created_at DESC, id DESC);
 
+-- 配额字面量 50 / 131072 / 200 / 524288 与 lib/chat/limits.ts 中的
+-- maxMessagesPerConversation / maxMessageBytesPerConversation /
+-- maxMessagesPerVisitor / maxMessageBytesPerVisitor 必须保持一致；
+-- 本迁移已在生产应用，改配额时需要新增迁移重建触发器，并同步修改 limits.ts。
 CREATE TRIGGER messages_enforce_chat_quotas
 BEFORE INSERT ON messages
 WHEN EXISTS (

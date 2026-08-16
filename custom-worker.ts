@@ -44,7 +44,13 @@ export default {
 
     for (let batch = 0; batch < MAX_PURGE_BATCHES_PER_RUN; batch += 1) {
       const result = await purgeExpiredChatData(env.CHAT_DB)
-      if (result.conversations < CHAT_LIMITS.purgeBatchSize) break
+      // 消息和会话两个子查询的批次可能不一致：只要任一删满一批就继续，
+      // 否则积压时（如消息多于会话）会提前退出导致清理永远追不上。
+      if (
+        result.messages < CHAT_LIMITS.purgeBatchSize &&
+        result.conversations < CHAT_LIMITS.purgeBatchSize
+      )
+        break
     }
   },
 } satisfies ExportedHandler<CloudflareEnv>

@@ -8,6 +8,8 @@ export class ChatQuotaExceededError extends Error {
   }
 }
 
+// D1 触发器 RAISE(ABORT, 'CHAT_QUOTA_EXCEEDED') 的错误会以字符串形式包装返回；
+// 依赖错误消息文本判断，升级 Wrangler/D1 后需回归验证"第 51 条消息被拒绝"用例。
 function isQuotaExceededError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return message.includes('CHAT_QUOTA_EXCEEDED')
@@ -265,7 +267,7 @@ export async function closeOpenConversation(db: D1Database, visitorId: string): 
 export async function purgeExpiredChatData(
   db: D1Database,
   now = Date.now()
-): Promise<{ conversations: number }> {
+): Promise<{ messages: number; conversations: number }> {
   const closedCutoff = now - CHAT_LIMITS.closedConversationRetentionMs
   const staleOpenCutoff = now - CHAT_LIMITS.staleOpenConversationRetentionMs
   const expiredConversationIds = `
@@ -293,5 +295,8 @@ export async function purgeExpiredChatData(
       .bind(),
   ])
 
-  return { conversations: results[1].meta.changes ?? 0 }
+  return {
+    messages: results[0].meta.changes ?? 0,
+    conversations: results[1].meta.changes ?? 0,
+  }
 }

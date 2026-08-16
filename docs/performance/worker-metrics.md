@@ -204,22 +204,15 @@ schema，不是查询失败。需要单独确认是不是有意清空，**不是
 **改哪里**：`custom-worker.ts` 的 `fetch`，在调用 `openNextHandler.fetch`
 **之前**匹配。放在后面就晚了，CPU 已经花掉。
 
-**边界语义（不要宽泛 `startsWith`）**：
+**边界语义**：目录用 `=== prefix || startsWith(prefix + '/')`，避免
+`/wp-admin` 误伤 `/wp-administer`。点文件前缀按整段拦截，例如
+`pathname.startsWith('/.git')` 会连 `/.github`、`/.gitignore` 一起 404。
+本站没有理由通过 HTTP 暴露这些根路径，所以不给 `/.github` 留例外。
 
-```ts
-pathname === '/wp-login.php' ||
-pathname === '/xmlrpc.php' ||
-pathname === '/wp-admin' ||
-pathname.startsWith('/wp-admin/') ||
-pathname === '/.env' ||
-pathname.startsWith('/.env.') ||
-pathname === '/.git' ||
-pathname.startsWith('/.git/')
-```
-
-`pathname.startsWith('/.git')` 会误伤 `/.github`；`/wp-admin` 不带尾斜杠的
-`startsWith` 会误伤 `/wp-administer`。第一版只拦明确垃圾路径，matcher 必须
-保守、确定。不要动 `/admin`。
+实现见 `lib/scanner-path.ts`：WordPress / PHP 扫描、VCS 与敏感文件、常见
+服务器探测三类高置信度路径；`/admin`、`/api/*`、`/media/*`、`/_next/*`、
+`/fnds`、`/about`、`/static/*`、`/favicon.ico` 显式保留。不拦所有 `.php` /
+`.json` / `.yaml`。
 
 返回极短 `404`，不要 SSR，不要 HTML 壳。第一版用：
 
@@ -256,7 +249,7 @@ early-return 只用于减少 OpenNext SSR CPU，不替代 `.gitignore` /
 - 本地终端 / 生产日志看不到这些路径的 OpenNext render
 - Worker 总 CPU 使用量下降
 - 回归：`/`、`/fnds`、`/about`、`/admin`、`/api/chat/*`、`/media/*` 行为不变
-- `/.github`、`/wp-administer`、`/.environment` **不能**被拦
+- `/.github`、`/.gitignore`、`/.env.local` 应被拦；`/wp-administer` **不能**被拦
 
 早返回之后 `/wp-admin/install.php` 还是 404，只是从“OpenNext SSR 400ms 的
 404”变成“入口几乎零 CPU 的 404”。404 占比不会因此下降。
@@ -334,8 +327,8 @@ insights 证明 24h 内写过消息，调查当时行数是 0。先问清楚是�
 ## 6. 落地顺序
 
 1. **favicon**：`public/favicon.ico`，原方案直接实施。
-2. **scanner early 404**：实施，matcher 用第 4.2 节的 segment / exact 边界；
-   文档和注释写明只是性能层；验收看 CPU / wall / 无 OpenNext 日志。
+2. **scanner early 404**：`lib/scanner-path.ts` + `custom-worker.ts` 入口；
+   只是性能层；验收看 CPU / wall / 无 OpenNext 日志。
 3. **media 第一阶段**：发布后手工 GET 定义为 smoke + 当前 colo warming；
    记录 `CF-Ray` / `CF-Cache-Status`，同一 colo 确认 `MISS → HIT`。
 4. 若跨区域 `/media` 冷变换长尾仍在：**预生成三档 WebP 到 R2**，不扩大预热脚本。

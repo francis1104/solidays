@@ -115,7 +115,8 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   security(Origin/IP)·turnstile·rate-limit·
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
-│   └── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
 │
 ├── css/tailwind.css                  # 全局样式入口
 ├── public/                           # 静态资源（favicon 等）

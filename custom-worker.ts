@@ -3,6 +3,7 @@
 import { default as openNextHandler } from './.open-next/worker.js'
 import { purgeExpiredChatData } from './lib/chat/repository'
 import { CHAT_LIMITS } from './lib/chat/limits'
+import { isScannerPath } from './lib/scanner-path'
 
 const MAX_PURGE_BATCHES_PER_RUN = 10
 
@@ -21,6 +22,19 @@ function isExplicitlyCacheable(request: Request, response: Response) {
 
 export default {
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+    const url = new URL(request.url)
+
+    if (isScannerPath(url.pathname)) {
+      return new Response('Not found', {
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
+
     const response = await openNextHandler.fetch(request, env, ctx)
 
     if (isExplicitlyCacheable(request, response)) {

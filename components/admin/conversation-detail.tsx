@@ -96,9 +96,9 @@ export function ConversationDetail({
       return
     }
 
-    if (status !== 'ready' || reducedMotion || !stickToBottomRef.current) return
+    if (status !== 'ready' || !stickToBottomRef.current) return
     node.scrollTop = node.scrollHeight
-  }, [messages, status, reducedMotion])
+  }, [messages, status])
 
   const loadOlderMessages = useCallback(async () => {
     const cursor = nextCursor

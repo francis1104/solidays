@@ -13,7 +13,11 @@ import type {
 } from '@/components/admin/admin-types'
 
 type AdminStage = 'checking' | 'locked' | 'ready' | 'error'
-type LoadPageResult = 'ok' | 'unauthorized' | 'failed'
+type LoadPageResult = 'ok' | 'unauthorized' | 'failed' | 'aborted'
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
 
 export default function AdminPage() {
   const [stage, setStage] = useState<AdminStage>('checking')
@@ -27,6 +31,8 @@ export default function AdminPage() {
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const cursorStackRef = useRef<string[]>([])
+  const loadGenerationRef = useRef(0)
+  const loadAbortRef = useRef<AbortController | null>(null)
   const reducedMotion = useReducedMotion() ?? false
 
   const loadPage = useCallback(
@@ -35,6 +41,13 @@ export default function AdminPage() {
       cursor: string | null,
       depth: number
     ): Promise<LoadPageResult> => {
+      loadAbortRef.current?.abort()
+      const controller = new AbortController()
+      loadAbortRef.current = controller
+      const generation = loadGenerationRef.current + 1
+      loadGenerationRef.current = generation
+      const isCurrent = () => generation === loadGenerationRef.current
+
       setLoading(true)
       setListError(null)
       try {
@@ -43,7 +56,9 @@ export default function AdminPage() {
         const response = await fetch(`/api/admin/conversations?${params.toString()}`, {
           credentials: 'same-origin',
           cache: 'no-store',
+          signal: controller.signal,
         })
+        if (!isCurrent()) return 'aborted'
         if (response.status === 401) {
           setStage('locked')
           return 'unauthorized'
@@ -54,6 +69,7 @@ export default function AdminPage() {
         }
 
         const body = (await response.json()) as AdminConversationsResponse
+        if (!isCurrent()) return 'aborted'
         setConversations(body.conversations)
         setHasMore(body.hasMore)
         setPageDepth(depth)
@@ -61,11 +77,12 @@ export default function AdminPage() {
         stack.length = depth
         if (body.nextCursor) stack[depth] = body.nextCursor
         return 'ok'
-      } catch {
+      } catch (error) {
+        if (!isCurrent() || isAbortError(error)) return 'aborted'
         setListError('会话列表读取失败，请稍后再试。')
         return 'failed'
       } finally {
-        setLoading(false)
+        if (isCurrent()) setLoading(false)
       }
     },
     []
@@ -74,6 +91,7 @@ export default function AdminPage() {
   const applyInitialResult = useCallback((result: LoadPageResult) => {
     setStage((current) => {
       if (current !== 'checking' && current !== 'error') return current
+      if (result === 'aborted') return current
       if (result === 'unauthorized') return 'locked'
       if (result === 'failed') return 'error'
       return 'ready'
@@ -82,6 +100,9 @@ export default function AdminPage() {
 
   useEffect(() => {
     void loadPage('all', null, 0).then(applyInitialResult)
+    return () => {
+      loadAbortRef.current?.abort()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -104,6 +125,7 @@ export default function AdminPage() {
       setLogoutError(null)
       const result = await loadPage('all', null, 0)
       if (result === 'unauthorized') return false
+      if (result === 'aborted') return true
       setStage(result === 'failed' ? 'error' : 'ready')
       return true
     },

@@ -50,8 +50,9 @@ export function ConversationList({
               key={item.value}
               type="button"
               onClick={() => onFilterChange(item.value)}
+              disabled={loading}
               className={cn(
-                'rounded-full px-3 py-1 transition-colors',
+                'rounded-full px-3 py-1 transition-colors disabled:opacity-50',
                 filter === item.value
                   ? 'bg-primary text-primary-foreground'
                   : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'

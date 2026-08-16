@@ -35,7 +35,8 @@ Worker 会通过 `/media/<key>` 读取私有桶。`app/fnds/page.tsx` 会请求
 
 ## Gallery 视频（规划，尚未落地）
 
-游戏短片计划放在 `gallery/gaming/` 前缀下，经 R2 custom domain（`media.solidays.win`）
-直出，不走当前 `/media` 图片通路。处理规则、转码决策表和元数据契约见
-`docs/features/gallery/metadata-processing.md`。未接好自定义域名、未写入
-`data/gallery.ts` 之前，不要上传或引用这批对象。
+Gallery 成品不进 `solidays-media`。计划新建独立公开桶 `solidays-gallery`，
+只把 `media.solidays.win` 绑到这个新桶；现有私有桶和 `/media` 白名单保持不变。
+处理规则、上传 HTTP metadata、write-once 和元数据契约见
+`docs/features/gallery/metadata-processing.md`。桶、自定义域名和
+`data/gallery.ts` 都未落地之前，不要上传或引用这批对象。

@@ -108,7 +108,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │
 ├── migrations/                       # D1 迁移：0001 表结构 · 0002 配额触发器
 ├── docs/                             # 分类文档：overview·cloudflare·development·
-│                                     #   deployment·features·incidents
+│                                     #   deployment·features·testing·incidents
 │
 ├── middleware.ts                     # www → 主域名 308 跳转
 ├── custom-worker.ts                  # Worker 入口：缓存出口策略 + Cron 清理
@@ -130,6 +130,8 @@ shadcn 约定的 `cn()` 工具。
 | `docs/cloudflare/media-storage.md` | R2 媒体前缀、/media 路由、变体与上传流程 |
 | `docs/development/local-development.md` | 本地开发命令、环境变量、检查与常见坑 |
 | `docs/deployment/release-process.md` | 分支模型、发布流程、核验与手工回退 |
+| `docs/testing/pre-commit-verification.md` | 提交前必走：本地 Worker + Chrome DevTools 验证流程 |
+| `docs/testing/post-deployment-verification.md` | 发布后必走：线上站点 Chrome DevTools 验证流程 |
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
 | `docs/incidents/` | 生产事故报告 |
@@ -153,3 +155,9 @@ shadcn 约定的 `cn()` 工具。
 7. 每次改动后检查本地浏览器控制台和终端输出，Error 和 Warning 都要定位处理，不能
    默认忽略；涉及行为取舍或无法安全判断时，先明确告诉用户再继续。
 8. 保留用户已有改动，先看 `git status --short --branch` 再操作，不使用破坏性重置命令。
+9. 提交前验证：每次代码改动提交之前，都要启动本地 Worker（`worker:dev`），通过
+   Chrome DevTools 访问 `http://localhost:8787` 并对改动部分实际测试，必要时断点
+   调试；测试通过才允许 commit。完整流程见 `docs/testing/pre-commit-verification.md`。
+10. 发布后验证：所有生产发布完成之后，都要用 Chrome DevTools 访问线上生产站点，
+   对本次发布改动的功能实际测试；涉及 Turnstile 等防自动化的环节不做自动化提交
+   测试，按文档替代方案验证。流程见 `docs/testing/post-deployment-verification.md`。

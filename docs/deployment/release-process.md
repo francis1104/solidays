@@ -28,6 +28,7 @@
 git switch cloudflare-worker-DEV
 git pull --ff-only origin cloudflare-worker-DEV
 # 修改、检查和本地验证（见 docs/development/local-development.md）
+# 提交前必须完成 Worker + Chrome DevTools 验证（见 docs/testing/pre-commit-verification.md）
 git add -A
 git commit -m "<describe change>"
 git push origin cloudflare-worker-DEV
@@ -107,6 +108,10 @@ git push origin cloudflare-worker-DEV
    curl -sS -o /dev/null -w '%{http_code} %{url_effective}\n' https://solidays.win/api/cards
    curl -sS https://solidays.win/api/chat/conversation
    ```
+
+10. 按 `docs/testing/post-deployment-verification.md` 用 Chrome DevTools 打开
+    线上站点，对本次发布改动的功能做实际测试；真实 Turnstile 提交等防自动化
+    环节按该文档的替代方案验证。
 
 修改 `wrangler.jsonc` 后至少执行一次
 `node .yarn/releases/yarn-3.6.1.cjs worker:build`。线上部署后验证主域名、`www`

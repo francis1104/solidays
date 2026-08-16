@@ -1,8 +1,8 @@
 # Gallery 页面元数据处理方案
 
-> 建立于 2026-08-17。状态：已评审（2026-08-17），**Changes Required 已吸收到正文**。
-> 转码层保留；R2 发布层已改为独立公开桶，不再给 `solidays-media` 挂自定义域名。
-> 评审记录见第 9 节。新桶、域名、A/B 和页面均未实施。
+> 建立于 2026-08-17。状态：已评审（2026-08-17），**Approved with minor changes**。
+> 第二轮小改（write-once 条件写入、Gallery 基址常量、`wnam` hint 措辞）已写进正文。
+> 架构可进入 A/B 与建桶；新桶、域名、A/B 和页面均未实施。评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
 
@@ -52,7 +52,7 @@ R2 桶接上 custom domain 后，该桶内对象都可通过这个域名公开�
 - `solidays-gallery` 是唯一公开桶。`media.solidays.win` **只**绑这个桶。
 - Worker **不**增加 Gallery 桶绑定。成品用 Wrangler CLI 上传，页面用绝对 URL 直读自定义域名，不经过 OpenNext / `/media`。
 - 生产不用 `*.r2.dev`。`r2.dev` 是开发入口，会限流，也没有 Cache / WAF。这个新桶默认也不启用 Public Development URL。
-- Gallery 的公开基址用单独变量（例如 `NEXT_PUBLIC_GALLERY_BASE_URL=https://media.solidays.win`），不要复用 `NEXT_PUBLIC_R2_PUBLIC_URL`。后者若指向公开域名，会把 FNDS / 头像的引用模型搅进另一条通路。
+- Gallery 公开基址写在 `lib/gallery.ts` 常量里，值为 `https://media.solidays.win`。不要复用 `NEXT_PUBLIC_R2_PUBLIC_URL`，也不要为此再加一条 `NEXT_PUBLIC_*`。生产域名已经固定，常量少一个构建配置点。
 
 ### 2.2 为什么不走 `/media`
 
@@ -66,7 +66,7 @@ R2 桶接上 custom domain 后，该桶内对象都可通过这个域名公开�
 
 ### 2.3 创建与绑域（尚未执行）
 
-位置与现有私有桶对齐，用 Wrangler，不走 Dashboard：
+用 Wrangler 建桶和绑域，不走 Dashboard。`--location wnam` 是 Western North America 的 **Location Hint**，best-effort，不是强制数据驻留；这里用它只是与当前部署地域策略保持一致，不声称对象一定落在同一区域。
 
 ```bash
 wrangler r2 bucket create solidays-gallery --location wnam
@@ -303,7 +303,11 @@ export const galleryItems: GalleryItem[] = [
 
 约定：
 
-- `video` / `poster` 写相对 `media.solidays.win` 的路径，页面用 `NEXT_PUBLIC_GALLERY_BASE_URL` 拼绝对 URL。
+- `video` / `poster` 写相对路径（`/gaming/<id>.mp4`）。页面用 `lib/gallery.ts` 的常量
+  `GALLERY_BASE_URL = 'https://media.solidays.win'` 拼绝对 URL。不要引入
+  `NEXT_PUBLIC_GALLERY_BASE_URL`：本仓库先 `opennextjs-cloudflare build` 再
+  `wrangler deploy`，`NEXT_PUBLIC_*` 在 Next/OpenNext 构建时被 inline 进浏览器
+  bundle，事后改 `wrangler.jsonc` `vars` 不会生效。域名已经固定，常量更合适。
 - `duration` 用秒，保留一位小数，取处理后文件的真实时长。
 - `width` / `height` 取处理后文件，不写死后再和片子不一致。
 - `title` 给 Gallery 卡片看；`game` 留给筛选。手机视频可以没有 `game`。
@@ -317,27 +321,26 @@ https://media.solidays.win/gaming/<id>.mp4
 https://media.solidays.win/gaming/<id>.webp
 ```
 
-上传写到 `solidays-gallery`，并显式带上 MIME 和 Cache-Control。长期缓存行为不能留给平台默认值：
+上传写到 `solidays-gallery`，并显式带上 MIME 和 Cache-Control。长期缓存行为不能留给平台默认值。
 
-```bash
-wrangler r2 object put solidays-gallery/gaming/<id>.mp4 \
-  --file ./<id>.mp4 \
-  --content-type video/mp4 \
-  --cache-control "public, max-age=31536000, immutable"
+Wrangler 的 `r2 object` 只有 `get` / `put` / `delete`，没有 object list；`get` 会下载整段视频，不能当存在性探测。更关键的是「先检查再 put」是 check-then-write，并发时两个进程都可能判定不存在然后都写入。因此 **write-once 必须落在存储层**：用 R2 的 S3 兼容 API 做条件 `PutObject`，带 `If-None-Match: *`。对象已存在则返回 `412 Precondition Failed`，请求失败，不覆盖。
 
-wrangler r2 object put solidays-gallery/gaming/<id>.webp \
-  --file ./<id>.webp \
-  --content-type image/webp \
-  --cache-control "public, max-age=31536000, immutable"
-```
+HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint，凭证用本地 API token，不进仓库、不进命令历史。每个对象一次条件 PUT：
 
-对象一旦发布就是 **write-once**：
+| 对象 | Key | `Content-Type` | `Cache-Control` | 条件头 |
+| --- | --- | --- | --- | --- |
+| 视频 | `gaming/<id>.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
+| poster | `gaming/<id>.webp` | `image/webp` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
 
-- 上传脚本先检查 key 是否已存在（`wrangler r2 object get` 或 list）。已存在则失败，禁止静默覆盖。
-- 重转码需要换新 key，例如 `gaming/<id>-v2.mp4`，并改 `data/gallery.ts` 的 `video` / `poster`。旧对象可保留或在确认新 URL 可播后再删。
-- 只有在必须复用同一 URL 时才覆盖同 key；覆盖后必须按 URL purge `media.solidays.win` 上对应对象的 CDN 缓存。未 purge 前，客户端可能一直拿到旧的 `immutable` 副本。
+已存在 → `412 Precondition Failed`，脚本失败退出。aws-sdk 需要按 R2 文档把该条件头注入请求；不要先 `HeadObject` / `GetObject` 再决定是否上传。
 
-自定义域名未接好、未写入 `data/gallery.ts` 之前，不要上传，也不要把 `r2.dev` 写进页面。
+不要用 `wrangler r2 object put` 做首次发布。它没有条件写入，会静默覆盖。该命令只适合对照 MIME / Cache-Control 字段，或在已经决定覆盖并准备 purge 的例外路径。
+
+其余约定：
+
+- 重转码换新 key，例如 `gaming/<id>-v2.mp4`，并改 `data/gallery.ts` 的 `video` / `poster`。旧对象可保留，或确认新 URL 可播后再删。
+- 只有必须复用同一 URL 时才覆盖同 key：此时去掉 `If-None-Match`，覆盖后必须按 URL purge `media.solidays.win` 上对应对象。未 purge 前，客户端可能一直拿到旧的 `immutable` 副本。
+- 自定义域名未接好、未写入 `data/gallery.ts` 之前，不要上传，也不要把 `r2.dev` 写进页面。
 
 ## 6. 转码决策表
 
@@ -469,23 +472,35 @@ crf                                         remux 则为空
 ## 8. 实施顺序
 
 1. 对第 4.3 节三个样本做 CRF 20 / 21 / 22 A/B，锁参数。可与建桶并行。
-2. 创建 `solidays-gallery`（`--location wnam`），**不要**启用 `r2.dev`。
+2. 创建 `solidays-gallery`（`--location wnam` hint），**不要**启用 `r2.dev`。
 3. 用 Wrangler 把 `media.solidays.win` 接到 **新桶**，核验 DNS 与 `domain list`。不要改 `solidays-media`。
 4. 按第 6 节决策表批量产出 Web MP4 + poster，生成 `data/gallery.ts` 初稿。
-5. 按第 5.4 节带 HTTP metadata 上传；脚本对已存在 key 直接失败。核对 URL 与元数据一致。
+5. 按第 5.4 节用 S3 条件 `PutObject`（`If-None-Match: *`）带 HTTP metadata 上传；已存在 key 必须 412 失败。核对 URL 与元数据一致。
 6. 再做 Gallery 页面。页面方案另开文档；元数据契约以本文第 5.3 节为准。
 
 A/B 或批量转码改变 CRF / maxrate 之后，回写第 4.2 节的实际采用值。
 
-## 9. 评审记录（2026-08-17）
+## 9. 评审记录
 
-初版结论是 **Changes Required**，不建议按当时正文实施。转码方案可保留，要重写的是 R2 发布层。本轮已把必须改和建议改写进第 2、5、8 节。
+### 2026-08-17 第一轮：Changes Required
+
+转码方案可保留，要重写的是 R2 发布层。已写进第 2、5、8 节。
 
 | 项 | 初版问题 | 现行约定 |
 | --- | --- | --- |
 | 必须 | 给 `solidays-media` 挂 `media.solidays.win`，会把 `fnds/*`、`profile/*` 一并公开 | 新建公开桶 `solidays-gallery`；自定义域名只绑新桶；私有桶与 `/media` 白名单不变；Worker 不绑定新桶 |
-| 必须 | 上传只有 `--file`，长期缓存依赖默认值 | `--content-type` + `--cache-control "public, max-age=31536000, immutable"`；对象 write-once，重转码换 key 或覆盖后必须 purge |
+| 必须 | 上传只有 `--file`，长期缓存依赖默认值 | 条件 `PutObject` 写 `Content-Type` + `Cache-Control: public, max-age=31536000, immutable` |
 | 建议 | 「100 MB 经 Worker 浪费 CPU」不准确 | 改为：避开 OpenNext / Worker 路径，并直接使用 R2 custom-domain CDN；现有出口策略只缓存 `image/*` |
 | 建议 | 「手机视频共用同一套结构」容易被理解成共用转码流水线 | 只共用 `GalleryItem`；phone 必须重新 intake，不套用 Xbox 决策表 |
+
+### 2026-08-17 第二轮：Approved with minor changes
+
+架构可进入 A/B 和建桶。三处小改已写进正文：
+
+| 项 | 问题 | 现行约定 |
+| --- | --- | --- |
+| 建议 | `get` / list 做 write-once 检查不可用，且不是原子的 | S3 `PutObject` + `If-None-Match: *`；已存在则 412 |
+| 建议 | `NEXT_PUBLIC_GALLERY_BASE_URL` 未标明是 build-time | 不用该变量；`lib/gallery.ts` 常量 `https://media.solidays.win` |
+| 建议 | 「位置与现有私有桶对齐」过满 | `--location wnam` 只是 Location Hint，best-effort |
 
 初版里应保留的部分未改：82 条 inventory、remux 2 / transcode 80、三类 A/B、不强制 CFR 60、720p 不放大、faststart、原片与 Web 成品分离、key 与展示名分离、`data/gallery.ts` 静态源、生产不用 `r2.dev`。

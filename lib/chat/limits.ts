@@ -1,6 +1,3 @@
-// 前四项配额与 migrations/0002_chat_quotas.sql 中 messages_enforce_chat_quotas
-// 触发器里的字面量（50 / 131072 / 200 / 524288）重复定义；修改任一处必须同步另一处，
-// 否则接口提示与实际限流行为会不一致。迁移已在生产应用，改配额需新增迁移。
 export const CHAT_LIMITS = {
   maxMessagesPerConversation: 50,
   maxMessageBytesPerConversation: 128 * 1024,

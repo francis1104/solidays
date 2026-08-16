@@ -47,6 +47,32 @@ function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
   })
 }
 
+const MAX_REFRESH_PAGES = 25
+
+async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<ChatMessage[]> {
+  let cursor: string | null = null
+  let combined: ChatMessage[] = []
+
+  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
+    const body = await loadConversationPage(cursor)
+    const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+    const hitKnown = fetched.some((message) => knownIds.has(message.id))
+    combined = page === 0 ? fetched : [...fetched, ...combined]
+
+    if (hitKnown || !body.hasMore || !body.nextCursor) break
+    cursor = body.nextCursor
+  }
+
+  const seen = new Set<string>()
+  const unique: ChatMessage[] = []
+  for (const message of combined) {
+    if (seen.has(message.id)) continue
+    seen.add(message.id)
+    unique.push(message)
+  }
+  return unique
+}
+
 export default function FloatingChat() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -60,6 +86,8 @@ export default function FloatingChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
   const historyRequestedRef = useRef(false)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
@@ -160,18 +188,21 @@ export default function FloatingChat() {
       return
     }
 
-    // Reopened within the same page load: pull the latest page and merge by
-    // message id so owner replies show up without a full page refresh.
-    void loadConversationPage(null)
-      .then((body) => {
-        const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+    // Reopened within the same page load: walk newest → older until we overlap
+    // a locally known message so replies added while closed cannot leave a gap.
+    const knownIds = new Set(messagesRef.current.map((message) => message.id))
+    void fetchMessagesUntilOverlap(knownIds)
+      .then((fetched) => {
         setMessages((current) => {
           const known = new Set(current.map((message) => message.id))
           const additions = fetched.filter((message) => !known.has(message.id))
           return additions.length ? [...current, ...additions] : current
         })
+        setError(null)
       })
-      .catch(() => {})
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
+      })
   }, [open])
 
   useEffect(() => {

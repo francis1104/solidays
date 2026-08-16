@@ -140,10 +140,6 @@ export async function persistOwnerMessage(
   conversationId: string,
   content: string
 ): Promise<OwnerMessageResult> {
-  const conversation = await getConversationById(db, conversationId)
-  if (!conversation) return { ok: false, reason: 'not_found' }
-  if (conversation.status !== 'open') return { ok: false, reason: 'closed' }
-
   const now = Date.now()
   const message: MessageRow = {
     id: crypto.randomUUID(),
@@ -154,26 +150,36 @@ export async function persistOwnerMessage(
     created_at: now,
   }
 
-  await db.batch([
+  // Keep the open-status check inside the same D1 batch as the write so a
+  // visitor close between a pre-read and INSERT cannot land a reply on a
+  // closed conversation. INSERT...SELECT matches 0 rows when missing/closed.
+  const results = await db.batch([
     db
       .prepare(
         `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+         SELECT ?, id, ?, ?, ?, ?
+         FROM conversations
+         WHERE id = ? AND status = 'open'`
       )
-      .bind(
-        message.id,
-        message.conversation_id,
-        message.role,
-        message.content,
-        null,
-        message.created_at
-      ),
-    db.prepare('UPDATE conversations SET updated_at = ? WHERE id = ?').bind(now, conversationId),
+      .bind(message.id, message.role, message.content, null, message.created_at, conversationId),
+    db
+      .prepare(
+        `UPDATE conversations
+         SET updated_at = ?
+         WHERE id = ? AND status = 'open'`
+      )
+      .bind(now, conversationId),
   ])
 
-  return {
-    ok: true,
-    conversation: { ...conversation, updated_at: now },
-    message,
+  if ((results[0]?.meta.changes ?? 0) !== 1) {
+    const conversation = await getConversationById(db, conversationId)
+    if (!conversation) return { ok: false, reason: 'not_found' }
+    if (conversation.status !== 'open') return { ok: false, reason: 'closed' }
+    throw new Error('OWNER_MESSAGE_INSERT_FAILED')
   }
+
+  const conversation = await getConversationById(db, conversationId)
+  if (!conversation) return { ok: false, reason: 'not_found' }
+
+  return { ok: true, conversation, message }
 }

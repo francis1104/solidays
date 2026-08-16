@@ -14,18 +14,30 @@ async function sha256Bytes(value: string): Promise<Uint8Array> {
   return new Uint8Array(digest)
 }
 
-/**
- * Fixed-length digests keep the comparison time independent of the secret's
- * content and length; the XOR fold stays constant-time for equal sizes.
- */
-function timingSafeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length || left.length === 0) return false
+type SubtleCryptoWithTimingSafe = SubtleCrypto & {
+  timingSafeEqual(a: ArrayBufferView, b: ArrayBufferView): boolean
+}
 
-  let difference = 0
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left[index] ^ right[index]
+function timingSafeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
+  // Workers expose timingSafeEqual on SubtleCrypto; Next's DOM typings do not.
+  const subtle = crypto.subtle as SubtleCryptoWithTimingSafe
+  if (left.byteLength !== right.byteLength) {
+    return !subtle.timingSafeEqual(left, left)
   }
-  return difference === 0
+
+  return subtle.timingSafeEqual(left, right)
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length === 0 || hex.length % 2 !== 0) return null
+
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let index = 0; index < bytes.length; index += 1) {
+    const value = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16)
+    if (!Number.isFinite(value)) return null
+    bytes[index] = value
+  }
+  return bytes
 }
 
 export async function verifyAdminPassword(env: CloudflareEnv, candidate: string): Promise<boolean> {
@@ -49,13 +61,11 @@ async function signPayload(payload: string, secret: string): Promise<string> {
 }
 
 function timingSafeEqualHex(left: string, right: string): boolean {
-  if (left.length !== right.length) return false
+  const leftBytes = hexToBytes(left)
+  const rightBytes = hexToBytes(right)
+  if (!leftBytes || !rightBytes) return false
 
-  let difference = 0
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index)
-  }
-  return difference === 0
+  return timingSafeEqualBytes(leftBytes, rightBytes)
 }
 
 /**

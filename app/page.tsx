@@ -11,7 +11,6 @@ export default function HomePage() {
           designation: card.album,
           content: card.content,
         }))}
-        stackDepth={3}
       />
     </div>
   )

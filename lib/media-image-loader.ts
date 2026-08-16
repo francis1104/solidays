@@ -1,8 +1,7 @@
 import type { ImageLoaderProps } from 'next/image'
+import { CARD_WIDTHS, type CardWidth } from '@/lib/media'
 
-const CARD_WIDTHS = [320, 480, 640] as const
-
-function selectCardWidth(requestedWidth: number) {
+function selectCardWidth(requestedWidth: number): CardWidth {
   return CARD_WIDTHS.find((candidate) => candidate >= requestedWidth) ?? CARD_WIDTHS.at(-1)!
 }
 

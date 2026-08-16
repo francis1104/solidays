@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const canonicalHostname = 'solidays.win'
-const alternateHostname = 'www.solidays.win'
+import { alternateHostname, canonicalHostname } from '@/lib/constants'
 
 export function middleware(request: NextRequest) {
   if (request.nextUrl.hostname.toLowerCase() !== alternateHostname) {
-    return NextResponse.next()
+    const response = NextResponse.next()
+
+    if (request.nextUrl.protocol === 'https:') {
+      response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    }
+
+    return response
   }
 
   const canonicalUrl = request.nextUrl.clone()

@@ -1,5 +1,4 @@
-const canonicalHostname = 'solidays.win'
-const localHostnames = new Set(['localhost', '127.0.0.1', '[::1]'])
+import { canonicalHostname, localHostnames } from '@/lib/constants'
 
 export function isAllowedOrigin(request: Request, allowLocalDevelopment = false): boolean {
   const origin = request.headers.get('origin')

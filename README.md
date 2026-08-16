@@ -29,7 +29,7 @@ node .yarn/releases/yarn-3.6.1.cjs worker:deploy
 ```
 
 Worker 配置在 `wrangler.jsonc`，R2 的接入步骤见
-[`docs/cloudflare-storage.md`](docs/cloudflare-storage.md)。当前 Worker 已绑定
+[`docs/cloudflare/resources-and-bindings.md`](docs/cloudflare/resources-and-bindings.md)。当前 Worker 已绑定
 `solidays-media` R2 桶、Workers AI、`solidays-chat` D1 和留言限流；匿名留言提交还接入了
 Turnstile。生产环境使用 `solidays.win`，`workers.dev` 默认地址已关闭。
 
@@ -48,4 +48,4 @@ Turnstile。生产环境使用 `solidays.win`，`workers.dev` 默认地址已关
 
 聊天接口当前是匿名留言 V1：`GET /api/chat/conversation` 读取当前会话，
 `POST /api/chat/messages` 提交留言，`POST /api/chat/conversation/close` 结束当前会话。
-详细说明见 [`docs/cloudflare-chat-backend-v1-implementation.md`](docs/cloudflare-chat-backend-v1-implementation.md)。
+详细说明见 [`docs/features/anonymous-chat/backend-implementation.md`](docs/features/anonymous-chat/backend-implementation.md)。

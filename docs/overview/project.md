@@ -1,0 +1,47 @@
+# 项目概况
+
+> 原 AGENTS.md「项目概况」「主要目录与当前约定」两节拆分至此（2026-08-16）。
+> 本文描述的是 `cloudflare-worker-DEV` 开发分支的实际状态。
+
+## 基本信息
+
+- 项目：`solidays-worker`，Next.js App Router + Tailwind CSS + Framer Motion。
+- 构建方式：OpenNext for Cloudflare，把 Next.js 应用构建为 Cloudflare Worker。
+- 当前维护分支：`cloudflare-worker-DEV`；生产分支：`cloudflare-worker`
+  （分支与发布规则见 `docs/deployment/release-process.md`）。
+- 当前展示页：`/`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
+- 首页当前固定使用 `data/cards.ts` 中的一条默认卡片；首页不再请求 `/api/cards`，
+  但该接口暂时保留作为以后接入 D1 的数据边界。
+- 首页 CardStack 保留 3 层静态堆叠视觉：1 张真实卡片和 2 个空白后层框，不自动
+  轮播、不做数据切换。
+- 当前生产域名：`https://solidays.win`；`https://www.solidays.win` 会跳转到主域名。
+- `workers.dev` 默认地址已经关闭，不要把它当作生产入口。
+
+## 主要目录与当前约定
+
+- `app/`：页面、API 路由和 App Router 入口；`fnds`、`about` 的图片/头像通过 R2
+  object key 访问，`app/media/[...key]/route.ts` 负责私有媒体读取。
+- `components/`、`contexts/`：页面组件、主题和交互状态；`lib/media.ts` 负责媒体 URL。
+- `data/cards.ts`：当前唯一的默认卡片数据。`app/page.tsx` 直接使用它，不要恢复
+  客户端 fetch、本地镜像状态或自动轮播。
+- `components/ui/CardStack.tsx`：3 层静态堆叠（1 张真实卡片 + 2 个空白后层框），
+  当前不做数据切换；`SongContext` 仍使用同一份默认卡片供 `MusicDock` 查找歌曲。
+- `app/api/cards/route.ts`：当前不是首页运行时依赖，作为未来 D1 数据边界保留；
+  修改前确认没有外部调用方。
+- `components/chat/`：Floating Glass Chat；全局挂载于 `app/layout.tsx`，前端展示为
+  “匿名留言”，已接入 `/api/chat/*`，不调用 Workers AI，也不伪造 owner/assistant 回复。
+- `app/api/chat/`、`lib/chat/`：匿名留言 V1 的同源接口、安全校验、访客 Cookie、
+  Turnstile、限流和 D1 访问层。后端保留 `owner`/`system` 消息角色，便于后续回复扩展。
+- `migrations/0001_chat.sql`、`migrations/0002_chat_quotas.sql`：D1 的留言表结构、
+  配额计数/触发器、历史游标索引和每个访客只能有一个 open conversation 的唯一部分索引。
+- `custom-worker.ts`：复用 OpenNext fetch handler，并通过每天 UTC 03:00 的 Cron 清理
+  30 天前 closed 和 90 天未活跃的 open 会话。
+- `wrangler.jsonc`、`open-next.config.ts`：Worker、域名、R2、AI 和 OpenNext 构建配置。
+
+## 聊天技术约束
+
+- 聊天使用现有 `framer-motion` 的 `LayoutGroup`/`layoutId` 和 `@shadcn/react` 的
+  消息滚动 runtime；不要再安装第二套 `motion`。玻璃效果使用本项目 CSS fallback。
+- 二期已按“匿名留言 V1”实施：接入 D1、Turnstile、Rate Limiting、访客 Cookie 和
+  三个留言 API；保留 `owner` 消息角色和后续回复扩展，但本期不做 owner 登录、后台、
+  实时通信、邮件或 AI。详见 `docs/features/anonymous-chat/backend-implementation.md`。

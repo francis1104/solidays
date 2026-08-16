@@ -13,7 +13,7 @@ const initialMessages: ChatMessage[] = [
   {
     id: 'assistant-greeting',
     role: 'assistant',
-    content: '你好，欢迎匿名留言。',
+    content: 'Drop me a message :)',
   },
 ]
 

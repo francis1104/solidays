@@ -18,6 +18,8 @@ Token、Worker Secret 或其他凭据。
 
 ## 模块与路由
 
+### 按路由（URL → 代码）
+
 ```text
 solidays.win/
 │
@@ -64,6 +66,54 @@ solidays.win/
 全局挂载（app/layout.tsx）：
 site/Header · site/MusicDock · chat/floating-chat · magicui/meteors
 状态：contexts/SongContext.tsx（卡片歌曲 → MusicDock 播放队列）
+```
+
+### 按目录（代码 → 职责）
+
+```text
+tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
+│
+├── app/                              # Next.js App Router：路由即文件
+│   ├── layout.tsx                    # 根布局：全局挂载 Header/MusicDock/聊天/流星
+│   ├── page.tsx                      # / 首页
+│   ├── not-found.tsx · robots.ts · sitemap.ts · theme-providers.tsx
+│   ├── about/ · fnds/                # /about、/fnds 页面
+│   ├── api/cards/route.ts            # GET 卡片数据
+│   ├── api/chat/**/route.ts          # 留言三接口（见上图）
+│   └── media/[...key]/route.ts       # R2 私有媒体 + 卡片变体
+│
+├── components/
+│   ├── site/                         # 自研页面组件：Header·MobileNav·Link·
+│   │                                 #   MusicDock·SectionContainer
+│   ├── chat/                         # 自研聊天前端（floating-chat 等 9 个）
+│   ├── ui/                           # shadcn 来源：button·tooltip·separator·
+│   │                                 #   bubble·message·message-scroller
+│   ├── magicui/                      # Magic UI 来源：CardStack·draggable-card·
+│   │                                 #   squiggly-text·dock·meteors·theme-toggler
+│   └── lib/utils.ts                  # cn() 类名合并（14 处引用）
+│
+├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock 播放队列
+│
+├── data/                             # cards.ts 默认卡片 · headerNavLinks.ts 导航 ·
+│                                     #   siteMetadata.js 站点元信息
+│
+├── lib/
+│   ├── chat/                         # 留言后端：repository(D1 查询)·validation·
+│   │                                 #   security(Origin/IP)·turnstile·rate-limit·
+│   │                                 #   session(Cookie)·http·limits·types
+│   └── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│
+├── css/tailwind.css                  # 全局样式入口
+├── public/                           # 静态资源（favicon 等）
+│
+├── migrations/                       # D1 迁移：0001 表结构 · 0002 配额触发器
+├── docs/                             # 分类文档：overview·cloudflare·development·
+│                                     #   deployment·features·incidents
+│
+├── middleware.ts                     # www → 主域名 308 跳转
+├── custom-worker.ts                  # Worker 入口：缓存出口策略 + Cron 清理
+├── wrangler.jsonc                    # Cloudflare 绑定声明（一切资源入口）
+└── open-next.config.ts               # OpenNext 构建配置
 ```
 
 组件分组约定：`components/site/` 是项目自己写的页面组件；

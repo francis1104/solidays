@@ -122,7 +122,8 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │
 ├── migrations/                       # D1 迁移：0001 表结构 · 0002 配额触发器
 ├── docs/                             # 分类文档：overview·cloudflare·development·
-│                                     #   deployment·features·testing·incidents
+│                                     #   deployment·features·testing·incidents·
+│                                     #   performance
 │
 ├── middleware.ts                     # www → 主域名 308 跳转
 ├── custom-worker.ts                  # Worker 入口：缓存出口策略 + Cron 清理
@@ -149,6 +150,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
 | `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
+| `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（扫描器早返回、favicon、/media 预热） |
 | `docs/incidents/` | 生产事故报告 |
 
 ## 通用工作规则

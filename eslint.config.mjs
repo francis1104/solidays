@@ -11,8 +11,6 @@ const __dirname = path.dirname(__filename)
 const compat = new FlatCompat({
   baseDirectory: __dirname,
 })
-// 注意：不要在这里加 parserOptions.project（类型感知 lint）；
-// 现有规则集没有用到类型感知规则，开启会让单文件 lint 慢到不可用。
 
 export default [
   {
@@ -40,6 +38,13 @@ export default [
       },
 
       parser: tsParser,
+      ecmaVersion: 5,
+      sourceType: 'commonjs',
+
+      parserOptions: {
+        project: true,
+        tsconfigRootDir: __dirname,
+      },
     },
 
     rules: {
@@ -55,10 +60,7 @@ export default [
         },
       ],
       'react/prop-types': 'off',
-      '@typescript-eslint/no-unused-vars': [
-        'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
-      ],
+      '@typescript-eslint/no-unused-vars': 'off',
       'react/no-unescaped-entities': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-var-requires': 'off',

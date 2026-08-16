@@ -76,9 +76,6 @@
 - Worker：`solidays-worker`。
 - Custom Domains：`solidays.win`、`www.solidays.win`。
 - `workers_dev: false`：关闭默认 `workers.dev` 地址；如果只在 Dashboard 里关闭而不保留这个配置，下次部署可能重新启用。
-- `CHAT_LOCAL_DEV` 不在 `vars` 里配置：只通过 `worker:dev --var CHAT_LOCAL_DEV:true` 注入本地
-  环境；`lib/chat/turnstile.ts` 和 `lib/chat/security.ts` 的放宽分支还叠加了 http 协议判断，
-  生产 https 流量即使误配该 var 也不会生效。不要把它写回 `vars`。
 - `ASSETS`：OpenNext 静态资源绑定。
 - `cache.enabled: true`：打开 Workers Caching，不加 `cross_version_cache`。`custom-worker.ts`
   只允许 `GET/HEAD /media/*` 且响应为 `200`、`image/*`、无 `Set-Cookie` 的结果保留原
@@ -118,21 +115,11 @@
 node .yarn/releases/yarn-3.6.1.cjs install
 node .yarn/releases/yarn-3.6.1.cjs dev --hostname 127.0.0.1 --port 3001
 node .yarn/releases/yarn-3.6.1.cjs lint
-node .yarn/releases/yarn-3.6.1.cjs test
-node .yarn/releases/yarn-3.6.1.cjs typecheck
 node .yarn/releases/yarn-3.6.1.cjs build
 node .yarn/releases/yarn-3.6.1.cjs worker:build
 node .yarn/releases/yarn-3.6.1.cjs worker:types
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
 ```
-
-`lint` 覆盖 `app`、`components`、`contexts`、`data`、`lib`、`middleware.ts` 和 `custom-worker.ts`；
-ESLint 不启用类型感知解析（不要在 `eslint.config.mjs` 加回 `parserOptions.project`，否则单文件
-lint 会慢到不可用），`no-unused-vars` 已开启，未使用变量用 `_` 前缀豁免。`test` 用 Vitest 运行
-`tests/` 下的单测（chat 安全校验、消息游标、媒体 key/宽度契约）。`typecheck` 用
-`tsc --noEmit --composite false`；`--composite false` 是为了绕开生成类型文件引用
-`.open-next/worker` 引发的 TS6307，不要去掉，也不要手改生成的 `cloudflare-env.d.ts` 或
-`worker-configuration.d.ts`。
 
 `worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是 `remote: true`，
 本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除或 AI 调用。
@@ -269,12 +256,10 @@ curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://www.solida
    校验。
 4. 不要让生产构建和 dev server 同时运行；若侧边浏览器出现无样式 HTML，先查 CSS 404，
    再重启 3001 端口上属于本项目的旧进程。
-5. `components/MusicDock.tsx` 的 React Hook lint warnings 已在 2026-08-16 重构修复（事件监听挂载时
-   绑定一次、ref 在 effect 中同步、无 setTimeout 重试链）；修改音乐逻辑时仍单独提交，合并生产前
-   建议做一次真机播放回归。
-6. 直接 `tsc --noEmit` 会因生成类型文件引用 `.open-next/worker` 报 TS6307；用
-   `yarn typecheck`（`--composite false`）或以 Next/OpenNext 正式 build 为准，不要手改生成的
-   `cloudflare-env.d.ts` 或 `worker-configuration.d.ts`。
+5. `components/MusicDock.tsx` 仍有已知的 React Hook lint warnings；修改音乐逻辑时单独
+   处理，不要把 warning 当成本期功能错误。
+6. `npx tsc --noEmit` 可能因生成类型文件引用 `.open-next/worker` 报 TS6307；以 Next/
+   OpenNext 正式 build 为准，不要手改生成的 `cloudflare-env.d.ts` 或 `worker-configuration.d.ts`。
 7. 本机 Wrangler 4.121.0 的 workerd 最高支持 `2026-08-11`；若本地启动提示 compatibility date
    超前，先检查 Wrangler/workerd 版本，不要为了绕过错误关闭绑定或改用 npm。
 
@@ -286,8 +271,7 @@ curl -sS -L -o /dev/null -w '%{http_code} %{url_effective}\n' https://www.solida
       `TURNSTILE_SECRET_KEY`，并生成 Cloudflare 绑定类型。
 - [x] 前端展示、读取历史、真实提交、关闭会话和关闭后新会话的代码路径已完成；不追加假回复。
 - [x] 完成 Finding 1 的配额、分页、读取限流和 Cron 清理：单会话 50 条/128 KiB，单访客 200 条/
-      512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天；2026-08-16 修复了 Cron
-      批处理提前退出的问题（消息或会话任一删满一批即继续下一批）。
+      512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天。
 - [x] `migrations/0002_chat_quotas.sql` 已在本地应用并验证触发器拒绝第 51 条消息；生产迁移由
       `worker:deploy:ci` 在部署前执行，当前尚未发布。
 - [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；Widget

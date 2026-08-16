@@ -34,6 +34,19 @@ async function getResponseMessage(response: Response, fallback: string): Promise
   }
 }
 
+function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
+  const url = cursor
+    ? '/api/chat/conversation?cursor=' + encodeURIComponent(cursor)
+    : '/api/chat/conversation'
+
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
+    }
+    return (await response.json()) as ChatApiResponse
+  })
+}
+
 export default function FloatingChat() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -106,15 +119,8 @@ export default function FloatingChat() {
 
     setIsLoadingMoreHistory(true)
     try {
-      const response = await fetch('/api/chat/conversation?cursor=' + encodeURIComponent(cursor), {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
-      }
+      const body = await loadConversationPage(cursor)
 
-      const body = (await response.json()) as ChatApiResponse
       const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
       setMessages((current) => {
         const currentIds = new Set(current.map((message) => message.id))
@@ -135,29 +141,37 @@ export default function FloatingChat() {
   }, [historyCursor, isLoadingMoreHistory])
 
   useEffect(() => {
-    if (!open || historyRequestedRef.current) return
+    if (!open) return
 
-    historyRequestedRef.current = true
-    void fetch('/api/chat/conversation', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
-        return (await response.json()) as ChatApiResponse
-      })
+    if (!historyRequestedRef.current) {
+      historyRequestedRef.current = true
+      void loadConversationPage(null)
+        .then((body) => {
+          const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+          setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
+          setHistoryCursor(body.nextCursor ?? null)
+          setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+          setError(null)
+        })
+        .catch((loadError) => {
+          historyRequestedRef.current = false
+          setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
+        })
+      return
+    }
+
+    // Reopened within the same page load: pull the latest page and merge by
+    // message id so owner replies show up without a full page refresh.
+    void loadConversationPage(null)
       .then((body) => {
-        const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-        setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
-        setHistoryCursor(body.nextCursor ?? null)
-        setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
-        setError(null)
+        const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+        setMessages((current) => {
+          const known = new Set(current.map((message) => message.id))
+          const additions = fetched.filter((message) => !known.has(message.id))
+          return additions.length ? [...current, ...additions] : current
+        })
       })
-      .catch((loadError) => {
-        historyRequestedRef.current = false
-        setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
-      })
+      .catch(() => {})
   }, [open])
 
   useEffect(() => {

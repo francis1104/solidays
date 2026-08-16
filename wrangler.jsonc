@@ -64,8 +64,16 @@
         "period": 60,
       },
     },
+    {
+      "name": "ADMIN_LOGIN_LIMITER",
+      "namespace_id": "2026081601",
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
   ],
   "secrets": {
-    "required": ["TURNSTILE_SECRET_KEY"],
+    "required": ["TURNSTILE_SECRET_KEY", "ADMIN_PASSWORD", "ADMIN_SESSION_SECRET"],
   },
 }

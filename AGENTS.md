@@ -20,7 +20,7 @@ Token、Worker Secret 或其他凭据。
 
 | 路由 | 说明 | 代码位置 |
 | --- | --- | --- |
-| `/` | 卡片式首页 | `app/page.tsx`、`components/ui/CardStack.tsx`、`data/cards.ts` |
+| `/` | 卡片式首页 | `app/page.tsx`、`components/magicui/CardStack.tsx`、`data/cards.ts` |
 | `/fnds` | FNDS 图片卡片页 | `app/fnds/` |
 | `/about` | 个人介绍页 | `app/about/` |
 | `/api/cards` | 卡片数据接口（未来 D1 数据边界） | `app/api/cards/route.ts` |
@@ -32,7 +32,12 @@ Token、Worker Secret 或其他凭据。
 | Cron `0 3 * * *` | 清理过期留言会话 | `custom-worker.ts` |
 
 聊天前端：`components/chat/`（全局挂载于 `app/layout.tsx`）；音乐 Dock：
-`components/MusicDock.tsx`；主题与歌曲状态：`contexts/`。
+`components/site/MusicDock.tsx`；主题与歌曲状态：`contexts/`。
+
+组件分组约定：`components/site/` 是项目自己写的页面组件；
+`components/chat/` 是聊天前端；`components/ui/` 是 shadcn 来源、
+`components/magicui/` 是 Magic UI 来源的复制源码组件；`components/lib/` 是
+shadcn 约定的 `cn()` 工具。
 
 ## 文档地图
 

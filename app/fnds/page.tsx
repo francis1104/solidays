@@ -1,8 +1,8 @@
 'use client'
 
 import Image from 'next/image'
-import { DraggableCardBody, DraggableCardContainer } from '@/components/ui/draggable-card'
-import { SquigglyText } from '@/components/ui/squiggly-text'
+import { DraggableCardBody, DraggableCardContainer } from '@/components/magicui/draggable-card'
+import { SquigglyText } from '@/components/magicui/squiggly-text'
 import { mediaUrl } from '@/lib/media'
 import mediaImageLoader from '@/lib/media-image-loader'
 

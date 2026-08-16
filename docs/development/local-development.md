@@ -48,7 +48,7 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 
 ## 已知坑
 
-1. `components/MusicDock.tsx` 仍有已知的 React Hook lint warnings；修改音乐逻辑时
+1. `components/site/MusicDock.tsx` 仍有已知的 React Hook lint warnings；修改音乐逻辑时
    单独处理，不要把 warning 当成本期功能错误。
 2. `npx tsc --noEmit` 可能因生成类型文件引用 `.open-next/worker` 报 TS6307；以
    Next/OpenNext 正式 build 为准，不要手改生成的 `cloudflare-env.d.ts` 或

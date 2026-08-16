@@ -1,9 +1,9 @@
 import 'css/tailwind.css'
 
 import { Oswald } from 'next/font/google'
-import Header from '@/components/Header'
-import SectionContainer from '@/components/SectionContainer'
-import MusicDock from '@/components/MusicDock'
+import Header from '@/components/site/Header'
+import SectionContainer from '@/components/site/SectionContainer'
+import MusicDock from '@/components/site/MusicDock'
 import siteMetadata from '@/data/siteMetadata'
 import Meteors from '@/components/magicui/meteors'
 import { ThemeProviders } from './theme-providers'

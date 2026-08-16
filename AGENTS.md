@@ -37,6 +37,11 @@ solidays.win/
 ├── /about ················· 个人介绍页（头像走 /media/profile/）
 │     app/about/page.tsx → lib/media.ts
 │
+├── /admin ················· Admin 留言后台：锁屏 → 会话列表/详情/回复
+│     app/admin/page.tsx（layout.tsx 设 noindex）
+│     ├── components/admin/                  # lock-screen · list · detail
+│     └── lib/admin/                         # auth(签名 Cookie)·repository·types
+│
 ├── /api/cards ············· GET 卡片数据（force-static；未来 D1 数据边界）
 │     app/api/cards/route.ts → data/cards.ts
 │
@@ -51,6 +56,12 @@ solidays.win/
 │     ├── migrations/0002_chat_quotas.sql    # 配额触发器（50 条/128KiB/会话，
 │     │                                      #   200 条/512KiB/访客）
 │     └── components/chat/                   # Floating Glass Chat 前端
+│
+├── /api/admin/ ··········· Admin 接口（Worker Secret + 登录限流）
+│     ├── session ········· POST 登录 / DELETE 登出（限流 5/60s）
+│     └── conversations ··· GET 会话列表（游标分页）
+│         └── [id]/messages GET 详情 / POST owner 回复
+│     app/api/admin/**/route.ts → lib/admin/
 │
 ├── /media/<key> ··········· 私有 R2 媒体（fnds/ · profile/ 前缀白名单）
 │     │                        ?variant=card&width=320|480|640 → Images 变体
@@ -77,15 +88,17 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   ├── layout.tsx                    # 根布局：全局挂载 Header/MusicDock/聊天/流星
 │   ├── page.tsx                      # / 首页
 │   ├── not-found.tsx · robots.ts · sitemap.ts · theme-providers.tsx
-│   ├── about/ · fnds/                # /about、/fnds 页面
+│   ├── about/ · fnds/ · admin/       # /about、/fnds、/admin 页面
 │   ├── api/cards/route.ts            # GET 卡片数据
 │   ├── api/chat/**/route.ts          # 留言三接口（见上图）
+│   ├── api/admin/**/route.ts         # Admin 登录/会话/回复接口
 │   └── media/[...key]/route.ts       # R2 私有媒体 + 卡片变体
 │
 ├── components/
 │   ├── site/                         # 自研页面组件：Header·MobileNav·Link·
 │   │                                 #   MusicDock·SectionContainer
 │   ├── chat/                         # 自研聊天前端（floating-chat 等 9 个）
+│   ├── admin/                        # Admin 后台前端（lock-screen·list·detail）
 │   ├── ui/                           # shadcn 来源：button·tooltip·separator·
 │   │                                 #   bubble·message·message-scroller
 │   ├── magicui/                      # Magic UI 来源：CardStack·draggable-card·
@@ -101,6 +114,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   ├── chat/                         # 留言后端：repository(D1 查询)·validation·
 │   │                                 #   security(Origin/IP)·turnstile·rate-limit·
 │   │                                 #   session(Cookie)·http·limits·types
+│   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
 │   └── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
 │
 ├── css/tailwind.css                  # 全局样式入口
@@ -134,6 +148,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/testing/post-deployment-verification.md` | 发布后必走：线上站点 Chrome DevTools 验证流程 |
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
+| `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
 | `docs/incidents/` | 生产事故报告 |
 
 ## 通用工作规则

@@ -34,6 +34,45 @@ async function getResponseMessage(response: Response, fallback: string): Promise
   }
 }
 
+function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
+  const url = cursor
+    ? '/api/chat/conversation?cursor=' + encodeURIComponent(cursor)
+    : '/api/chat/conversation'
+
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
+    }
+    return (await response.json()) as ChatApiResponse
+  })
+}
+
+const MAX_REFRESH_PAGES = 25
+
+async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<ChatMessage[]> {
+  let cursor: string | null = null
+  let combined: ChatMessage[] = []
+
+  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
+    const body = await loadConversationPage(cursor)
+    const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+    const hitKnown = fetched.some((message) => knownIds.has(message.id))
+    combined = page === 0 ? fetched : [...fetched, ...combined]
+
+    if (hitKnown || !body.hasMore || !body.nextCursor) break
+    cursor = body.nextCursor
+  }
+
+  const seen = new Set<string>()
+  const unique: ChatMessage[] = []
+  for (const message of combined) {
+    if (seen.has(message.id)) continue
+    seen.add(message.id)
+    unique.push(message)
+  }
+  return unique
+}
+
 export default function FloatingChat() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -47,6 +86,8 @@ export default function FloatingChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
   const historyRequestedRef = useRef(false)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
@@ -106,15 +147,8 @@ export default function FloatingChat() {
 
     setIsLoadingMoreHistory(true)
     try {
-      const response = await fetch('/api/chat/conversation?cursor=' + encodeURIComponent(cursor), {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
-      }
+      const body = await loadConversationPage(cursor)
 
-      const body = (await response.json()) as ChatApiResponse
       const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
       setMessages((current) => {
         const currentIds = new Set(current.map((message) => message.id))
@@ -135,27 +169,38 @@ export default function FloatingChat() {
   }, [historyCursor, isLoadingMoreHistory])
 
   useEffect(() => {
-    if (!open || historyRequestedRef.current) return
+    if (!open) return
 
-    historyRequestedRef.current = true
-    void fetch('/api/chat/conversation', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
-        return (await response.json()) as ChatApiResponse
-      })
-      .then((body) => {
-        const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-        setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
-        setHistoryCursor(body.nextCursor ?? null)
-        setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+    if (!historyRequestedRef.current) {
+      historyRequestedRef.current = true
+      void loadConversationPage(null)
+        .then((body) => {
+          const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+          setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
+          setHistoryCursor(body.nextCursor ?? null)
+          setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+          setError(null)
+        })
+        .catch((loadError) => {
+          historyRequestedRef.current = false
+          setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
+        })
+      return
+    }
+
+    // Reopened within the same page load: walk newest → older until we overlap
+    // a locally known message so replies added while closed cannot leave a gap.
+    const knownIds = new Set(messagesRef.current.map((message) => message.id))
+    void fetchMessagesUntilOverlap(knownIds)
+      .then((fetched) => {
+        setMessages((current) => {
+          const known = new Set(current.map((message) => message.id))
+          const additions = fetched.filter((message) => !known.has(message.id))
+          return additions.length ? [...current, ...additions] : current
+        })
         setError(null)
       })
       .catch((loadError) => {
-        historyRequestedRef.current = false
         setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
       })
   }, [open])

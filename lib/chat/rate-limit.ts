@@ -23,7 +23,7 @@ export function checkIpRateLimit(
   request: Request,
   scope: string
 ): Promise<RateLimitResult> {
-  return checkRateLimit(env, buildIpRateLimitKey(request, scope))
+  return checkRateLimit(env.CHAT_RATE_LIMITER, buildIpRateLimitKey(request, scope))
 }
 
 export function checkVisitorRateLimit(
@@ -31,11 +31,14 @@ export function checkVisitorRateLimit(
   visitorId: string,
   scope: string
 ): Promise<RateLimitResult> {
-  return checkRateLimit(env, buildVisitorRateLimitKey(visitorId, scope))
+  return checkRateLimit(env.CHAT_RATE_LIMITER, buildVisitorRateLimitKey(visitorId, scope))
 }
 
-export async function checkRateLimit(env: CloudflareEnv, key: string): Promise<RateLimitResult> {
-  const limiter = env.CHAT_RATE_LIMITER
+export async function checkRateLimit(
+  limiter: RateLimit | undefined,
+  key: string
+): Promise<RateLimitResult> {
+  // fail-closed: a missing or erroring limiter must never widen access
   if (!limiter) return { success: false, unavailable: true }
 
   try {

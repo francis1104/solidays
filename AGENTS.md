@@ -107,8 +107,8 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │
 ├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock 播放队列
 │
-├── data/                             # cards.ts 默认卡片 · headerNavLinks.ts 导航 ·
-│                                     #   siteMetadata.js 站点元信息
+├── data/                             # cards.ts 默认卡片 · gallery.ts Gallery 条目 ·
+│                                     #   headerNavLinks.ts 导航 · siteMetadata.js
 │
 ├── lib/
 │   ├── chat/                         # 留言后端：repository(D1 查询)·validation·
@@ -116,6 +116,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
 │   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   ├── gallery.ts                         # Gallery 公开基址 https://media.solidays.win
 │   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
 │
 ├── css/tailwind.css                  # 全局样式入口
@@ -151,6 +152,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/features/anonymous-chat/backend-implementation.md` | 匿名留言后端实施记录与当前状态 |
 | `docs/features/anonymous-chat/frontend-plan.md` | 聊天前端实施方案 |
 | `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
+| `docs/features/gallery/metadata-processing.md` | Gallery 视频元数据与 Web 处理方案（独立公开桶 `solidays-gallery`，不上 Stream） |
 | `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（favicon 与扫描器早 404 已落地；/media 同 colo smoke 未做） |
 | `docs/incidents/` | 生产事故报告 |
 

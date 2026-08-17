@@ -51,6 +51,7 @@ yarn-error.log*
 
 # generated local data
 .contentlayer
+__pycache__/
 
 .dockerignore
 *.tar

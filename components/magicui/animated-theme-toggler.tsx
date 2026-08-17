@@ -12,34 +12,49 @@ type props = {
 export const AnimatedThemeToggler = ({ className }: props) => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const transitionInFlightRef = useRef(false)
   const changeTheme = async () => {
-    if (!buttonRef.current) return
+    if (!buttonRef.current || transitionInFlightRef.current) return
 
-    await document.startViewTransition(() => {
-      flushSync(() => {
-        const dark = document.documentElement.classList.toggle('dark')
-        setIsDarkMode(dark)
+    transitionInFlightRef.current = true
+
+    const root = document.documentElement
+    root.classList.add('theme-transitioning')
+
+    try {
+      const transition = document.startViewTransition(() => {
+        flushSync(() => {
+          const dark = root.classList.toggle('dark')
+          setIsDarkMode(dark)
+        })
       })
-    }).ready
 
-    const { top, left, width, height } = buttonRef.current.getBoundingClientRect()
-    const y = top + height / 2
-    const x = left + width / 2
+      await transition.ready
 
-    const right = window.innerWidth - left
-    const bottom = window.innerHeight - top
-    const maxRad = Math.hypot(Math.max(left, right), Math.max(top, bottom))
+      const { top, left, width, height } = buttonRef.current.getBoundingClientRect()
+      const y = top + height / 2
+      const x = left + width / 2
 
-    document.documentElement.animate(
-      {
-        clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${maxRad}px at ${x}px ${y}px)`],
-      },
-      {
-        duration: 700,
-        easing: 'ease-in-out',
-        pseudoElement: '::view-transition-new(root)',
-      }
-    )
+      const right = window.innerWidth - left
+      const bottom = window.innerHeight - top
+      const maxRad = Math.hypot(Math.max(left, right), Math.max(top, bottom))
+
+      const reveal = root.animate(
+        {
+          clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${maxRad}px at ${x}px ${y}px)`],
+        },
+        {
+          duration: 700,
+          easing: 'ease-in-out',
+          pseudoElement: '::view-transition-new(root)',
+        }
+      )
+
+      await Promise.allSettled([reveal.finished, transition.finished])
+    } finally {
+      root.classList.remove('theme-transitioning')
+      transitionInFlightRef.current = false
+    }
   }
   return (
     <button ref={buttonRef} onClick={changeTheme} className={cn(className)}>

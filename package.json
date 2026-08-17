@@ -33,6 +33,7 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1111.0",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.16.0",
     "@opennextjs/cloudflare": "^1.20.2",

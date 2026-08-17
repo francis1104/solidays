@@ -25,6 +25,7 @@ export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(fun
       aria-controls={panelId}
       aria-expanded={open}
       data-testid="chat-launcher"
+      data-chat-surface
       title="Open chat"
       className={cn(
         chatSurfaceClassName,

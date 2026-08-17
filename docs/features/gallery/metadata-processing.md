@@ -1,8 +1,9 @@
 # Gallery 页面元数据处理方案
 
-> 建立于 2026-08-17。状态：已评审（2026-08-17），**Approved — implementation ready**。
-> 可进入第 4.3 节 A/B 与 `solidays-gallery` 建桶。新桶、域名、A/B 和页面均未实施。
-> 评审记录见第 9 节。
+> 建立于 2026-08-17。状态：**Approved，页面除外的实施已完成**。
+> A/B 已锁 CRF 21；`solidays-gallery` + `media.solidays.win` 已就绪；
+> 82 条 Web 成品已上传（164 对象 HEAD 200，Range 206，私有桶未泄露）。
+> 首次上传走 Wrangler OAuth，不是 S3 Access Key。页面未做。评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
 
@@ -64,18 +65,19 @@ R2 桶接上 custom domain 后，该桶内对象都可通过这个域名公开�
 - `custom-worker.ts` 只允许 `GET/HEAD /media/*` 且响应为 `200`、`image/*`、无 `Set-Cookie` 时保留 Cache-Control；视频会被改成 `no-store`。
 - custom domain 让对象走 R2 自己的 CDN 缓存，不依赖这条只为图片设计的出口策略。
 
-### 2.3 创建与绑域（尚未执行）
+### 2.3 创建与绑域
 
-用 Wrangler 建桶和绑域，不走 Dashboard。`--location wnam` 是 Western North America 的 **Location Hint**，best-effort，不是强制数据驻留；这里用它只是与当前部署地域策略保持一致，不声称对象一定落在同一区域。
+用 Wrangler 建桶和绑域，不走 Dashboard。`--location wnam` 是 Western North America 的 **Location Hint**，best-effort，不是强制数据驻留。
 
-```bash
-wrangler r2 bucket create solidays-gallery --location wnam
-wrangler r2 bucket domain add solidays-gallery \
-  --domain media.solidays.win \
-  --zone-id <solidays.win 的 zone id>
-```
+已执行（2026-08-17）：
 
-`--zone-id` 在实施时用 `wrangler` 查，不要写进仓库。绑域后确认 DNS CNAME 生效，再用 `wrangler r2 bucket domain list solidays-gallery` 核验。不要对这个桶执行 `wrangler r2 bucket dev-url enable`。
+- `wrangler r2 bucket create solidays-gallery --location wnam`
+- `wrangler r2 bucket domain add solidays-gallery --domain media.solidays.win`
+- `domain list`：enabled，ownership/ssl active；`solidays-media` 无自定义域名
+- `r2 bucket dev-url get solidays-gallery`：Public Development URL 关闭
+- **没有**把 `solidays-gallery` 写进 `wrangler.jsonc`，Worker 不绑定该桶
+
+`--zone-id` 不要写进仓库。以后核验用 `wrangler r2 bucket domain list solidays-gallery`。
 
 普通 `<video src>` / `<img src>` 跨子域播放不需要 CORS。以后如果要 `crossorigin`、canvas 抽帧或 `fetch` 视频，再给 `https://solidays.win` 配只读 CORS，不提前做。
 
@@ -202,9 +204,11 @@ ffmpeg -i input.mp4 \
 每个视频出一张同 id 的 WebP，供 Gallery 封面和 `<video poster>`：
 
 ```bash
-ffmpeg -ss 1 -i output.mp4 -frames:v 1 -c:v libwebp -quality 80 poster.webp
+ffmpeg -ss 1 -i output.mp4 -frames:v 1 frame.png
+cwebp -q 80 frame.png -o poster.webp
 ```
 
+当前 Homebrew ffmpeg 未编进 `libwebp`，所以抽帧走 PNG，再交给 `cwebp`。
 片头若是黑场或 Xbox UI，把 `-ss` 调到 1–3 秒之间能看清内容的一帧。poster 跟视频一起上传，不进 Git。
 
 ## 5. 存储 key 与元数据
@@ -484,14 +488,22 @@ crf                                         remux 则为空
 
 ## 8. 实施顺序
 
-1. 对第 4.3 节三个样本做 CRF 20 / 21 / 22 A/B，锁参数。可与建桶并行。
-2. 创建 `solidays-gallery`（`--location wnam` hint），**不要**启用 `r2.dev`。
-3. 用 Wrangler 把 `media.solidays.win` 接到 **新桶**，核验 DNS 与 `domain list`。不要改 `solidays-media`。
-4. 按第 6 节决策表批量产出 Web MP4 + poster，生成 `data/gallery.ts` 初稿。
-5. 按第 5.4 节用 S3 条件 `PutObject`（`If-None-Match: *`）带 HTTP metadata 上传；已存在 key 必须 412 失败。核对 URL 与元数据一致。
-6. 再做 Gallery 页面。页面方案另开文档；元数据契约以本文第 5.3 节为准。
+1. ~~对第 4.3 节三个样本做 CRF 20 / 21 / 22 A/B，锁参数。~~ **已锁 CRF 21。**
+   A/B 结果（preset slow + maxrate 12M）：Atomic Heart 高运动 crf20/21/22 = 10.3 / 9.4 / 8.4 Mbps；
+   RE3 与 P5R 都低于 5 Mbps。CRF 21 落在 8–12 Mbps 目标内，画质抽帧无明显色块。
+2. ~~创建 `solidays-gallery`（`--location wnam` hint），不要启用 `r2.dev`。~~ **已完成。**
+3. ~~把 `media.solidays.win` 接到新桶。~~ **已完成，SSL active。** `solidays-media` 未改。
+4. ~~按第 6 节决策表批量产出 Web MP4 + poster，生成 `data/gallery.ts`。~~ **已完成。**
+   单路 / x264 `-threads 2`；成品在 `~/Movies/xbox-gallery-web/`，不进 Git。
+   poster 用 `ffmpeg` 抽 PNG + `cwebp`。`data/gallery.ts` 已按处理后的宽高和时长写入。
+5. ~~按第 5.4 节上传。~~ **已完成。** 首次灌库用 `scripts/gallery/upload-wrangler.py`
+   （Wrangler OAuth + `--content-type` / `--cache-control`）。断线后可跳过已公开对象并重试。
+   2026-08-17 核验：`data/gallery.ts` 中 82 条对应的 164 个 URL 均为 200，
+   `Content-Type` / `immutable` 缓存头正确；抽样 MP4 `Range` 返回 206；
+   `media.solidays.win/fnds/...` 为 404；`solidays-media` 无自定义域名；gallery 桶未开 `r2.dev`。
+6. Gallery 页面本期不做。
 
-A/B 或批量转码改变 CRF / maxrate 之后，回写第 4.2 节的实际采用值。
+A/B 已把第 4.2 节 CRF 21 定为采用值。
 
 ## 9. 评审记录
 

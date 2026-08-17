@@ -107,8 +107,8 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │
 ├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock 播放队列
 │
-├── data/                             # cards.ts 默认卡片 · headerNavLinks.ts 导航 ·
-│                                     #   siteMetadata.js 站点元信息
+├── data/                             # cards.ts 默认卡片 · gallery.ts Gallery 条目 ·
+│                                     #   headerNavLinks.ts 导航 · siteMetadata.js
 │
 ├── lib/
 │   ├── chat/                         # 留言后端：repository(D1 查询)·validation·
@@ -116,6 +116,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
 │   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   ├── gallery.ts                         # Gallery 公开基址 https://media.solidays.win
 │   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
 │
 ├── css/tailwind.css                  # 全局样式入口

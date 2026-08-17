@@ -33,10 +33,11 @@ Worker 会通过 `/media/<key>` 读取私有桶。`app/fnds/page.tsx` 会请求
 新增图片时，先上传到 R2，再在页面中引用对应 object key；不要把同一批生产图片重新
 放回 Git。
 
-## Gallery 视频（规划，尚未落地）
+## Gallery 视频（实施中，页面未做）
 
-Gallery 成品不进 `solidays-media`。计划新建独立公开桶 `solidays-gallery`，
-只把 `media.solidays.win` 绑到这个新桶；现有私有桶和 `/media` 白名单保持不变。
-处理规则、上传 HTTP metadata、write-once 和元数据契约见
-`docs/features/gallery/metadata-processing.md`。桶、自定义域名和
-`data/gallery.ts` 都未落地之前，不要上传或引用这批对象。
+Gallery 成品不进 `solidays-media`。公开桶 `solidays-gallery` 已创建，
+`media.solidays.win` 只绑这个桶；现有私有桶和 `/media` 白名单不变，
+Worker 不绑定 Gallery 桶。处理规则、上传契约和元数据见
+`docs/features/gallery/metadata-processing.md`。本地 Web 成品在仓库外
+`~/Movies/xbox-gallery-web/`；`data/gallery.ts` 已按 82 条成品写入，
+对象已在 `https://media.solidays.win/gaming/<id>.mp4` 可访问。页面尚未做。

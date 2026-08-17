@@ -54,9 +54,9 @@ Wrangler OAuth 凭据保存在 macOS 钥匙串。
 - `/fnds` 的图片优先使用 `NEXT_PUBLIC_R2_PUBLIC_URL`；当前本地配置和生产 Worker 都
   通过 `/media/<key>` 读取 R2。
 - `/api/cards` 当前返回 `data/cards.ts` 中的最小默认数据，是将来接入 D1 的明确入口。
-- Gallery 视频规划新建公开桶 `solidays-gallery`，自定义域名 `media.solidays.win`
-  只绑这个桶；不要给 `solidays-media` 接公开域名。详见
-  `docs/features/gallery/metadata-processing.md`。桶尚未创建，Worker 也不绑定它。
+- Gallery 公开桶 `solidays-gallery` 已创建，`media.solidays.win` 只绑这个桶；
+  不要给 `solidays-media` 接公开域名。Worker **不**绑定 Gallery 桶。详见
+  `docs/features/gallery/metadata-processing.md`。
 
 ## 结构化数据接入 D1（未来）
 

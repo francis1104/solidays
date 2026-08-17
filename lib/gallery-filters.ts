@@ -9,6 +9,8 @@ export const FEATURED_GAME_NAMES = [
   'Split Fiction',
 ] as const
 
+export const HERO_ITEM_LIMIT = 6
+
 function compareNewest(a: GalleryItem, b: GalleryItem) {
   const byDate = new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
   if (byDate !== 0) return byDate
@@ -68,6 +70,21 @@ export function getFeaturedItems(items: readonly GalleryItem[]) {
   }
 
   return featured
+}
+
+export function getHeroItems(items: readonly GalleryItem[]) {
+  const newest = getNewestItem(items)
+  const candidates = newest ? [newest, ...getFeaturedItems(items)] : getFeaturedItems(items)
+  const seenGames = new Set<string>()
+
+  return candidates
+    .filter((item) => {
+      const game = item.game ?? item.title
+      if (seenGames.has(game)) return false
+      seenGames.add(game)
+      return true
+    })
+    .slice(0, HERO_ITEM_LIMIT)
 }
 
 export function findItemById(items: readonly GalleryItem[], id: string | null) {

@@ -6,7 +6,7 @@ import {
   filterGalleryItems,
   findItemById,
   getAvailableYears,
-  getFeaturedItems,
+  getHeroItems,
   getNewestItem,
   getYearSpan,
   sortGalleryItems,
@@ -20,9 +20,9 @@ export default function Gallery({ items }: { items: GalleryItem[] }) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<'grid' | 'index'>('grid')
   const newest = useMemo(() => getNewestItem(items), [items])
-  const featuredItems = useMemo(() => getFeaturedItems(items), [items])
+  const heroItems = useMemo(() => getHeroItems(items), [items])
   const [featuredId, setFeaturedId] = useState<string | null>(
-    newest?.id ?? featuredItems[0]?.id ?? null
+    newest?.id ?? heroItems[0]?.id ?? null
   )
   const [indexHoverId, setIndexHoverId] = useState<string | null>(null)
   const [lightboxId, setLightboxId] = useState<string | null>(null)
@@ -46,7 +46,7 @@ export default function Gallery({ items }: { items: GalleryItem[] }) {
   return (
     <div className="overflow-x-clip pt-2">
       <GalleryHero
-        featuredItems={featuredItems}
+        featuredItems={heroItems}
         featuredItem={featuredItem}
         clipCount={items.length}
         clipIndex={Math.max(featuredIndex, 0)}

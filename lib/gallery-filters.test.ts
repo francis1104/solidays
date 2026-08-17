@@ -7,6 +7,7 @@ import {
   findItemById,
   getAvailableYears,
   getFeaturedItems,
+  getHeroItems,
   getNewestItem,
   getYearSpan,
   sortGalleryItems,
@@ -102,6 +103,25 @@ describe('gallery catalog helpers', () => {
     assert.equal(findItemById(sample, 'atomic-heart-20230226-064348')?.title, 'Atomic Heart')
     assert.equal(findItemById(sample, null), undefined)
   })
+
+  it('puts the newest game first and removes duplicate games', () => {
+    const newestGame = {
+      ...sample[0],
+      id: 'resident-evil-3-20250719-104612',
+      title: 'Resident Evil 3',
+      game: 'Resident Evil 3',
+      recordedAt: '2025-07-19',
+      video: '/gaming/resident-evil-3-20250719-104612.mp4',
+      poster: '/gaming/resident-evil-3-20250719-104612.webp',
+    }
+    const heroItems = getHeroItems([...sample, newestGame])
+
+    assert.deepEqual(heroItems.map((item) => item.game), [
+      'Resident Evil 3',
+      'Atomic Heart',
+      'Street Fighter 6',
+    ])
+  })
 })
 
 describe('real gallery catalog', () => {
@@ -131,6 +151,14 @@ describe('real gallery catalog', () => {
     assert.deepEqual(
       featured.map((item) => item.game),
       FEATURED_GAME_NAMES.filter((name) => galleryItems.some((item) => item.game === name))
+    )
+
+    const heroItems = getHeroItems(galleryItems)
+    assert.equal(heroItems[0]?.id, getNewestItem(galleryItems)?.id)
+    assert.ok(heroItems.length <= 6)
+    assert.equal(
+      new Set(heroItems.map((item) => item.game ?? item.title)).size,
+      heroItems.length
     )
   })
 

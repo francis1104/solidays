@@ -191,10 +191,25 @@ def write_gallery_ts(rows: list[dict], dest: Path) -> None:
             f"    recordedAt: {json.dumps(row['recorded_at'])},\n"
             f"    video: {json.dumps('/gaming/' + row['id'] + '.mp4')},\n"
             f"    poster: {json.dumps('/gaming/' + row['id'] + '.webp')},\n"
-            f"    width: {row['out_width']},\n"
-            f"    height: {row['out_height']},\n"
-            f"    duration: {round(row['out_duration'], 1)},\n"
-            "  },"
+            + (
+                f"    preview: {json.dumps('/gaming/' + row['id'] + '-preview.mp4')},\n"
+                if row.get("preview_path")
+                else ""
+            )
+            + (
+                "    posterSrcSet: [\n"
+                + "\n".join(
+                    f"      {{ src: {json.dumps(source['src'])}, width: {source['width']} }},"
+                    for source in row["poster_src_set"]
+                )
+                + "\n    ],\n"
+                if row.get("poster_src_set")
+                else ""
+            )
+            + f"    width: {row['out_width']},\n"
+            + f"    height: {row['out_height']},\n"
+            + f"    duration: {round(row['out_duration'], 1)},\n"
+            + "  },"
         )
 
     dest.write_text(
@@ -274,6 +289,12 @@ def process_one(src: Path, crf: int) -> dict:
     decision = decision_for_mbps(source["mbps"])
     video_path = Path(WEB_DIR) / f"{item_id}.mp4"
     poster_path = Path(WEB_DIR) / f"{item_id}.webp"
+    preview_path = Path(WEB_DIR) / f"{item_id}-preview.mp4"
+    poster_src_set = [
+        {"src": f"/gaming/{item_id}-{width}.webp", "width": width}
+        for width in (480, 768, 1280)
+        if (Path(WEB_DIR) / f"{item_id}-{width}.webp").exists()
+    ]
 
     if not video_path.exists():
         print(f"{decision} {item_id} ({source['mbps']:.1f}Mbps)", flush=True)
@@ -317,6 +338,8 @@ def process_one(src: Path, crf: int) -> dict:
         "out_duration": output["duration"],
         "video_path": str(video_path),
         "poster_path": str(poster_path),
+        "preview_path": str(preview_path) if preview_path.exists() else None,
+        "poster_src_set": poster_src_set,
     }
 
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { GalleryItem } from '@/data/gallery'
 import {
   filterGalleryItems,
@@ -11,6 +11,7 @@ import {
   getYearSpan,
   sortGalleryItems,
 } from '@/lib/gallery-filters'
+import { parseGalleryUrl, serializeGalleryUrl } from '@/lib/gallery-state'
 import GalleryArchive from './GalleryArchive'
 import GalleryHero from './GalleryHero'
 import GalleryLightbox from './GalleryLightbox'
@@ -26,14 +27,47 @@ export default function Gallery({ items }: { items: GalleryItem[] }) {
   )
   const [indexHoverId, setIndexHoverId] = useState<string | null>(null)
   const [lightboxId, setLightboxId] = useState<string | null>(null)
+  const [urlReady, setUrlReady] = useState(false)
 
   const catalog = useMemo(() => sortGalleryItems(items), [items])
   const years = useMemo(() => getAvailableYears(items), [items])
+  const itemIds = useMemo(() => items.map((item) => item.id), [items])
   const yearSpan = useMemo(() => getYearSpan(items), [items])
   const filteredItems = useMemo(
     () => filterGalleryItems(items, { year, query }),
     [items, year, query]
   )
+
+  useEffect(() => {
+    const applyUrlState = () => {
+      const next = parseGalleryUrl(window.location.href, years, itemIds)
+      setYear(next.year)
+      setQuery(next.query)
+      setView(next.view)
+      setLightboxId(next.clipId)
+      setUrlReady(true)
+    }
+
+    applyUrlState()
+    window.addEventListener('popstate', applyUrlState)
+    return () => window.removeEventListener('popstate', applyUrlState)
+  }, [itemIds, years])
+
+  useEffect(() => {
+    if (!urlReady) return
+
+    const nextUrl = serializeGalleryUrl(window.location.href, {
+      year,
+      query,
+      view,
+      clipId: lightboxId,
+    })
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, '', nextUrl)
+    }
+  }, [lightboxId, query, urlReady, view, year])
 
   const featuredItem = findItemById(items, featuredId) ?? newest
   const previewItem = findItemById(filteredItems, indexHoverId) ?? filteredItems[0]

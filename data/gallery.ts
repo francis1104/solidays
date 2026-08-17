@@ -1,5 +1,10 @@
 export type GalleryItemType = 'gaming' | 'phone'
 
+export type GalleryPosterSource = {
+  src: string
+  width: number
+}
+
 // `phone` only shares this schema. Phone sources need a separate
 // codec / color / rotation / frame-timing intake before encode.
 
@@ -11,6 +16,8 @@ export type GalleryItem = {
   recordedAt: string
   video: string
   poster: string
+  preview?: string
+  posterSrcSet?: GalleryPosterSource[]
   width: number
   height: number
   duration: number

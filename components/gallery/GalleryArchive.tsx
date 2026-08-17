@@ -101,20 +101,23 @@ export default function GalleryArchive({
         </div>
       </div>
 
-      <div className="mt-10 lg:hidden">
-        <GalleryGrid items={items} onPlay={onPlay} />
-      </div>
-
-      <div className="mt-10 hidden lg:block">
+      <div className="mt-10">
         {view === 'grid' ? (
           <GalleryGrid items={items} onPlay={onPlay} />
         ) : (
-          <GalleryIndex
-            items={items}
-            previewItem={previewItem}
-            onHover={onIndexHover}
-            onPlay={onPlay}
-          />
+          <>
+            <div className="lg:hidden">
+              <GalleryGrid items={items} onPlay={onPlay} />
+            </div>
+            <div className="hidden lg:block">
+              <GalleryIndex
+                items={items}
+                previewItem={previewItem}
+                onHover={onIndexHover}
+                onPlay={onPlay}
+              />
+            </div>
+          </>
         )}
       </div>
     </section>

@@ -9,7 +9,7 @@
 - 构建方式：OpenNext for Cloudflare，把 Next.js 应用构建为 Cloudflare Worker。
 - 当前维护分支：`cloudflare-worker-DEV`；生产分支：`cloudflare-worker`
   （分支与发布规则见 `docs/deployment/release-process.md`）。
-- 当前展示页：`/`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
+- 当前展示页：`/`、`/gallery`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
 - 首页当前固定使用 `data/cards.ts` 中的一条默认卡片；首页不再请求 `/api/cards`，
   但该接口暂时保留作为以后接入 D1 的数据边界。
 - 首页 CardStack 保留 3 层静态堆叠视觉：1 张真实卡片和 2 个空白后层框，不自动
@@ -21,9 +21,10 @@
 
 - `app/`：页面、API 路由和 App Router 入口；`fnds`、`about` 的图片/头像通过 R2
   object key 访问，`app/media/[...key]/route.ts` 负责私有媒体读取。
-- `components/`：按来源与职责分组——`site/`（项目自己的页面组件）、`chat/`（聊天前端）、
-  `ui/`（shadcn 来源）、`magicui/`（Magic UI 来源）、`lib/`（shadcn 约定的 `cn()` 工具）。
-  `contexts/`：主题和交互状态；`lib/media.ts` 负责媒体 URL。
+- `components/`：按来源与职责分组——`site/`（项目自己的页面组件）、`gallery/`（Gallery
+  页面）、`chat/`（聊天前端）、`ui/`（shadcn 来源）、`magicui/`（Magic UI 来源）、
+  `lib/`（shadcn 约定的 `cn()` 工具）。`contexts/`：主题和交互状态；`lib/media.ts`
+  负责私有媒体 URL；`lib/gallery.ts` 负责公开 Gallery 基址。
 - `data/cards.ts`：当前唯一的默认卡片数据。`app/page.tsx` 直接使用它，不要恢复
   客户端 fetch、本地镜像状态或自动轮播。
 - `components/magicui/CardStack.tsx`：3 层静态堆叠（1 张真实卡片 + 2 个空白后层框），

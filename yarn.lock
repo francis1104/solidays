@@ -8687,6 +8687,7 @@ __metadata:
     tw-animate-css: ^1.3.7
     typescript: ^5.1.3
     wrangler: ^4.123.0
+    yet-another-react-lightbox: ^3.32.2
   languageName: unknown
   linkType: soft
 
@@ -9637,6 +9638,23 @@ __metadata:
     y18n: ^5.0.5
     yargs-parser: ^22.0.0
   checksum: bd56c39d72f5490d4605d75b482b4edc6c67bd673cd687871ba0b4343fb8a85a5675078f28824dbc7eebf31427b643b98151854cacea714431c82aaa6a6ca8e9
+  languageName: node
+  linkType: hard
+
+"yet-another-react-lightbox@npm:^3.32.2":
+  version: 3.32.2
+  resolution: "yet-another-react-lightbox@npm:3.32.2"
+  peerDependencies:
+    "@types/react": ^16 || ^17 || ^18 || ^19
+    "@types/react-dom": ^16 || ^17 || ^18 || ^19
+    react: ^16.8.0 || ^17 || ^18 || ^19
+    react-dom: ^16.8.0 || ^17 || ^18 || ^19
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
+  checksum: ab23b5f2a1b6360b5d62cae4e5d9788d7c2fd9849a65169214b35ef3471f55a6d1a25a4fe69c24613bd78f47656b1fb14a65701e057bdcd6f219d665a796cb14
   languageName: node
   linkType: hard
 

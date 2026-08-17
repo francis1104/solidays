@@ -80,6 +80,8 @@ function isPreservedPath(pathname: string) {
     pathname.startsWith('/_next/') ||
     pathname === '/fnds' ||
     pathname.startsWith('/fnds/') ||
+    pathname === '/gallery' ||
+    pathname.startsWith('/gallery/') ||
     pathname === '/about' ||
     pathname.startsWith('/about/') ||
     pathname.startsWith('/static/') ||

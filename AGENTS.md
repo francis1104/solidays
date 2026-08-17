@@ -28,6 +28,12 @@ solidays.win/
 │     ├── components/magicui/CardStack.tsx   # 3 层堆叠（1 真卡 + 2 空白后层）
 │     └── data/cards.ts                      # 默认卡片数据（首页唯一数据源）
 │
+├── /gallery ··············· 游戏片段 Archive：Hero + Grid/Index + Lightbox
+│     app/gallery/page.tsx
+│     ├── components/gallery/                 # Hero · Archive · Index · Lightbox
+│     ├── data/gallery.ts                     # 82 条静态条目
+│     └── lib/gallery.ts · gallery-filters.ts · gallery-format.ts
+│
 ├── /fnds ·················· FNDS 图片卡片页
 │     app/fnds/page.tsx
 │     ├── components/magicui/draggable-card.tsx
@@ -88,7 +94,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   ├── layout.tsx                    # 根布局：全局挂载 Header/MusicDock/聊天/流星
 │   ├── page.tsx                      # / 首页
 │   ├── not-found.tsx · robots.ts · sitemap.ts · theme-providers.tsx
-│   ├── about/ · fnds/ · admin/       # /about、/fnds、/admin 页面
+│   ├── about/ · gallery/ · fnds/ · admin/  # /about、/gallery、/fnds、/admin 页面
 │   ├── api/cards/route.ts            # GET 卡片数据
 │   ├── api/chat/**/route.ts          # 留言三接口（见上图）
 │   ├── api/admin/**/route.ts         # Admin 登录/会话/回复接口
@@ -97,6 +103,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 ├── components/
 │   ├── site/                         # 自研页面组件：Header·MobileNav·Link·
 │   │                                 #   MusicDock·SectionContainer
+│   ├── gallery/                      # Gallery 前端：Hero·Archive·Index·Lightbox
 │   ├── chat/                         # 自研聊天前端（floating-chat 等 9 个）
 │   ├── admin/                        # Admin 后台前端（lock-screen·list·detail）
 │   ├── ui/                           # shadcn 来源：button·tooltip·separator·
@@ -105,7 +112,7 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   squiggly-text·dock·meteors·theme-toggler
 │   └── lib/utils.ts                  # cn() 类名合并（14 处引用）
 │
-├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock 播放队列
+├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock；Gallery 播放时 pause
 │
 ├── data/                             # cards.ts 默认卡片 · gallery.ts Gallery 条目 ·
 │                                     #   headerNavLinks.ts 导航 · siteMetadata.js
@@ -116,7 +123,8 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
 │   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
-│   ├── gallery.ts                         # Gallery 公开基址 https://media.solidays.win
+│   ├── gallery.ts · gallery-filters.ts · gallery-format.ts
+│   │                                      # 公开基址、筛选、日期/时长格式
 │   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
 │
 ├── css/tailwind.css                  # 全局样式入口

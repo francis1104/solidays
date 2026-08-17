@@ -12,8 +12,11 @@ type props = {
 export const AnimatedThemeToggler = ({ className }: props) => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const transitionInFlightRef = useRef(false)
   const changeTheme = async () => {
-    if (!buttonRef.current) return
+    if (!buttonRef.current || transitionInFlightRef.current) return
+
+    transitionInFlightRef.current = true
 
     const root = document.documentElement
     root.classList.add('theme-transitioning')
@@ -50,6 +53,7 @@ export const AnimatedThemeToggler = ({ className }: props) => {
       await Promise.allSettled([reveal.finished, transition.finished])
     } finally {
       root.classList.remove('theme-transitioning')
+      transitionInFlightRef.current = false
     }
   }
   return (

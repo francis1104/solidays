@@ -1,0 +1,170 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { galleryItems } from '../data/gallery.ts'
+import {
+  FEATURED_GAME_NAMES,
+  filterGalleryItems,
+  findItemById,
+  getAvailableYears,
+  getFeaturedItems,
+  getHeroItems,
+  getNewestItem,
+  getYearSpan,
+  sortGalleryItems,
+} from './gallery-filters.ts'
+import type { GalleryItem } from '../data/gallery.ts'
+
+const sample: GalleryItem[] = [
+  {
+    id: 'atomic-heart-20230226-064348',
+    type: 'gaming',
+    title: 'Atomic Heart',
+    game: 'Atomic Heart',
+    recordedAt: '2023-02-26',
+    video: '/gaming/atomic-heart-20230226-064348.mp4',
+    poster: '/gaming/atomic-heart-20230226-064348.webp',
+    width: 1920,
+    height: 1080,
+    duration: 59.4,
+  },
+  {
+    id: 'street-fighter-6-20250708-150434',
+    type: 'gaming',
+    title: 'Street Fighter 6',
+    game: 'Street Fighter 6',
+    recordedAt: '2025-07-08',
+    video: '/gaming/street-fighter-6-20250708-150434.mp4',
+    poster: '/gaming/street-fighter-6-20250708-150434.webp',
+    width: 1920,
+    height: 1080,
+    duration: 59.1,
+  },
+  {
+    id: 'persona-5-royal-20221112-164307',
+    type: 'gaming',
+    title: 'Persona 5 Royal',
+    game: 'Persona 5 Royal',
+    recordedAt: '2022-11-12',
+    video: '/gaming/persona-5-royal-20221112-164307.mp4',
+    poster: '/gaming/persona-5-royal-20221112-164307.webp',
+    width: 1920,
+    height: 1080,
+    duration: 29.5,
+  },
+]
+
+describe('filterGalleryItems', () => {
+  it('returns newest first by default', () => {
+    const filtered = filterGalleryItems(sample, { year: 'all', query: '' })
+    assert.deepEqual(
+      filtered.map((item) => item.id),
+      [
+        'street-fighter-6-20250708-150434',
+        'atomic-heart-20230226-064348',
+        'persona-5-royal-20221112-164307',
+      ]
+    )
+  })
+
+  it('filters by recorded year', () => {
+    const filtered = filterGalleryItems(sample, { year: '2023', query: '' })
+    assert.equal(filtered.length, 1)
+    assert.equal(filtered[0].id, 'atomic-heart-20230226-064348')
+  })
+
+  it('searches game and title case-insensitively', () => {
+    const byGame = filterGalleryItems(sample, { year: 'all', query: 'street' })
+    const byTitle = filterGalleryItems(sample, { year: 'all', query: 'PERSONA' })
+    assert.equal(byGame[0].game, 'Street Fighter 6')
+    assert.equal(byTitle[0].title, 'Persona 5 Royal')
+  })
+
+  it('ignores surrounding whitespace in the query', () => {
+    const filtered = filterGalleryItems(sample, { year: 'all', query: '  atomic  ' })
+    assert.equal(filtered.length, 1)
+    assert.equal(filtered[0].game, 'Atomic Heart')
+  })
+})
+
+describe('gallery catalog helpers', () => {
+  it('collects years newest first', () => {
+    assert.deepEqual(getAvailableYears(sample), ['2025', '2023', '2022'])
+  })
+
+  it('returns the recorded year span', () => {
+    assert.deepEqual(getYearSpan(sample), { start: '2022', end: '2025' })
+  })
+
+  it('picks the newest item', () => {
+    assert.equal(getNewestItem(sample)?.id, 'street-fighter-6-20250708-150434')
+  })
+
+  it('finds an item by id', () => {
+    assert.equal(findItemById(sample, 'atomic-heart-20230226-064348')?.title, 'Atomic Heart')
+    assert.equal(findItemById(sample, null), undefined)
+  })
+
+  it('puts the newest game first and removes duplicate games', () => {
+    const newestGame = {
+      ...sample[0],
+      id: 'resident-evil-3-20250719-104612',
+      title: 'Resident Evil 3',
+      game: 'Resident Evil 3',
+      recordedAt: '2025-07-19',
+      video: '/gaming/resident-evil-3-20250719-104612.mp4',
+      poster: '/gaming/resident-evil-3-20250719-104612.webp',
+    }
+    const heroItems = getHeroItems([...sample, newestGame])
+
+    assert.deepEqual(heroItems.map((item) => item.game), [
+      'Resident Evil 3',
+      'Atomic Heart',
+      'Street Fighter 6',
+    ])
+  })
+})
+
+describe('real gallery catalog', () => {
+  it('keeps catalog metadata internally consistent', () => {
+    assert.ok(galleryItems.length > 0)
+
+    const ids = new Set<string>()
+    for (const item of galleryItems) {
+      assert.equal(ids.has(item.id), false, `duplicate gallery id: ${item.id}`)
+      ids.add(item.id)
+      assert.match(item.recordedAt, /^\d{4}-\d{2}-\d{2}$/)
+      assert.equal(Number.isNaN(Date.parse(`${item.recordedAt}T00:00:00Z`)), false)
+      assert.ok(item.title.trim().length > 0)
+      assert.ok(item.video.trim().length > 0)
+      assert.ok(item.poster.trim().length > 0)
+      assert.ok(item.width > 0)
+      assert.ok(item.height > 0)
+      assert.ok(item.duration >= 0)
+    }
+
+    const years = getAvailableYears(galleryItems)
+    const yearSpan = getYearSpan(galleryItems)
+    assert.equal(yearSpan.start, years[years.length - 1])
+    assert.equal(yearSpan.end, years[0])
+
+    const featured = getFeaturedItems(galleryItems)
+    assert.deepEqual(
+      featured.map((item) => item.game),
+      FEATURED_GAME_NAMES.filter((name) => galleryItems.some((item) => item.game === name))
+    )
+
+    const heroItems = getHeroItems(galleryItems)
+    assert.equal(heroItems[0]?.id, getNewestItem(galleryItems)?.id)
+    assert.ok(heroItems.length <= 6)
+    assert.equal(
+      new Set(heroItems.map((item) => item.game ?? item.title)).size,
+      heroItems.length
+    )
+  })
+
+  it('keeps every catalog item when no filters are applied', () => {
+    const filtered = filterGalleryItems(galleryItems, { year: 'all', query: '' })
+    assert.equal(filtered.length, galleryItems.length)
+    assert.deepEqual(filtered.map((item) => item.id), sortGalleryItems(galleryItems).map((item) => item.id))
+  })
+})

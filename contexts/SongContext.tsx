@@ -15,6 +15,8 @@ type SongContextType = {
   cards: Card[]
   songQueue: Song[]
   addToSongQueue: (songs: Song[], currentSong?: Song) => void
+  pause: () => void
+  isPlaying: boolean
 }
 
 const SongContext = createContext<SongContextType | undefined>(undefined)
@@ -23,6 +25,51 @@ export function SongProvider({ children }: { children: ReactNode }) {
   // Keep the music lookup aligned with the single static card shown on the homepage.
   const cards = defaultCards
   const [songQueue, setSongQueue] = useState<Song[]>([])
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    let audio: HTMLAudioElement | undefined
+    let intervalId: number | undefined
+
+    const onPlay = () => setIsPlaying(true)
+    const onPause = () => setIsPlaying(false)
+
+    const attach = () => {
+      const next = window.globalAudioPlayer
+      if (!next || next === audio) return
+      audio?.removeEventListener('play', onPlay)
+      audio?.removeEventListener('pause', onPause)
+      audio?.removeEventListener('ended', onPause)
+      audio = next
+      audio.addEventListener('play', onPlay)
+      audio.addEventListener('pause', onPause)
+      audio.addEventListener('ended', onPause)
+      setIsPlaying(!audio.paused && !audio.ended)
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId)
+        intervalId = undefined
+      }
+    }
+
+    attach()
+    intervalId = window.setInterval(attach, 400)
+
+    return () => {
+      if (intervalId !== undefined) window.clearInterval(intervalId)
+      audio?.removeEventListener('play', onPlay)
+      audio?.removeEventListener('pause', onPause)
+      audio?.removeEventListener('ended', onPause)
+    }
+  }, [])
+
+  const pause = () => {
+    if (typeof window !== 'undefined') {
+      window.globalAudioPlayer?.pause()
+    }
+    setIsPlaying(false)
+  }
 
   // 从localStorage加载队列
   useEffect(() => {
@@ -111,7 +158,7 @@ export function SongProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <SongContext.Provider value={{ cards, songQueue, addToSongQueue }}>
+    <SongContext.Provider value={{ cards, songQueue, addToSongQueue, pause, isPlaying }}>
       {children}
     </SongContext.Provider>
   )

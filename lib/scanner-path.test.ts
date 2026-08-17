@@ -35,6 +35,7 @@ const allowed = [
   '/media/fnds/01-zhi-ming-ri-de-wu.jpg',
   '/_next/static/chunks/app/layout.js',
   '/fnds',
+  '/gallery',
   '/about',
   '/static/favicons/favicon.ico',
   '/favicon.ico',

@@ -10,7 +10,7 @@ export function ChatSurface({
   ...props
 }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cn(chatSurfaceClassName, className)} {...props}>
+    <div data-chat-surface className={cn(chatSurfaceClassName, className)} {...props}>
       {children}
     </div>
   )

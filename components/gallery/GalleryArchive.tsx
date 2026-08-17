@@ -1,6 +1,6 @@
 'use client'
 
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { GalleryItem } from '@/data/gallery'
 import GalleryCard from './GalleryCard'
 import GalleryIndex from './GalleryIndex'
@@ -77,7 +77,7 @@ export default function GalleryArchive({
             />
           </label>
 
-          <div className="hidden items-center gap-3 text-xs tracking-[0.18em] uppercase md:flex">
+          <div className="hidden items-center gap-3 text-xs tracking-[0.18em] uppercase lg:flex">
             <button
               type="button"
               onClick={() => onViewChange('grid')}
@@ -101,11 +101,11 @@ export default function GalleryArchive({
         </div>
       </div>
 
-      <div className="mt-10 md:hidden">
+      <div className="mt-10 lg:hidden">
         <GalleryGrid items={items} onPlay={onPlay} />
       </div>
 
-      <div className="mt-10 hidden md:block">
+      <div className="mt-10 hidden lg:block">
         {view === 'grid' ? (
           <GalleryGrid items={items} onPlay={onPlay} />
         ) : (
@@ -122,6 +122,8 @@ export default function GalleryArchive({
 }
 
 function GalleryGrid({ items, onPlay }: { items: GalleryItem[]; onPlay: (id: string) => void }) {
+  const reduceMotion = useReducedMotion()
+
   if (items.length === 0) {
     return (
       <p className="py-16 text-sm text-gray-500 dark:text-gray-400">
@@ -131,12 +133,21 @@ function GalleryGrid({ items, onPlay }: { items: GalleryItem[]; onPlay: (id: str
   }
 
   return (
-    <AnimatePresence mode="popLayout">
-      <ul className="grid grid-cols-1 gap-x-5 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
+    <ul className="grid grid-cols-1 gap-x-5 gap-y-8 md:grid-cols-2 lg:grid-cols-3">
+      <AnimatePresence mode="popLayout">
         {items.map((item) => (
-          <GalleryCard key={item.id} item={item} onPlay={onPlay} />
+          <motion.li
+            key={item.id}
+            layout={!reduceMotion}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18 }}
+          >
+            <GalleryCard item={item} onPlay={onPlay} />
+          </motion.li>
         ))}
-      </ul>
-    </AnimatePresence>
+      </AnimatePresence>
+    </ul>
   )
 }

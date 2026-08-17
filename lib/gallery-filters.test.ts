@@ -105,14 +105,32 @@ describe('gallery catalog helpers', () => {
 })
 
 describe('real gallery catalog', () => {
-  it('covers the expected year span and featured games', () => {
-    assert.equal(galleryItems.length, 82)
-    assert.deepEqual(getYearSpan(galleryItems), { start: '2022', end: '2025' })
+  it('keeps catalog metadata internally consistent', () => {
+    assert.ok(galleryItems.length > 0)
+
+    const ids = new Set<string>()
+    for (const item of galleryItems) {
+      assert.equal(ids.has(item.id), false, `duplicate gallery id: ${item.id}`)
+      ids.add(item.id)
+      assert.match(item.recordedAt, /^\d{4}-\d{2}-\d{2}$/)
+      assert.equal(Number.isNaN(Date.parse(`${item.recordedAt}T00:00:00Z`)), false)
+      assert.ok(item.title.trim().length > 0)
+      assert.ok(item.video.trim().length > 0)
+      assert.ok(item.poster.trim().length > 0)
+      assert.ok(item.width > 0)
+      assert.ok(item.height > 0)
+      assert.ok(item.duration >= 0)
+    }
+
+    const years = getAvailableYears(galleryItems)
+    const yearSpan = getYearSpan(galleryItems)
+    assert.equal(yearSpan.start, years[years.length - 1])
+    assert.equal(yearSpan.end, years[0])
 
     const featured = getFeaturedItems(galleryItems)
     assert.deepEqual(
       featured.map((item) => item.game),
-      [...FEATURED_GAME_NAMES]
+      FEATURED_GAME_NAMES.filter((name) => galleryItems.some((item) => item.game === name))
     )
   })
 

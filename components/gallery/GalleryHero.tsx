@@ -84,7 +84,7 @@ export default function GalleryHero({
         type="button"
         onClick={() => onPlay(featuredItem.id)}
         aria-label={playClipLabel(title, featuredItem.recordedAt)}
-        className="group relative w-full overflow-hidden bg-gray-200 text-left outline-none dark:bg-gray-900"
+        className="group relative w-full overflow-hidden bg-gray-200 text-left dark:bg-gray-900"
       >
         <div className="relative aspect-video">
           <AnimatePresence mode="wait">
@@ -104,7 +104,7 @@ export default function GalleryHero({
             />
           </AnimatePresence>
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/10" />
-          <span className="absolute inset-0 flex items-center justify-center text-white opacity-80 transition-opacity group-hover:opacity-100">
+          <span className="absolute inset-0 flex items-center justify-center text-white opacity-80 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
             <span className="flex size-14 items-center justify-center rounded-full border border-white/40 bg-black/20 backdrop-blur-sm">
               <GalleryPlayIcon className="size-6" />
             </span>

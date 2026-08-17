@@ -86,13 +86,13 @@ export default function GalleryIndex({ items, previewItem, onHover, onPlay }: Ga
         })}
       </ul>
 
-      <aside className="hidden md:block lg:sticky lg:top-[calc(50vh-8rem)]">
+      <aside className="sticky hidden lg:top-[calc(50vh-8rem)] lg:block">
         {previewItem ? (
           <button
             type="button"
             onClick={() => onPlay(previewItem.id)}
             aria-label={playClipLabel(previewTitle, previewItem.recordedAt)}
-            className="group w-full text-left outline-none"
+            className="group w-full text-left"
           >
             <div className="relative aspect-video overflow-hidden bg-gray-200 dark:bg-gray-900">
               <AnimatePresence mode="wait">
@@ -110,7 +110,7 @@ export default function GalleryIndex({ items, previewItem, onHover, onPlay }: Ga
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               </AnimatePresence>
-              <div className="absolute inset-0 bg-black/15 transition-colors group-hover:bg-black/30" />
+              <div className="absolute inset-0 bg-black/15 transition-colors group-hover:bg-black/30 group-focus-visible:bg-black/30" />
               <span className="absolute top-3 left-3 font-mono text-xs tracking-[0.22em] text-white/80">
                 {gameInitials(previewTitle)}
               </span>

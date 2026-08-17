@@ -22,7 +22,7 @@ export default function Gallery({ items }: { items: GalleryItem[] }) {
   const newest = useMemo(() => getNewestItem(items), [items])
   const featuredItems = useMemo(() => getFeaturedItems(items), [items])
   const [featuredId, setFeaturedId] = useState<string | null>(
-    featuredItems[0]?.id ?? newest?.id ?? null
+    newest?.id ?? featuredItems[0]?.id ?? null
   )
   const [indexHoverId, setIndexHoverId] = useState<string | null>(null)
   const [lightboxId, setLightboxId] = useState<string | null>(null)

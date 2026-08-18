@@ -127,7 +127,7 @@ visitor message 的条件写入使用 SQL `RETURNING id` 判断当前 open conve
 
 远程 `solidays-chat` 已创建，`0001_chat.sql` 已应用；`0002_chat_quotas.sql` 和
 `0003_chat_message_idempotency.sql` 已在本地验证，生产迁移由 `worker:deploy:ci` 在部署前执行。
-迁移命令如下：
+当前生产已确认无待应用 migration；迁移命令如下：
 
 ```bash
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
@@ -155,8 +155,9 @@ node .yarn/releases/yarn-3.6.1.cjs worker:build
 node .yarn/releases/yarn-3.6.1.cjs exec wrangler deploy --dry-run --config wrangler.jsonc
 ```
 
-生产环境已用手机端真实 Turnstile token 完成留言写入，并在远程 D1 中确认 1 个访客、1 个开放会话和
-3 条 visitor 消息。无副作用线上检查已确认首页/CSS、会话 GET 和伪造 token 拒绝正常。
+生产环境已用真实 Turnstile 完成一次消息提交，浏览器中只显示 1 条新消息且 composer 清空；
+无效 token 返回 403。无副作用线上检查已确认首页、`/fnds`、`/api/cards`、会话 GET、生产
+Durable Object/Rate Limiter/D1 绑定和迁移状态正常。
 
 本地若要继续回归，可在未提交的 `.dev.vars` 中配置本地测试 Secret，再用 `worker:dev` 验证：首次提交设置
 HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败返回 403，超限返回 429，重复关闭保持
@@ -177,15 +178,14 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天。
 - [x] `migrations/0002_chat_quotas.sql` 已在本地应用并验证触发器拒绝第 51 条消息；
       生产迁移由 `worker:deploy:ci` 在部署前执行。
-- [x] `migrations/0003_chat_message_idempotency.sql` 已在本地 D1 应用；visitor 条件写入改用
+- [x] `migrations/0003_chat_message_idempotency.sql` 已在本地和生产 D1 应用；visitor 条件写入改用
       `RETURNING id`，内部 retry 和客户端重复 POST 复用 `clientMessageId`，重复请求返回已有
-      message 而不重复落库；生产迁移随 DEV → production 发布执行。
+      message 而不重复落库；生产远程 migration 已确认无待应用项。
 - [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；
       Widget 允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，并通过官方
       siteverify 完成 Secret 校验。
-- [x] Workers Builds 已自动发布包含本期后端的 Worker，当前核验版本为
-      `6b1bc459-ed63-43e4-96bd-832199ecca08`，100% 流量生效；首页、CSS、会话 GET、
-      聊天路由和伪造 token 拒绝检查已通过。
+- [x] 生产 Worker 已发布版本 `8fd3f647-b4a7-4f7f-8f44-775f8accc8a9`（version 37），
+      100% 流量生效；首页、`/fnds`、`/api/cards`、会话 GET、聊天路由和伪造 token 拒绝检查已通过。
 - [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
       1 个访客、1 个开放会话和 3 条 visitor 消息。
 - [x] DEV 已接入会话级 `ChatConversation` Durable Object、访客/Admin WebSocket、消息创建和
@@ -200,10 +200,12 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       已落地；实时回归测试覆盖 15 个事件、状态、重试与 repository race 用例。
 - [x] 消息重复写入事故的发送锁、Turnstile single-flight、幂等 key 和 timing 日志已在 DEV 落地；
       本地 Worker + 真实本地 D1 已验证重复请求 `201 → 200` 且同一 `clientMessageId` 只有一行，
-      无 Cookie 重试和 close 后新会话路径也已验证。
+      无 Cookie 重试和 close 后新会话路径也已验证；生产浏览器真实 Turnstile 单击发送已验证
+      消息只出现一次且输入框清空。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
-- [x] 将实时开关从 DEV 本地验证推进到生产灰度；发布后按
+- [x] 将实时开关从 DEV 本地验证推进到生产灰度；版本 `8fd3f647-b4a7-4f7f-8f44-775f8accc8a9`
+      已接收 100% 流量；发布后按
       `docs/testing/pre-commit-verification.md` 和 `docs/testing/post-deployment-verification.md`
       完成浏览器验收。
 - [ ] 后续实现 Queue 异步通知、Slack 消息通知和失败重试/可观测性闭环。

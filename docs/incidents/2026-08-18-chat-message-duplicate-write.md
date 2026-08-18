@@ -6,8 +6,9 @@
 - 数据库：Cloudflare D1 `solidays-chat`
 - 相关分支：`cloudflare-worker`、`cloudflare-worker-DEV`
 - 严重程度：P0（消息写入结果与 HTTP 响应不一致，可能重复落库）
-- 当前状态：根因已完成静态分析并用生产数据高度验证；修复已在 `cloudflare-worker-DEV` 实施并通过本地
-  Worker/真实本地 D1 回归，等待 DEV 提交和生产发布后的浏览器验收
+- 当前状态：修复已在 `cloudflare-worker-DEV` 实施、提交并发布生产；生产版本
+  `8fd3f647-b4a7-4f7f-8f44-775f8accc8a9` 已接收 100% 流量，线上真实 Turnstile 单击发送验收通过。
+  历史重复消息未自动删除。
 
 这份文档记录匿名留言发送链路在生产出现的几种表现、排查证据、根因判断、为什么现有测试没有挡住，以及下一步应如何修复和验收。
 
@@ -538,7 +539,7 @@ DEV 环境单击、双击、Enter+按钮、Turnstile 慢路径
 
 ## 10. 相关代码和文档
 
-- `lib/chat/repository.ts`：visitor message append、bounded retry、`meta.changes` 条件判断
+- `lib/chat/repository.ts`：visitor message append、bounded retry、`RETURNING` 条件写入和幂等查询
 - `app/api/chat/messages/route.ts`：Turnstile、repository 调用和 `CHAT_WRITE_RETRY` 映射
 - `components/chat/floating-chat.tsx`：发送、input 清理、`isSending` 和 realtime reconciliation
 - `components/chat/chat-turnstile.tsx`：token challenge、pending resolver 和 timeout
@@ -574,6 +575,18 @@ worker:dev + local D1：同一 clientMessageId 首次 201、重复 200，数据�
 close 后新会话写入成功
 ```
 
-浏览器端真实 Turnstile 交互仍需按发布后验收流程在可用的 Chrome/手机浏览器中确认；本地 dummy
-Turnstile 只用于 Worker/D1 回归，不能替代 Turnstile 本身的挑战验证。生产 Turnstile 不应为了测试
-长期关闭；如必须短暂关闭，必须在测试结束后立即恢复并重新部署，同时复核 Worker 变量和日志。
+本地 dummy Turnstile 只用于 Worker/D1 回归，不能替代真实挑战。生产验收没有关闭 Turnstile：
+真实 Turnstile 单击发送后，浏览器中消息出现 1 次、composer 清空、控制台无本站错误；生产无效
+token 返回 403。生产版本绑定已确认包含 D1、ChatConversation Durable Object、两个 Rate Limiter、
+Turnstile secret 和 `CHAT_REALTIME_ENABLED=true`。
+
+## 12. 生产发布验收
+
+- 生产版本：`8fd3f647-b4a7-4f7f-8f44-775f8accc8a9`（version 37），100% 流量。
+- D1：`0003_chat_message_idempotency.sql` 已应用；`messages.client_message_id` 列已通过远程
+  `PRAGMA table_info(messages)` 确认。
+- CLI：主域名、`/fnds`、`/api/cards`、`/api/chat/conversation` 返回 200；`www` 返回 308。
+- 浏览器：Gallery、聊天面板正常渲染；真实 Turnstile 单击发送只显示一条消息，输入框清空，控制台
+  无本站 Error/Warning。
+- 安全：没有为了测试关闭生产 Turnstile；无效 token 返回 403。
+- 历史数据：本次只阻止新的重复写入，没有删除或重写事故期间已经落库的重复消息。

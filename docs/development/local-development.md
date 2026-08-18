@@ -22,7 +22,8 @@ node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime
 `worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是
 `remote: true`，本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除
 或 AI 调用。当前 `worker:dev` 还会只在本地命令行覆盖
-`CHAT_REALTIME_ENABLED=true`，用于验收聊天 WebSocket；生产配置默认保持关闭。
+`CHAT_REALTIME_ENABLED=true`，用于验收聊天 WebSocket；生产开关由
+`wrangler.jsonc` 管理，当前已启用实时留言。
 
 ## 检查要求
 

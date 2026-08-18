@@ -72,9 +72,9 @@ DO 在广播和客户端帧事件上再次校验，避免过期 Admin 连接继�
 响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
 客户端只在服务端开关打开时建立 WebSocket，避免生产开关关闭时持续重试 404 endpoint。
 
-本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；`wrangler.jsonc` 默认值仍为
-`false`，因此生产实时入口在完成 DEV 浏览器验收前不会被启用。当前阶段尚未实现 Queue 异步投递、
-Slack 通知和生产灰度开关；这些属于实时改造方案的后续阶段。
+本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；生产
+`wrangler.jsonc` 已启用同一开关，实时入口进入生产灰度。若需紧急回退，只需将生产变量改为
+`false` 后重新部署。当前阶段尚未实现 Queue 异步投递和 Slack 通知；这些属于实时改造方案的后续阶段。
 
 接口保护范围：
 
@@ -176,7 +176,7 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       已落地；实时回归测试覆盖 15 个事件、状态、重试与 repository race 用例。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
-- [ ] 将实时开关从 DEV 本地验证推进到生产灰度；发布前需要按
+- [x] 将实时开关从 DEV 本地验证推进到生产灰度；发布后按
       `docs/testing/pre-commit-verification.md` 和 `docs/testing/post-deployment-verification.md`
       完成浏览器验收。
 - [ ] 后续实现 Queue 异步通知、Slack 消息通知和失败重试/可观测性闭环。

@@ -17,6 +17,8 @@ from catalog import (
     CRF,
     MAXRATE,
     OUTPUT_DIR,
+    PHASE2_DIR,
+    PHASE2_PREFIX,
     POSTER_QUALITY,
     POSTER_SS,
     PRESET,
@@ -179,27 +181,36 @@ def list_sources() -> list[Path]:
     return sorted(Path(SOURCE_DIR).glob("*.mp4"))
 
 
+def js_string(value: str) -> str:
+    quote = '"' if "'" in value and '"' not in value else "'"
+    escaped = value.replace("\\", "\\\\").replace("\n", "\\n").replace(quote, "\\" + quote)
+    return quote + escaped + quote
+
+
 def write_gallery_ts(rows: list[dict], dest: Path) -> None:
     items = []
     for row in sorted(rows, key=lambda item: (item["title"], item["recorded_at"], item["id"])):
         items.append(
             "  {\n"
-            f"    id: {json.dumps(row['id'])},\n"
+            f"    id: {js_string(row['id'])},\n"
             "    type: 'gaming',\n"
-            f"    title: {json.dumps(row['title'], ensure_ascii=False)},\n"
-            f"    game: {json.dumps(row['title'], ensure_ascii=False)},\n"
-            f"    recordedAt: {json.dumps(row['recorded_at'])},\n"
-            f"    video: {json.dumps('/gaming/' + row['id'] + '.mp4')},\n"
-            f"    poster: {json.dumps('/gaming/' + row['id'] + '.webp')},\n"
+            f"    title: {js_string(row['title'])},\n"
+            f"    game: {js_string(row['title'])},\n"
+            f"    recordedAt: {js_string(row['recorded_at'])},\n"
+            f"    video: {js_string('/gaming/' + row['id'] + '.mp4')},\n"
+            f"    poster: {js_string('/gaming/' + row['id'] + '.webp')},\n"
             + (
-                f"    preview: {json.dumps('/gaming/' + row['id'] + '-preview.mp4')},\n"
+                f"    preview: {js_string(PHASE2_PREFIX + '/' + row['id'] + '-preview.mp4')},\n"
                 if row.get("preview_path")
                 else ""
             )
             + (
                 "    posterSrcSet: [\n"
                 + "\n".join(
-                    f"      {{ src: {json.dumps(source['src'])}, width: {source['width']} }},"
+                    "      {\n"
+                    f"        src: {js_string(source['src'])},\n"
+                    f"        width: {source['width']},\n"
+                    "      },"
                     for source in row["poster_src_set"]
                 )
                 + "\n    ],\n"
@@ -215,6 +226,11 @@ def write_gallery_ts(rows: list[dict], dest: Path) -> None:
     dest.write_text(
         "export type GalleryItemType = 'gaming' | 'phone'\n"
         "\n"
+        "export type GalleryPosterSource = {\n"
+        "  src: string\n"
+        "  width: number\n"
+        "}\n"
+        "\n"
         "// `phone` only shares this schema. Phone sources need a separate\n"
         "// codec / color / rotation / frame-timing intake before encode.\n"
         "\n"
@@ -226,6 +242,8 @@ def write_gallery_ts(rows: list[dict], dest: Path) -> None:
         "  recordedAt: string\n"
         "  video: string\n"
         "  poster: string\n"
+        "  preview?: string\n"
+        "  posterSrcSet?: GalleryPosterSource[]\n"
         "  width: number\n"
         "  height: number\n"
         "  duration: number\n"
@@ -289,11 +307,11 @@ def process_one(src: Path, crf: int) -> dict:
     decision = decision_for_mbps(source["mbps"])
     video_path = Path(WEB_DIR) / f"{item_id}.mp4"
     poster_path = Path(WEB_DIR) / f"{item_id}.webp"
-    preview_path = Path(WEB_DIR) / f"{item_id}-preview.mp4"
+    preview_path = Path(PHASE2_DIR) / f"{item_id}-preview.mp4"
     poster_src_set = [
-        {"src": f"/gaming/{item_id}-{width}.webp", "width": width}
+        {"src": f"{PHASE2_PREFIX}/{item_id}-{width}.webp", "width": width}
         for width in (480, 768, 1280)
-        if (Path(WEB_DIR) / f"{item_id}-{width}.webp").exists()
+        if (Path(PHASE2_DIR) / f"{item_id}-{width}.webp").exists()
     ]
 
     if not video_path.exists():

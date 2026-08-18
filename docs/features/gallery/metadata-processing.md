@@ -1,9 +1,10 @@
 # Gallery 页面元数据处理方案
 
-> 建立于 2026-08-17。状态：**Approved，页面除外的实施已完成**。
+> 建立于 2026-08-17。状态：**Approved，Gallery 二阶段资源已发布**。
 > A/B 已锁 CRF 21；`solidays-gallery` + `media.solidays.win` 已就绪；
-> 82 条 Web 成品已上传（164 对象 HEAD 200，Range 206，私有桶未泄露）。
-> 首次上传走 Wrangler OAuth，不是 S3 Access Key。页面未做。评审记录见第 9 节。
+> 82 条基础 Web 成品已上传（164 对象），二阶段另上传 328 个对象：82 个 preview
+> 和 246 个响应式 poster，全部位于独立的 `gallery-phase2/` 前缀；私有桶未泄露。
+> 首次上传走 Wrangler OAuth，不是 S3 Access Key。评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
 
@@ -43,7 +44,7 @@
 | 桶 | 角色 | 访问 | 对象 |
 | --- | --- | --- | --- |
 | `solidays-media` | 现有私有媒体 | Worker `MEDIA_BUCKET` → `/media/<key>`，只放行 `fnds/`、`profile/` | FNDS 原图、头像 |
-| `solidays-gallery` | **新建**公开 Gallery 成品 | 只绑 `media.solidays.win`，不绑 Worker | `gaming/<id>.mp4`、`gaming/<id>.webp` |
+| `solidays-gallery` | **新建**公开 Gallery 成品 | 只绑 `media.solidays.win`，不绑 Worker | `gaming/<id>.mp4`、`gaming/<id>.webp`；`gallery-phase2/<id>-preview.mp4`、响应式 poster |
 
 R2 桶接上 custom domain 后，该桶内对象都可通过这个域名公开读取。若把 `media.solidays.win` 接到 `solidays-media`，现有 `fnds/*`、`profile/*` 只要知道 key 就能绕过 `/media` Worker。这是一次安全边界变化，本文不采用。
 
@@ -224,9 +225,17 @@ Tom Clancy's Rainbow Six Siege-2022_12_08-07_10_37.mp4
 R2 key（桶 `solidays-gallery`）:
 gaming/rainbow-six-siege-20221208-071037.mp4
 gaming/rainbow-six-siege-20221208-071037.webp
+
+二阶段资源独立放在另一个前缀：
+
+gallery-phase2/rainbow-six-siege-20221208-071037-preview.mp4
+gallery-phase2/rainbow-six-siege-20221208-071037-480.webp
+gallery-phase2/rainbow-six-siege-20221208-071037-768.webp
+gallery-phase2/rainbow-six-siege-20221208-071037-1280.webp
 ```
 
-R2 没有真正的文件夹；`gaming/...` 只是扁平 object key 的前缀。桶本身已经把 Gallery 和私有媒体隔开，key 里不必再重复 `gallery/`。
+R2 没有真正的文件夹；`gaming/...` 和 `gallery-phase2/...` 都是扁平 object key 的前缀。
+桶本身已经把 Gallery 和私有媒体隔开，key 里不必再重复 `gallery/`。
 
 ### 5.2 id 规则
 
@@ -323,6 +332,10 @@ export const galleryItems: GalleryItem[] = [
 ```text
 https://media.solidays.win/gaming/<id>.mp4
 https://media.solidays.win/gaming/<id>.webp
+https://media.solidays.win/gallery-phase2/<id>-preview.mp4
+https://media.solidays.win/gallery-phase2/<id>-480.webp
+https://media.solidays.win/gallery-phase2/<id>-768.webp
+https://media.solidays.win/gallery-phase2/<id>-1280.webp
 ```
 
 上传写到 `solidays-gallery`，并显式带上 MIME 和 Cache-Control。长期缓存行为不能留给平台默认值。
@@ -335,6 +348,8 @@ HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint。凭证使�
 | --- | --- | --- | --- | --- |
 | 视频 | `gaming/<id>.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
 | poster | `gaming/<id>.webp` | `image/webp` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
+| preview | `gallery-phase2/<id>-preview.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | 新前缀、禁止覆盖 |
+| poster 480/768/1280 | `gallery-phase2/<id>-<width>.webp` | `image/webp` | `public, max-age=31536000, immutable` | 新前缀、禁止覆盖 |
 
 已存在 → `412 Precondition Failed`，脚本失败退出。使用 AWS SDK for JavaScript v3 的 `PutObjectCommand.IfNoneMatch: '*'`，无需先 HEAD/GET，也无需自定义 middleware 手工注入条件头：
 
@@ -501,7 +516,13 @@ crf                                         remux 则为空
    2026-08-17 核验：`data/gallery.ts` 中 82 条对应的 164 个 URL 均为 200，
    `Content-Type` / `immutable` 缓存头正确；抽样 MP4 `Range` 返回 206；
    `media.solidays.win/fnds/...` 为 404；`solidays-media` 无自定义域名；gallery 桶未开 `r2.dev`。
-6. Gallery 页面本期不做。
+6. ~~发布第二阶段媒体。~~ **已完成（2026-08-18）。**
+   `scripts/gallery/generate-phase2-assets.py` 将成品写入本地独立目录
+   `~/Movies/xbox-gallery-web/web/gallery-phase2/`，并由
+   `scripts/gallery/upload-phase2-wrangler.py` 上传到 `gallery-phase2/` 前缀。
+   82 个 preview 和 246 个 poster variant 共 328 个对象全部上传成功；
+   页面 `data/gallery.ts` 已写入对应可选字段。
+7. Gallery 页面继续沿用独立的 `gallery-phase2/` 媒体前缀，不改动 `gaming/` 基础成品。
 
 A/B 已把第 4.2 节 CRF 21 定为采用值。
 

@@ -13,7 +13,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from catalog import OUTPUT_DIR, WEB_DIR
+from catalog import OUTPUT_DIR, PHASE2_DIR, PHASE2_PREFIX, WEB_DIR
 
 PREVIEW_SECONDS = 4
 PREVIEW_START = 1
@@ -82,9 +82,18 @@ def generate_poster_variant(source: Path, destination: Path, width: int) -> None
     temporary.replace(destination)
 
 
-def process_item(video: Path, output_dir: Path) -> dict[str, object]:
+def phase2_url(prefix: str, filename: str) -> str:
+    return f"{prefix.rstrip('/')}/{filename}"
+
+
+def process_item(
+    video: Path,
+    source_dir: Path,
+    output_dir: Path,
+    r2_prefix: str,
+) -> dict[str, object]:
     item_id = video.stem
-    poster = output_dir / f'{item_id}.webp'
+    poster = source_dir / f'{item_id}.webp'
     if not poster.exists():
         raise FileNotFoundError(f'missing poster for {item_id}: {poster}')
 
@@ -101,36 +110,43 @@ def process_item(video: Path, output_dir: Path) -> dict[str, object]:
         if not variant.exists():
             print(f'poster {item_id} {width}w', flush=True)
             generate_poster_variant(poster, variant, width)
-        sources.append({'src': f'/gaming/{variant.name}', 'width': width})
+        sources.append({'src': phase2_url(r2_prefix, variant.name), 'width': width})
 
     return {
         'id': item_id,
-        'preview': f'/gaming/{preview.name}',
+        'preview': phase2_url(r2_prefix, preview.name),
         'posterSrcSet': sources,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output-dir', default=WEB_DIR)
     parser.add_argument(
         '--manifest',
         default=str(Path(OUTPUT_DIR) / 'phase2-assets.json'),
         help='Local manifest path; it is not committed or uploaded automatically.',
     )
+    parser.add_argument('--source-dir', default=WEB_DIR)
+    parser.add_argument('--output-dir', default=PHASE2_DIR)
+    parser.add_argument('--r2-prefix', default=PHASE2_PREFIX)
     parser.add_argument('--id', action='append', dest='ids', help='Only process a selected id.')
     parser.add_argument('--jobs', type=int, default=3)
     args = parser.parse_args()
 
+    source_dir = Path(args.source_dir)
     output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     selected = set(args.ids or [])
-    videos = sorted(path for path in output_dir.glob('*.mp4') if not path.name.endswith('-preview.mp4'))
+    videos = sorted(path for path in source_dir.glob('*.mp4') if not path.name.endswith('-preview.mp4'))
     if selected:
         videos = [path for path in videos if path.stem in selected]
 
     manifest: list[dict[str, object]] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(process_item, video, output_dir) for video in videos]
+        futures = [
+            pool.submit(process_item, video, source_dir, output_dir, args.r2_prefix)
+            for video in videos
+        ]
         for future in as_completed(futures):
             manifest.append(future.result())
 

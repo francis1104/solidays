@@ -6,6 +6,8 @@ from datetime import datetime
 SOURCE_DIR = "/Users/francis/Movies/xbox录屏精选"
 OUTPUT_DIR = "/Users/francis/Movies/xbox-gallery-web"
 WEB_DIR = f"{OUTPUT_DIR}/web/gaming"
+PHASE2_DIR = f"{OUTPUT_DIR}/web/gallery-phase2"
+PHASE2_PREFIX = "/gallery-phase2"
 AB_DIR = f"{OUTPUT_DIR}/ab"
 
 REMUX_MAX_MBPS = 12.0

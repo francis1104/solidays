@@ -813,9 +813,10 @@ preview.mp4
 脚本输出：
 
 ```text
-gaming/
-├─ xxx.webp
-├─ xxx.mp4
+gallery-phase2/
+├─ xxx-480.webp
+├─ xxx-768.webp
+├─ xxx-1280.webp
 └─ xxx-preview.mp4
 ```
 
@@ -850,8 +851,8 @@ Preview 不需要音轨。
 
 - Hero 改上下布局
 - 2 column Grid
-- 可以保留 Grid / Index
-- Preview 放在列表上方或不跟随 hover
+- 只展示 Grid，Index 从 `lg`（1024px）开始开放
+- Preview 继续使用 poster，避免预览掉到列表末尾
 
 ### Mobile < 768
 
@@ -1138,17 +1139,17 @@ GalleryLightbox
 视觉与体验增强：
 
 > 2026-08-18 状态：页面能力已在 DEV 实现并完成本地 Worker + 浏览器验收。
-> 82 条 preview 视频和三档响应式 poster 已在本机生成；当前 catalog 仍未写入可选
-> asset 字段，也未上传新媒体到 R2，待媒体发布确认后再批量落地。
+> 82 条 preview 视频和三档响应式 poster 已生成到独立目录并发布到 R2 的
+> `gallery-phase2/` 前缀；catalog 已写入可选 asset 字段。
 
-- [x] 生成 3~5 秒 preview mp4（82 条已在本机生成；R2 发布仍待确认）
+- [x] 生成 3~5 秒 preview mp4（82 条已生成并发布到 `gallery-phase2/`）
 - [x] Hero hover video preview（有 preview 时延迟 200ms、muted、loop、playsInline；无 preview 回退 poster）
 - [x] Index hover video preview（同上，离开列表行停止并卸载）
 - [x] smoother preview crossfade（poster、preview video 和筛选预览均使用轻量 opacity 过渡）
 - [x] mobile swipe（由 YARL carousel 提供，显式保留 `touchAction: 'none'` 和循环滑动）
 - [x] URL hash / query 保存当前 Lightbox clip（兼容 `#clip=`，新状态使用 `?clip=`）
 - [x] filter state 写入 URL（`year`、`q`、`view` 使用 replaceState，不污染历史记录）
-- [ ] poster responsive srcset（组件、生成脚本和 82 条本地变体已完成；待把 `posterSrcSet` 写入 catalog 并发布 R2）
+- [x] poster responsive srcset（82 条 `posterSrcSet` 已写入 catalog，三档 poster 已发布到 `gallery-phase2/`）
 - [x] skeleton / blur placeholder（poster 加载时 skeleton + blur，加载后平滑清晰）
 
 ---

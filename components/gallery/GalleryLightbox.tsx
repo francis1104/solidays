@@ -52,8 +52,8 @@ export default function GalleryLightbox({
         sources: [{ src: galleryUrl(item.video), type: 'video/mp4' }],
       }))}
       plugins={[Video, Counter]}
-      carousel={{ preload: 0 }}
-      controller={{ closeOnBackdropClick: true }}
+      carousel={{ finite: false, preload: 0 }}
+      controller={{ closeOnBackdropClick: true, touchAction: 'none' }}
       video={{
         controls: true,
         playsInline: true,

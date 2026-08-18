@@ -15,8 +15,11 @@ from catalog import (
     AUDIO_BITRATE,
     BUFSIZE,
     CRF,
+    GALLERY_INVENTORY,
     MAXRATE,
     OUTPUT_DIR,
+    PHASE2_MANIFEST,
+    PHASE2_PREFIX,
     POSTER_QUALITY,
     POSTER_SS,
     PRESET,
@@ -25,6 +28,7 @@ from catalog import (
     decision_for_mbps,
     parse_source_name,
 )
+from phase2_manifest import Phase2ManifestError, load_gallery_inventory, load_phase2_manifest
 
 
 def run(cmd: list[str]) -> None:
@@ -179,26 +183,53 @@ def list_sources() -> list[Path]:
     return sorted(Path(SOURCE_DIR).glob("*.mp4"))
 
 
+def js_string(value: str) -> str:
+    quote = '"' if "'" in value and '"' not in value else "'"
+    escaped = value.replace("\\", "\\\\").replace("\n", "\\n").replace(quote, "\\" + quote)
+    return quote + escaped + quote
+
+
 def write_gallery_ts(rows: list[dict], dest: Path) -> None:
     items = []
     for row in sorted(rows, key=lambda item: (item["title"], item["recorded_at"], item["id"])):
+        phase2_asset = row.get("phase2_asset")
+        phase2_fields = ""
+        if phase2_asset:
+            phase2_fields = (
+                f"    preview: {js_string(phase2_asset['preview'])},\n"
+                "    posterSrcSet: [\n"
+                + "\n".join(
+                    "      {\n"
+                    f"        src: {js_string(source['src'])},\n"
+                    f"        width: {source['width']},\n"
+                    "      },"
+                    for source in phase2_asset["posterSrcSet"]
+                )
+                + "\n    ],\n"
+            )
         items.append(
             "  {\n"
-            f"    id: {json.dumps(row['id'])},\n"
+            f"    id: {js_string(row['id'])},\n"
             "    type: 'gaming',\n"
-            f"    title: {json.dumps(row['title'], ensure_ascii=False)},\n"
-            f"    game: {json.dumps(row['title'], ensure_ascii=False)},\n"
-            f"    recordedAt: {json.dumps(row['recorded_at'])},\n"
-            f"    video: {json.dumps('/gaming/' + row['id'] + '.mp4')},\n"
-            f"    poster: {json.dumps('/gaming/' + row['id'] + '.webp')},\n"
-            f"    width: {row['out_width']},\n"
-            f"    height: {row['out_height']},\n"
-            f"    duration: {round(row['out_duration'], 1)},\n"
-            "  },"
+            f"    title: {js_string(row['title'])},\n"
+            f"    game: {js_string(row['title'])},\n"
+            f"    recordedAt: {js_string(row['recorded_at'])},\n"
+            f"    video: {js_string('/gaming/' + row['id'] + '.mp4')},\n"
+            f"    poster: {js_string('/gaming/' + row['id'] + '.webp')},\n"
+            + phase2_fields
+            + f"    width: {row['out_width']},\n"
+            + f"    height: {row['out_height']},\n"
+            + f"    duration: {round(row['out_duration'], 1)},\n"
+            + "  },"
         )
 
     dest.write_text(
         "export type GalleryItemType = 'gaming' | 'phone'\n"
+        "\n"
+        "export type GalleryPosterSource = {\n"
+        "  src: string\n"
+        "  width: number\n"
+        "}\n"
         "\n"
         "// `phone` only shares this schema. Phone sources need a separate\n"
         "// codec / color / rotation / frame-timing intake before encode.\n"
@@ -211,6 +242,8 @@ def write_gallery_ts(rows: list[dict], dest: Path) -> None:
         "  recordedAt: string\n"
         "  video: string\n"
         "  poster: string\n"
+        "  preview?: string\n"
+        "  posterSrcSet?: GalleryPosterSource[]\n"
         "  width: number\n"
         "  height: number\n"
         "  duration: number\n"
@@ -268,8 +301,9 @@ def cmd_ab(jobs: int) -> None:
         )
 
 
-def process_one(src: Path, crf: int) -> dict:
+def process_one(src: Path, crf: int, phase2_assets: dict[str, dict[str, object]]) -> dict:
     slug, title, item_id, recorded = parse_source_name(src.name)
+    phase2_asset = phase2_assets[item_id]
     source = probe(src)
     decision = decision_for_mbps(source["mbps"])
     video_path = Path(WEB_DIR) / f"{item_id}.mp4"
@@ -317,18 +351,49 @@ def process_one(src: Path, crf: int) -> dict:
         "out_duration": output["duration"],
         "video_path": str(video_path),
         "poster_path": str(poster_path),
+        "phase2_asset": phase2_asset,
     }
 
 
-def cmd_batch(jobs: int, crf: int, gallery_ts: Path) -> None:
+def cmd_batch(
+    jobs: int,
+    crf: int,
+    gallery_ts: Path,
+    phase2_manifest: Path,
+    gallery_inventory: Path,
+) -> None:
+    manifest = load_phase2_manifest(phase2_manifest, expected_prefix=PHASE2_PREFIX)
+    phase2_assets = manifest["by_id"]
+    if not isinstance(phase2_assets, dict):
+        raise Phase2ManifestError("phase-two manifest index is invalid")
+    inventory_ids = load_gallery_inventory(gallery_inventory)
+    manifest_ids = set(phase2_assets)
+    if manifest_ids != inventory_ids:
+        missing = ", ".join(sorted(inventory_ids - manifest_ids)) or "none"
+        extra = ", ".join(sorted(manifest_ids - inventory_ids)) or "none"
+        raise SystemExit(
+            "phase-two manifest does not match committed Gallery inventory "
+            f"(missing manifest ids: {missing}; unknown manifest ids: {extra})"
+        )
+
     Path(WEB_DIR).mkdir(parents=True, exist_ok=True)
     sources = list_sources()
-    if len(sources) != 82:
-        raise SystemExit(f"expected 82 sources, found {len(sources)}")
+    if not sources:
+        raise SystemExit(f"no Gallery sources found in {SOURCE_DIR}")
+    source_ids = {parse_source_name(source.name)[2] for source in sources}
+    missing = sorted(source_ids - manifest_ids)
+    extra = sorted(manifest_ids - source_ids)
+    if missing or extra:
+        details = []
+        if missing:
+            details.append(f"missing ids: {', '.join(missing)}")
+        if extra:
+            details.append(f"unknown ids: {', '.join(extra)}")
+        raise SystemExit("phase-two manifest does not match sources (" + "; ".join(details) + ")")
 
     rows: list[dict] = []
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(process_one, src, crf) for src in sources]
+        futures = [pool.submit(process_one, src, crf, phase2_assets) for src in sources]
         for future in as_completed(futures):
             rows.append(future.result())
 
@@ -350,16 +415,30 @@ def main() -> None:
         "--gallery-ts",
         default=str(Path(__file__).resolve().parents[2] / "data" / "gallery.ts"),
     )
+    parser.add_argument(
+        "--phase2-manifest",
+        "--manifest",
+        dest="phase2_manifest",
+        default=PHASE2_MANIFEST,
+    )
+    parser.add_argument("--gallery-inventory", default=GALLERY_INVENTORY)
     args = parser.parse_args()
     os.chdir(Path(__file__).resolve().parent)
     if args.command == "ab":
         cmd_ab(args.jobs)
     else:
-        cmd_batch(args.jobs, args.crf, Path(args.gallery_ts))
+        cmd_batch(
+            args.jobs,
+            args.crf,
+            Path(args.gallery_ts),
+            Path(args.phase2_manifest),
+            Path(args.gallery_inventory),
+        )
 
 
 if __name__ == "__main__":
     try:
         main()
-    except subprocess.CalledProcessError as error:
-        sys.exit(error.returncode)
+    except (FileNotFoundError, Phase2ManifestError, subprocess.CalledProcessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(error.returncode if isinstance(error, subprocess.CalledProcessError) else 1)

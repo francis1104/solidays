@@ -1,5 +1,10 @@
 export type GalleryItemType = 'gaming' | 'phone'
 
+export type GalleryPosterSource = {
+  src: string
+  width: number
+}
+
 // `phone` only shares this schema. Phone sources need a separate
 // codec / color / rotation / frame-timing intake before encode.
 
@@ -11,6 +16,8 @@ export type GalleryItem = {
   recordedAt: string
   video: string
   poster: string
+  preview?: string
+  posterSrcSet?: GalleryPosterSource[]
   width: number
   height: number
   duration: number
@@ -25,6 +32,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-02-26',
     video: '/gaming/atomic-heart-20230226-064348.mp4',
     poster: '/gaming/atomic-heart-20230226-064348.webp',
+    preview: '/gallery-phase2/v2/atomic-heart-20230226-064348-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230226-064348-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230226-064348-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230226-064348-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -37,6 +59,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-02-28',
     video: '/gaming/atomic-heart-20230228-123515.mp4',
     poster: '/gaming/atomic-heart-20230228-123515.webp',
+    preview: '/gallery-phase2/v2/atomic-heart-20230228-123515-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-123515-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-123515-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-123515-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -49,6 +86,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-02-28',
     video: '/gaming/atomic-heart-20230228-132237.mp4',
     poster: '/gaming/atomic-heart-20230228-132237.webp',
+    preview: '/gallery-phase2/v2/atomic-heart-20230228-132237-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-132237-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-132237-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230228-132237-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.9,
@@ -61,6 +113,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-03-01',
     video: '/gaming/atomic-heart-20230301-113928.mp4',
     poster: '/gaming/atomic-heart-20230301-113928.webp',
+    preview: '/gallery-phase2/v2/atomic-heart-20230301-113928-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230301-113928-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230301-113928-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/atomic-heart-20230301-113928-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.3,
@@ -73,6 +140,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-15',
     video: '/gaming/baldurs-gate-3-20231215-152600.mp4',
     poster: '/gaming/baldurs-gate-3-20231215-152600.webp',
+    preview: '/gallery-phase2/v2/baldurs-gate-3-20231215-152600-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231215-152600-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231215-152600-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231215-152600-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -85,6 +167,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-16',
     video: '/gaming/baldurs-gate-3-20231216-112915.mp4',
     poster: '/gaming/baldurs-gate-3-20231216-112915.webp',
+    preview: '/gallery-phase2/v2/baldurs-gate-3-20231216-112915-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231216-112915-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231216-112915-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231216-112915-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -97,6 +194,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-17',
     video: '/gaming/baldurs-gate-3-20231217-125648.mp4',
     poster: '/gaming/baldurs-gate-3-20231217-125648.webp',
+    preview: '/gallery-phase2/v2/baldurs-gate-3-20231217-125648-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231217-125648-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231217-125648-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20231217-125648-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -109,6 +221,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-01-27',
     video: '/gaming/baldurs-gate-3-20240127-122408.mp4',
     poster: '/gaming/baldurs-gate-3-20240127-122408.webp',
+    preview: '/gallery-phase2/v2/baldurs-gate-3-20240127-122408-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20240127-122408-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20240127-122408-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/baldurs-gate-3-20240127-122408-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -121,6 +248,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-13',
     video: '/gaming/battlefield-2042-20221213-052935.mp4',
     poster: '/gaming/battlefield-2042-20221213-052935.webp',
+    preview: '/gallery-phase2/v2/battlefield-2042-20221213-052935-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/battlefield-2042-20221213-052935-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/battlefield-2042-20221213-052935-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/battlefield-2042-20221213-052935-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -133,6 +275,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-11-20',
     video: '/gaming/call-of-duty-20241120-122512.mp4',
     poster: '/gaming/call-of-duty-20241120-122512.webp',
+    preview: '/gallery-phase2/v2/call-of-duty-20241120-122512-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241120-122512-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241120-122512-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241120-122512-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -145,6 +302,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-11-30',
     video: '/gaming/call-of-duty-20241130-050326.mp4',
     poster: '/gaming/call-of-duty-20241130-050326.webp',
+    preview: '/gallery-phase2/v2/call-of-duty-20241130-050326-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241130-050326-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241130-050326-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/call-of-duty-20241130-050326-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -157,6 +329,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-26',
     video: '/gaming/clair-obscur-expedition-33-20250426-012328.mp4',
     poster: '/gaming/clair-obscur-expedition-33-20250426-012328.webp',
+    preview: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-012328-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-012328-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-012328-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-012328-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -169,6 +356,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-26',
     video: '/gaming/clair-obscur-expedition-33-20250426-014248.mp4',
     poster: '/gaming/clair-obscur-expedition-33-20250426-014248.webp',
+    preview: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-014248-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-014248-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-014248-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/clair-obscur-expedition-33-20250426-014248-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -181,6 +383,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-04-20',
     video: '/gaming/evil-west-20230420-132802.mp4',
     poster: '/gaming/evil-west-20230420-132802.webp',
+    preview: '/gallery-phase2/v2/evil-west-20230420-132802-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/evil-west-20230420-132802-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/evil-west-20230420-132802-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/evil-west-20230420-132802-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.3,
@@ -193,6 +410,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-04-25',
     video: '/gaming/evil-west-20230425-133740.mp4',
     poster: '/gaming/evil-west-20230425-133740.webp',
+    preview: '/gallery-phase2/v2/evil-west-20230425-133740-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/evil-west-20230425-133740-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/evil-west-20230425-133740-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/evil-west-20230425-133740-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 14.3,
@@ -205,6 +437,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-03-23',
     video: '/gaming/hellblade-senuas-sacrifice-20230323-115648.mp4',
     poster: '/gaming/hellblade-senuas-sacrifice-20230323-115648.webp',
+    preview: '/gallery-phase2/v2/hellblade-senuas-sacrifice-20230323-115648-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/hellblade-senuas-sacrifice-20230323-115648-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/hellblade-senuas-sacrifice-20230323-115648-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/hellblade-senuas-sacrifice-20230323-115648-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.9,
@@ -217,6 +464,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-03-12',
     video: '/gaming/hi-fi-rush-20230312-044718.mp4',
     poster: '/gaming/hi-fi-rush-20230312-044718.webp',
+    preview: '/gallery-phase2/v2/hi-fi-rush-20230312-044718-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/hi-fi-rush-20230312-044718-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/hi-fi-rush-20230312-044718-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/hi-fi-rush-20230312-044718-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -229,6 +491,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-19',
     video: '/gaming/it-takes-two-20221119-063644.mp4',
     poster: '/gaming/it-takes-two-20221119-063644.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221119-063644-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-063644-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-063644-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-063644-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.1,
@@ -241,6 +518,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-19',
     video: '/gaming/it-takes-two-20221119-130410.mp4',
     poster: '/gaming/it-takes-two-20221119-130410.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221119-130410-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-130410-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-130410-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221119-130410-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.7,
@@ -253,6 +545,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-20',
     video: '/gaming/it-takes-two-20221120-033357.mp4',
     poster: '/gaming/it-takes-two-20221120-033357.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221120-033357-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-033357-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-033357-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-033357-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.4,
@@ -265,6 +572,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-20',
     video: '/gaming/it-takes-two-20221120-061729.mp4',
     poster: '/gaming/it-takes-two-20221120-061729.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221120-061729-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061729-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061729-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061729-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.9,
@@ -277,6 +599,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-20',
     video: '/gaming/it-takes-two-20221120-061833.mp4',
     poster: '/gaming/it-takes-two-20221120-061833.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221120-061833-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061833-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061833-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-061833-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.5,
@@ -289,6 +626,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-20',
     video: '/gaming/it-takes-two-20221120-130604.mp4',
     poster: '/gaming/it-takes-two-20221120-130604.webp',
+    preview: '/gallery-phase2/v2/it-takes-two-20221120-130604-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-130604-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-130604-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/it-takes-two-20221120-130604-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 30.0,
@@ -301,6 +653,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-02-01',
     video: '/gaming/jojo-all-star-battle-r-20230201-133331.mp4',
     poster: '/gaming/jojo-all-star-battle-r-20230201-133331.webp',
+    preview: '/gallery-phase2/v2/jojo-all-star-battle-r-20230201-133331-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/jojo-all-star-battle-r-20230201-133331-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/jojo-all-star-battle-r-20230201-133331-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/jojo-all-star-battle-r-20230201-133331-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -313,6 +680,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-02',
     video: '/gaming/monster-train-2-20250602-095200.mp4',
     poster: '/gaming/monster-train-2-20250602-095200.webp',
+    preview: '/gallery-phase2/v2/monster-train-2-20250602-095200-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/monster-train-2-20250602-095200-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/monster-train-2-20250602-095200-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/monster-train-2-20250602-095200-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -325,6 +707,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-23',
     video: '/gaming/ori-and-the-will-of-the-wisps-20221223-053656.mp4',
     poster: '/gaming/ori-and-the-will-of-the-wisps-20221223-053656.webp',
+    preview: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221223-053656-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221223-053656-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221223-053656-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221223-053656-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -337,6 +734,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-24',
     video: '/gaming/ori-and-the-will-of-the-wisps-20221224-085132.mp4',
     poster: '/gaming/ori-and-the-will-of-the-wisps-20221224-085132.webp',
+    preview: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085132-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085132-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085132-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085132-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.5,
@@ -349,6 +761,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-24',
     video: '/gaming/ori-and-the-will-of-the-wisps-20221224-085609.mp4',
     poster: '/gaming/ori-and-the-will-of-the-wisps-20221224-085609.webp',
+    preview: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085609-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085609-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085609-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/ori-and-the-will-of-the-wisps-20221224-085609-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -361,6 +788,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-10-13',
     video: '/gaming/party-animals-20231013-135006.mp4',
     poster: '/gaming/party-animals-20231013-135006.webp',
+    preview: '/gallery-phase2/v2/party-animals-20231013-135006-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/party-animals-20231013-135006-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/party-animals-20231013-135006-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/party-animals-20231013-135006-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.8,
@@ -373,6 +815,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-03-31',
     video: '/gaming/persona-3-reload-20240331-093019.mp4',
     poster: '/gaming/persona-3-reload-20240331-093019.webp',
+    preview: '/gallery-phase2/v2/persona-3-reload-20240331-093019-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240331-093019-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240331-093019-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240331-093019-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -385,6 +842,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-04-06',
     video: '/gaming/persona-3-reload-20240406-050656.mp4',
     poster: '/gaming/persona-3-reload-20240406-050656.webp',
+    preview: '/gallery-phase2/v2/persona-3-reload-20240406-050656-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240406-050656-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240406-050656-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240406-050656-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -397,6 +869,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-07-07',
     video: '/gaming/persona-3-reload-20240707-075903.mp4',
     poster: '/gaming/persona-3-reload-20240707-075903.webp',
+    preview: '/gallery-phase2/v2/persona-3-reload-20240707-075903-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240707-075903-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240707-075903-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-3-reload-20240707-075903-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -409,6 +896,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-11',
     video: '/gaming/persona-5-royal-20221111-162441.mp4',
     poster: '/gaming/persona-5-royal-20221111-162441.webp',
+    preview: '/gallery-phase2/v2/persona-5-royal-20221111-162441-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162441-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162441-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162441-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.1,
@@ -421,6 +923,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-11',
     video: '/gaming/persona-5-royal-20221111-162814.mp4',
     poster: '/gaming/persona-5-royal-20221111-162814.webp',
+    preview: '/gallery-phase2/v2/persona-5-royal-20221111-162814-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162814-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162814-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221111-162814-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.5,
@@ -433,6 +950,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-12',
     video: '/gaming/persona-5-royal-20221112-065504.mp4',
     poster: '/gaming/persona-5-royal-20221112-065504.webp',
+    preview: '/gallery-phase2/v2/persona-5-royal-20221112-065504-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-065504-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-065504-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-065504-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.2,
@@ -445,6 +977,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-11-12',
     video: '/gaming/persona-5-royal-20221112-164307.mp4',
     poster: '/gaming/persona-5-royal-20221112-164307.webp',
+    preview: '/gallery-phase2/v2/persona-5-royal-20221112-164307-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-164307-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-164307-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/persona-5-royal-20221112-164307-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 29.5,
@@ -457,6 +1004,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-08',
     video: '/gaming/rainbow-six-siege-20221208-071037.mp4',
     poster: '/gaming/rainbow-six-siege-20221208-071037.webp',
+    preview: '/gallery-phase2/v2/rainbow-six-siege-20221208-071037-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20221208-071037-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20221208-071037-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20221208-071037-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1280,
     height: 720,
     duration: 87.3,
@@ -469,6 +1031,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-07-08',
     video: '/gaming/rainbow-six-siege-20230708-030849.mp4',
     poster: '/gaming/rainbow-six-siege-20230708-030849.webp',
+    preview: '/gallery-phase2/v2/rainbow-six-siege-20230708-030849-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20230708-030849-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20230708-030849-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20230708-030849-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 56.7,
@@ -481,6 +1058,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-20',
     video: '/gaming/rainbow-six-siege-20250620-120734.mp4',
     poster: '/gaming/rainbow-six-siege-20250620-120734.webp',
+    preview: '/gallery-phase2/v2/rainbow-six-siege-20250620-120734-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250620-120734-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250620-120734-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250620-120734-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -493,6 +1085,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-26',
     video: '/gaming/rainbow-six-siege-20250626-122220.mp4',
     poster: '/gaming/rainbow-six-siege-20250626-122220.webp',
+    preview: '/gallery-phase2/v2/rainbow-six-siege-20250626-122220-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250626-122220-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250626-122220-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/rainbow-six-siege-20250626-122220-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -505,6 +1112,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-09-22',
     video: '/gaming/resident-evil-2-20240922-091917.mp4',
     poster: '/gaming/resident-evil-2-20240922-091917.webp',
+    preview: '/gallery-phase2/v2/resident-evil-2-20240922-091917-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240922-091917-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240922-091917-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240922-091917-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -517,6 +1139,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-09-28',
     video: '/gaming/resident-evil-2-20240928-074711.mp4',
     poster: '/gaming/resident-evil-2-20240928-074711.webp',
+    preview: '/gallery-phase2/v2/resident-evil-2-20240928-074711-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240928-074711-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240928-074711-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-2-20240928-074711-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.0,
@@ -529,6 +1166,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-07-09',
     video: '/gaming/resident-evil-3-20250709-131858.mp4',
     poster: '/gaming/resident-evil-3-20250709-131858.webp',
+    preview: '/gallery-phase2/v2/resident-evil-3-20250709-131858-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-131858-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-131858-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-131858-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 54.3,
@@ -541,6 +1193,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-07-09',
     video: '/gaming/resident-evil-3-20250709-132200.mp4',
     poster: '/gaming/resident-evil-3-20250709-132200.webp',
+    preview: '/gallery-phase2/v2/resident-evil-3-20250709-132200-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-132200-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-132200-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250709-132200-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.5,
@@ -553,6 +1220,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-07-19',
     video: '/gaming/resident-evil-3-20250719-104612.mp4',
     poster: '/gaming/resident-evil-3-20250719-104612.webp',
+    preview: '/gallery-phase2/v2/resident-evil-3-20250719-104612-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250719-104612-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250719-104612-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/resident-evil-3-20250719-104612-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -565,6 +1247,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-17',
     video: '/gaming/split-fiction-20250417-133759.mp4',
     poster: '/gaming/split-fiction-20250417-133759.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250417-133759-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-133759-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-133759-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-133759-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -577,6 +1274,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-17',
     video: '/gaming/split-fiction-20250417-143545.mp4',
     poster: '/gaming/split-fiction-20250417-143545.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250417-143545-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143545-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143545-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143545-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 57.4,
@@ -589,6 +1301,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-17',
     video: '/gaming/split-fiction-20250417-143919.mp4',
     poster: '/gaming/split-fiction-20250417-143919.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250417-143919-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143919-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143919-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-143919-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -601,6 +1328,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-17',
     video: '/gaming/split-fiction-20250417-144134.mp4',
     poster: '/gaming/split-fiction-20250417-144134.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250417-144134-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-144134-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-144134-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250417-144134-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -613,6 +1355,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-18',
     video: '/gaming/split-fiction-20250418-155741.mp4',
     poster: '/gaming/split-fiction-20250418-155741.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250418-155741-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250418-155741-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250418-155741-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250418-155741-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -625,6 +1382,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-24',
     video: '/gaming/split-fiction-20250424-125516.mp4',
     poster: '/gaming/split-fiction-20250424-125516.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250424-125516-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-125516-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-125516-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-125516-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -637,6 +1409,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-24',
     video: '/gaming/split-fiction-20250424-135427.mp4',
     poster: '/gaming/split-fiction-20250424-135427.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250424-135427-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-135427-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-135427-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-135427-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 58.9,
@@ -649,6 +1436,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-24',
     video: '/gaming/split-fiction-20250424-141037.mp4',
     poster: '/gaming/split-fiction-20250424-141037.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250424-141037-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-141037-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-141037-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250424-141037-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 58.7,
@@ -661,6 +1463,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-04-25',
     video: '/gaming/split-fiction-20250425-134052.mp4',
     poster: '/gaming/split-fiction-20250425-134052.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250425-134052-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250425-134052-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250425-134052-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250425-134052-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -673,6 +1490,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-07',
     video: '/gaming/split-fiction-20250507-132649.mp4',
     poster: '/gaming/split-fiction-20250507-132649.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250507-132649-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250507-132649-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250507-132649-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250507-132649-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.0,
@@ -685,6 +1517,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-08',
     video: '/gaming/split-fiction-20250508-123545.mp4',
     poster: '/gaming/split-fiction-20250508-123545.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250508-123545-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-123545-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-123545-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-123545-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -697,6 +1544,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-08',
     video: '/gaming/split-fiction-20250508-130153.mp4',
     poster: '/gaming/split-fiction-20250508-130153.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250508-130153-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130153-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130153-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130153-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.4,
@@ -709,6 +1571,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-08',
     video: '/gaming/split-fiction-20250508-130721.mp4',
     poster: '/gaming/split-fiction-20250508-130721.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250508-130721-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130721-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130721-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-130721-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.3,
@@ -721,6 +1598,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-08',
     video: '/gaming/split-fiction-20250508-134813.mp4',
     poster: '/gaming/split-fiction-20250508-134813.webp',
+    preview: '/gallery-phase2/v2/split-fiction-20250508-134813-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-134813-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-134813-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/split-fiction-20250508-134813-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -733,6 +1625,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-08-21',
     video: '/gaming/street-fighter-6-20230821-123555.mp4',
     poster: '/gaming/street-fighter-6-20230821-123555.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20230821-123555-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20230821-123555-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20230821-123555-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20230821-123555-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -745,6 +1652,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-10-31',
     video: '/gaming/street-fighter-6-20231031-135715.mp4',
     poster: '/gaming/street-fighter-6-20231031-135715.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20231031-135715-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20231031-135715-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20231031-135715-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20231031-135715-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -757,6 +1679,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-07-13',
     video: '/gaming/street-fighter-6-20240713-020300.mp4',
     poster: '/gaming/street-fighter-6-20240713-020300.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20240713-020300-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240713-020300-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240713-020300-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240713-020300-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -769,6 +1706,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-07-14',
     video: '/gaming/street-fighter-6-20240714-024928.mp4',
     poster: '/gaming/street-fighter-6-20240714-024928.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20240714-024928-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240714-024928-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240714-024928-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240714-024928-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -781,6 +1733,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-08-06',
     video: '/gaming/street-fighter-6-20240806-130911.mp4',
     poster: '/gaming/street-fighter-6-20240806-130911.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20240806-130911-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240806-130911-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240806-130911-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240806-130911-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -793,6 +1760,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2024-08-17',
     video: '/gaming/street-fighter-6-20240817-014503.mp4',
     poster: '/gaming/street-fighter-6-20240817-014503.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20240817-014503-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240817-014503-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240817-014503-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20240817-014503-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -805,6 +1787,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-03-15',
     video: '/gaming/street-fighter-6-20250315-041842.mp4',
     poster: '/gaming/street-fighter-6-20250315-041842.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250315-041842-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250315-041842-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250315-041842-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250315-041842-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.2,
@@ -817,6 +1814,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-05-22',
     video: '/gaming/street-fighter-6-20250522-124819.mp4',
     poster: '/gaming/street-fighter-6-20250522-124819.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250522-124819-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250522-124819-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250522-124819-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250522-124819-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -829,6 +1841,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-01',
     video: '/gaming/street-fighter-6-20250601-121210.mp4',
     poster: '/gaming/street-fighter-6-20250601-121210.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250601-121210-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-121210-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-121210-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-121210-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -841,6 +1868,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-01',
     video: '/gaming/street-fighter-6-20250601-124326.mp4',
     poster: '/gaming/street-fighter-6-20250601-124326.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250601-124326-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-124326-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-124326-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250601-124326-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.8,
@@ -853,6 +1895,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-06-28',
     video: '/gaming/street-fighter-6-20250628-134850.mp4',
     poster: '/gaming/street-fighter-6-20250628-134850.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250628-134850-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250628-134850-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250628-134850-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250628-134850-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -865,6 +1922,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2025-07-08',
     video: '/gaming/street-fighter-6-20250708-150434.mp4',
     poster: '/gaming/street-fighter-6-20250708-150434.webp',
+    preview: '/gallery-phase2/v2/street-fighter-6-20250708-150434-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250708-150434-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250708-150434-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/street-fighter-6-20250708-150434-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.1,
@@ -877,6 +1949,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-22',
     video: '/gaming/superliminal-20221222-085858.mp4',
     poster: '/gaming/superliminal-20221222-085858.webp',
+    preview: '/gallery-phase2/v2/superliminal-20221222-085858-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-085858-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-085858-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-085858-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.3,
@@ -889,6 +1976,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2022-12-22',
     video: '/gaming/superliminal-20221222-093137.mp4',
     poster: '/gaming/superliminal-20221222-093137.webp',
+    preview: '/gallery-phase2/v2/superliminal-20221222-093137-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-093137-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-093137-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/superliminal-20221222-093137-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.8,
@@ -901,6 +2003,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-09',
     video: '/gaming/the-finals-20231209-132933.mp4',
     poster: '/gaming/the-finals-20231209-132933.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231209-132933-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231209-132933-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231209-132933-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231209-132933-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -913,6 +2030,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-10',
     video: '/gaming/the-finals-20231210-005723.mp4',
     poster: '/gaming/the-finals-20231210-005723.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231210-005723-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231210-005723-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231210-005723-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231210-005723-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.7,
@@ -925,6 +2057,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-13',
     video: '/gaming/the-finals-20231213-143719.mp4',
     poster: '/gaming/the-finals-20231213-143719.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231213-143719-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-143719-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-143719-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-143719-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 60.0,
@@ -937,6 +2084,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-13',
     video: '/gaming/the-finals-20231213-145125.mp4',
     poster: '/gaming/the-finals-20231213-145125.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231213-145125-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-145125-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-145125-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231213-145125-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.6,
@@ -949,6 +2111,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-23',
     video: '/gaming/the-finals-20231223-060254.mp4',
     poster: '/gaming/the-finals-20231223-060254.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231223-060254-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231223-060254-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231223-060254-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231223-060254-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 6.2,
@@ -961,6 +2138,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-12-30',
     video: '/gaming/the-finals-20231230-125718.mp4',
     poster: '/gaming/the-finals-20231230-125718.webp',
+    preview: '/gallery-phase2/v2/the-finals-20231230-125718-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/the-finals-20231230-125718-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231230-125718-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/the-finals-20231230-125718-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.9,
@@ -973,6 +2165,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-06-13',
     video: '/gaming/yakuza-0-20230613-123853.mp4',
     poster: '/gaming/yakuza-0-20230613-123853.webp',
+    preview: '/gallery-phase2/v2/yakuza-0-20230613-123853-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-123853-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-123853-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-123853-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 54.2,
@@ -985,6 +2192,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-06-13',
     video: '/gaming/yakuza-0-20230613-135127.mp4',
     poster: '/gaming/yakuza-0-20230613-135127.webp',
+    preview: '/gallery-phase2/v2/yakuza-0-20230613-135127-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-135127-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-135127-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230613-135127-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 53.5,
@@ -997,6 +2219,21 @@ export const galleryItems: GalleryItem[] = [
     recordedAt: '2023-07-01',
     video: '/gaming/yakuza-0-20230701-114059.mp4',
     poster: '/gaming/yakuza-0-20230701-114059.webp',
+    preview: '/gallery-phase2/v2/yakuza-0-20230701-114059-preview.mp4',
+    posterSrcSet: [
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230701-114059-480.webp',
+        width: 480,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230701-114059-768.webp',
+        width: 768,
+      },
+      {
+        src: '/gallery-phase2/v2/yakuza-0-20230701-114059-1280.webp',
+        width: 1280,
+      },
+    ],
     width: 1920,
     height: 1080,
     duration: 59.0,

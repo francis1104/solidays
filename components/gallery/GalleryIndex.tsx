@@ -1,8 +1,6 @@
 'use client'
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import type { GalleryItem } from '@/data/gallery'
-import { galleryUrl } from '@/lib/gallery'
 import {
   formatClipDate,
   formatDuration,
@@ -10,6 +8,7 @@ import {
   gameInitials,
   playClipLabel,
 } from '@/lib/gallery-format'
+import GalleryMediaPreview from './GalleryMediaPreview'
 import GalleryPlayIcon from './GalleryPlayIcon'
 
 type GalleryIndexProps = {
@@ -20,8 +19,6 @@ type GalleryIndexProps = {
 }
 
 export default function GalleryIndex({ items, previewItem, onHover, onPlay }: GalleryIndexProps) {
-  const reduceMotion = useReducedMotion()
-
   if (items.length === 0) {
     return (
       <p className="py-16 text-sm text-gray-500 dark:text-gray-400">
@@ -95,31 +92,18 @@ export default function GalleryIndex({ items, previewItem, onHover, onPlay }: Ga
             className="group w-full text-left"
           >
             <div className="relative aspect-video overflow-hidden bg-gray-200 dark:bg-gray-900">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={previewItem.id}
-                  src={galleryUrl(previewItem.poster)}
-                  alt=""
-                  width={previewItem.width}
-                  height={previewItem.height}
-                  decoding="async"
-                  initial={reduceMotion ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={reduceMotion ? undefined : { opacity: 0 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-              </AnimatePresence>
-              <div className="absolute inset-0 bg-black/15 transition-colors group-hover:bg-black/30 group-focus-visible:bg-black/30" />
-              <span className="absolute top-3 left-3 font-mono text-xs tracking-[0.22em] text-white/80">
-                {gameInitials(previewTitle)}
-              </span>
-              <span className="absolute inset-0 flex items-center justify-center text-white opacity-80">
-                <GalleryPlayIcon className="size-10 drop-shadow-md" />
-              </span>
-              <span className="absolute right-3 bottom-3 font-mono text-xs text-white tabular-nums">
-                {formatDuration(previewItem.duration, true)}
-              </span>
+              <GalleryMediaPreview item={previewItem} className="absolute inset-0">
+                <div className="absolute inset-0 bg-black/15 transition-colors group-hover:bg-black/30 group-focus-visible:bg-black/30" />
+                <span className="absolute top-3 left-3 font-mono text-xs tracking-[0.22em] text-white/80">
+                  {gameInitials(previewTitle)}
+                </span>
+                <span className="absolute inset-0 flex items-center justify-center text-white opacity-80">
+                  <GalleryPlayIcon className="size-10 drop-shadow-md" />
+                </span>
+                <span className="absolute right-3 bottom-3 font-mono text-xs text-white tabular-nums">
+                  {formatDuration(previewItem.duration, true)}
+                </span>
+              </GalleryMediaPreview>
             </div>
             <div className="mt-3">
               <p className="text-base text-gray-900 dark:text-gray-100">{previewTitle}</p>

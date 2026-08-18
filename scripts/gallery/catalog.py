@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from pathlib import Path
 
 SOURCE_DIR = "/Users/francis/Movies/xbox录屏精选"
 OUTPUT_DIR = "/Users/francis/Movies/xbox-gallery-web"
 WEB_DIR = f"{OUTPUT_DIR}/web/gaming"
+PHASE2_DIR = f"{OUTPUT_DIR}/web/gallery-phase2"
+PHASE2_PREFIX = "/gallery-phase2/v2"
+PHASE2_MANIFEST = str(Path(__file__).resolve().parents[2] / "data" / "gallery-phase2-assets.json")
+GALLERY_INVENTORY = str(Path(__file__).resolve().parents[2] / "data" / "gallery-inventory.json")
 AB_DIR = f"{OUTPUT_DIR}/ab"
 
 REMUX_MAX_MBPS = 12.0

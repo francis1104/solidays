@@ -9,6 +9,7 @@ import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import {
   applyConversationClosedBarrier,
+  decideRealtimeEvent,
   hasConversationIdentityChanged,
   isRealtimeGenerationCurrent,
   mergeRealtimeMessages,
@@ -399,18 +400,22 @@ export default function FloatingChat() {
 
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {
-      if (event.conversationId !== conversationId) return
+      const decision = decideRealtimeEvent(event, conversationIdRef.current)
+      if (decision.type === 'ignore') return
 
-      if (event.type === 'conversation.closed') {
+      if (decision.type === 'conversation.closed') {
+        const currentConversationId = conversationIdRef.current
+        if (!currentConversationId) return
+
         const barrier = applyConversationClosedBarrier(
           {
-            conversationId,
+            conversationId: currentConversationId,
             status: 'open',
             realtimeEnabled,
           },
-          event.conversationId
+          decision.conversationId
         )
-        if (barrier.conversationId !== conversationId) return
+        if (barrier.conversationId !== currentConversationId) return
 
         reconciliationPromiseRef.current = null
         requestGenerationRef.current += 1
@@ -426,15 +431,15 @@ export default function FloatingChat() {
       }
 
       const incoming = mapApiMessage({
-        id: event.message.id,
-        role: event.message.role,
-        content: event.message.content,
-        pageUrl: event.message.pageUrl,
-        createdAt: new Date(event.message.createdAt).toISOString(),
+        id: decision.message.id,
+        role: decision.message.role,
+        content: decision.message.content,
+        pageUrl: decision.message.pageUrl,
+        createdAt: new Date(decision.message.createdAt).toISOString(),
       })
       setMessages((current) => mergeRealtimeMessages(current, [incoming], initialMessages[0].id))
     },
-    [conversationId, realtimeEnabled]
+    [realtimeEnabled]
   )
 
   useChatRealtime({

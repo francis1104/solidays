@@ -1,3 +1,5 @@
+import type { ChatRealtimeEvent } from './realtime-events'
+
 export type RealtimeUiMessage = {
   id: string
   createdAt?: string
@@ -10,6 +12,15 @@ export type RealtimeConversationSnapshot = {
   status: 'open' | 'closed'
   realtimeEnabled: boolean
 }
+
+export type RealtimeEventDecision =
+  | { type: 'ignore' }
+  | { type: 'conversation.closed'; conversationId: string }
+  | {
+      type: 'message.created'
+      conversationId: string
+      message: Extract<ChatRealtimeEvent, { type: 'message.created' }>['message']
+    }
 
 export const MAX_REALTIME_HANDSHAKE_FAILURES = 3
 
@@ -28,6 +39,25 @@ export function hasConversationIdentityChanged(
   return currentConversationId !== nextConversationId
 }
 
+export function decideRealtimeEvent(
+  event: ChatRealtimeEvent,
+  currentConversationId: string | null
+): RealtimeEventDecision {
+  if (!currentConversationId || event.conversationId !== currentConversationId) {
+    return { type: 'ignore' }
+  }
+
+  if (event.type === 'conversation.closed') {
+    return { type: 'conversation.closed', conversationId: currentConversationId }
+  }
+
+  return {
+    type: 'message.created',
+    conversationId: currentConversationId,
+    message: event.message,
+  }
+}
+
 export function applyConversationClosedBarrier(
   state: RealtimeConversationSnapshot,
   conversationId: string
@@ -39,6 +69,17 @@ export function applyConversationClosedBarrier(
     status: 'closed',
     realtimeEnabled: false,
   }
+}
+
+export function applyRealtimeError(
+  currentError: string | null,
+  expectedGeneration: number,
+  currentGeneration: number,
+  nextError: string
+): string | null {
+  return isRealtimeGenerationCurrent(expectedGeneration, currentGeneration)
+    ? nextError
+    : currentError
 }
 
 function getTimestamp(message: RealtimeUiMessage): number {

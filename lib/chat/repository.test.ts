@@ -15,6 +15,7 @@ class FakeD1 {
   messages: MessageRow[] = []
   visitors = new Set<string>()
   closeBeforeNextBatch = false
+  raceBeforeCreateConversation: ConversationRow | null = null
 
   prepare(query: string): FakeStatement {
     const statement: FakeStatement = {
@@ -43,6 +44,18 @@ class FakeD1 {
         (conversation) => conversation.status === 'open'
       )
       if (openConversation) openConversation.status = 'closed'
+    }
+
+    if (
+      this.raceBeforeCreateConversation &&
+      statements.some((statement) => statement.query.includes('INSERT INTO conversations'))
+    ) {
+      this.conversations.set(
+        this.raceBeforeCreateConversation.id,
+        this.raceBeforeCreateConversation
+      )
+      this.raceBeforeCreateConversation = null
+      throw new Error('UNIQUE constraint failed: conversations.visitor_id')
     }
 
     return statements.map((statement) => {
@@ -144,5 +157,47 @@ test('visitor append never inserts into a conversation closed after the pre-read
       .filter((message) => message.conversation_id === result.conversation.id)
       .map((message) => message.content),
     ['after close']
+  )
+})
+
+test('visitor write converges on a concurrent conversation created after a close conflict', async () => {
+  const db = new FakeD1()
+  const visitorId = 'visitor-2'
+  const oldConversation: ConversationRow = {
+    id: 'conversation-old-2',
+    visitor_id: visitorId,
+    status: 'open',
+    last_page_url: '/old',
+    created_at: 1,
+    updated_at: 1,
+  }
+  const concurrentConversation: ConversationRow = {
+    id: 'conversation-concurrent-2',
+    visitor_id: visitorId,
+    status: 'open',
+    last_page_url: '/concurrent',
+    created_at: 2,
+    updated_at: 2,
+  }
+  db.conversations.set(oldConversation.id, oldConversation)
+  db.visitors.add(visitorId)
+  db.closeBeforeNextBatch = true
+  db.raceBeforeCreateConversation = concurrentConversation
+
+  const result = await persistVisitorMessage(db as unknown as D1Database, visitorId, {
+    content: 'eventual append',
+    pageUrl: '/new',
+    turnstileToken: 'test-token',
+  })
+
+  assert.equal(oldConversation.status, 'closed')
+  assert.equal(result.conversation.id, concurrentConversation.id)
+  assert.deepEqual(
+    db.messages.map((message) => ({ conversationId: message.conversation_id, content: message.content })),
+    [{ conversationId: concurrentConversation.id, content: 'eventual append' }]
+  )
+  assert.equal(
+    db.messages.some((message) => message.conversation_id === oldConversation.id),
+    false
   )
 })

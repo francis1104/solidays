@@ -13,6 +13,7 @@ import {
 } from './admin-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import {
+  applyRealtimeError,
   applyConversationClosedBarrier,
   isRealtimeGenerationCurrent,
   mergeRealtimeMessages,
@@ -441,7 +442,11 @@ export function ConversationDetail({
         setMessages((current) => mergeRealtimeMessages(current, [body.message]))
         setInput('')
       } catch (sendError) {
-        setError(sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。')
+        const nextError = sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。'
+        if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+        setError((currentError) =>
+          applyRealtimeError(currentError, generation, requestGenerationRef.current, nextError)
+        )
       } finally {
         setSending(false)
       }

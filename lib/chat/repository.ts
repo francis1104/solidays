@@ -281,7 +281,12 @@ export async function persistVisitorMessage(
 
       const concurrent = await findOpenConversation(db, visitorId)
       if (!concurrent) throw error
-      lastConflict = new ChatWriteConflictError()
+      try {
+        return await appendToConversation(db, concurrent, input, visitorId, Date.now())
+      } catch (appendError) {
+        if (!(appendError instanceof ChatWriteConflictError)) throw appendError
+        lastConflict = appendError
+      }
     }
   }
 

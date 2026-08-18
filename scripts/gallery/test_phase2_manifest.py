@@ -138,6 +138,57 @@ class Phase2ManifestTests(unittest.TestCase):
                 result.stderr + result.stdout,
             )
 
+    def test_generator_rejects_selected_id_when_manifest_inventory_drift(self) -> None:
+        committed = json.loads(MANIFEST.read_text())
+        asset = committed["assets"][0]
+        selected_id = asset["id"]
+        drift_id = "inventory-only-20260818-000000"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_dir = root / "gaming"
+            source_dir.mkdir()
+            (source_dir / f"{selected_id}.mp4").touch()
+            (root / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": committed["schemaVersion"],
+                        "r2Prefix": committed["r2Prefix"],
+                        "assets": [asset],
+                    }
+                )
+            )
+            (root / "inventory.json").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "ids": [selected_id, drift_id],
+                    }
+                )
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/gallery/generate-phase2-assets.py"),
+                    "--source-dir",
+                    str(source_dir),
+                    "--output-dir",
+                    str(root / "phase2"),
+                    "--manifest",
+                    str(root / "manifest.json"),
+                    "--inventory",
+                    str(root / "inventory.json"),
+                    "--id",
+                    selected_id,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "phase-two manifest does not match committed Gallery inventory",
+                result.stderr + result.stdout,
+            )
+
 
 def load_phase2_manifest_from_document(document: dict[str, object]) -> None:
     import json

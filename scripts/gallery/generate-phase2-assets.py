@@ -170,6 +170,13 @@ def main() -> None:
         existing = load_phase2_manifest(manifest_path, expected_prefix=args.r2_prefix)
         existing_ids = set(existing['by_id'])
         inventory_ids = load_gallery_inventory(inventory_path)
+        if existing_ids != inventory_ids:
+            missing = ', '.join(sorted(inventory_ids - existing_ids)) or 'none'
+            extra = ', '.join(sorted(existing_ids - inventory_ids)) or 'none'
+            raise SystemExit(
+                'phase-two manifest does not match committed Gallery inventory '
+                f'(missing manifest ids: {missing}; unknown manifest ids: {extra})'
+            )
         missing_from_manifest = sorted(selected - existing_ids)
         missing_from_inventory = sorted(selected - inventory_ids)
         if missing_from_manifest or missing_from_inventory:

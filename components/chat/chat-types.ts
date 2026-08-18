@@ -2,6 +2,7 @@ export type ChatMessage = {
   id: string
   role: 'user' | 'assistant'
   content: string
+  createdAt?: string
 }
 
 export type ChatApiMessage = {
@@ -13,6 +14,7 @@ export type ChatApiMessage = {
 }
 
 export type ChatApiResponse = {
+  realtimeEnabled: boolean
   conversation: {
     id: string
     status: 'open' | 'closed'

@@ -37,6 +37,7 @@ export type ChatConversationDto = {
 }
 
 export type ChatConversationPayload = {
+  realtimeEnabled: boolean
   conversation: ChatConversationDto | null
   messages: ChatMessageDto[]
   hasMore: boolean

@@ -3,7 +3,7 @@ import { ChatQuotaExceededError, findVisitor, persistVisitorMessage } from '@/li
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin, normalizePageUrl } from '@/lib/chat/security'
-import { publishConversationEvent } from '@/lib/chat/realtime'
+import { isChatRealtimeEnabled, scheduleConversationEvent } from '@/lib/chat/realtime'
 import { buildMessageCreatedEvent } from '@/lib/chat/realtime-events'
 import { buildVisitorCookie, createVisitorId, getVisitorId } from '@/lib/chat/session'
 import { toConversationDto, toMessageDto } from '@/lib/chat/types'
@@ -77,16 +77,13 @@ export async function POST(request: Request) {
       ...input,
       pageUrl: normalizePageUrl(input.pageUrl, request),
     })
-    await publishConversationEvent(
-      env,
-      result.conversation.id,
-      buildMessageCreatedEvent(result.message)
-    )
+    scheduleConversationEvent(env, result.conversation.id, buildMessageCreatedEvent(result.message))
     const headers = new Headers()
     if (!visitorId) headers.set('set-cookie', buildVisitorCookie(persistedVisitorId, request))
 
     return jsonResponse(
       {
+        realtimeEnabled: isChatRealtimeEnabled(env),
         conversation: toConversationDto(result.conversation),
         message: toMessageDto(result.message),
       },

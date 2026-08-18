@@ -1,3 +1,4 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { ChatRealtimeEvent } from './realtime-events'
 import {
   CHAT_REALTIME_AUDIENCE_HEADER,
@@ -9,7 +10,7 @@ export function isChatRealtimeEnabled(env: CloudflareEnv): boolean {
   return String(env.CHAT_REALTIME_ENABLED) === 'true'
 }
 
-export async function publishConversationEvent(
+async function publishConversationEvent(
   env: CloudflareEnv,
   conversationId: string,
   event: ChatRealtimeEvent
@@ -28,6 +29,23 @@ export async function publishConversationEvent(
         error: error instanceof Error ? error.message : String(error),
       })
     )
+  }
+}
+
+export function scheduleConversationEvent(
+  env: CloudflareEnv,
+  conversationId: string,
+  event: ChatRealtimeEvent
+): void {
+  if (!isChatRealtimeEnabled(env)) return
+
+  const publishPromise = publishConversationEvent(env, conversationId, event)
+  try {
+    getCloudflareContext().ctx.waitUntil(publishPromise)
+  } catch {
+    // Route tests and non-Worker callers may not have an OpenNext context.
+    // The publisher handles its own errors, so this remains best-effort.
+    void publishPromise
   }
 }
 

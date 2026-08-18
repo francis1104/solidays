@@ -7,6 +7,7 @@ import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import { mergeRealtimeMessages } from '@/lib/chat/realtime-client'
 import { useChatRealtime } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
@@ -24,6 +25,7 @@ function mapApiMessage(message: ChatApiMessage): ChatMessage {
     id: message.id,
     role: message.role === 'visitor' ? 'user' : 'assistant',
     content: message.content,
+    createdAt: message.createdAt,
   }
 }
 
@@ -84,6 +86,7 @@ export default function FloatingChat() {
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -129,13 +132,13 @@ export default function FloatingChat() {
       const body = (await response.json()) as {
         conversation: ChatApiResponse['conversation']
         message: ChatApiMessage
+        realtimeEnabled?: boolean
       }
       setConversationId(body.conversation?.id ?? null)
+      if (typeof body.realtimeEnabled === 'boolean') setRealtimeEnabled(body.realtimeEnabled)
       const submittedMessage = mapApiMessage(body.message)
       setMessages((current) =>
-        current.some((message) => message.id === submittedMessage.id)
-          ? current
-          : [...current, submittedMessage]
+        mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
       )
       setInput('')
     } catch (submissionError) {
@@ -159,15 +162,7 @@ export default function FloatingChat() {
       const body = await loadConversationPage(cursor)
 
       const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-      setMessages((current) => {
-        const currentIds = new Set(current.map((message) => message.id))
-        const uniqueOlderMessages = olderMessages.filter((message) => !currentIds.has(message.id))
-        return [
-          initialMessages[0],
-          ...uniqueOlderMessages,
-          ...current.filter((message) => message.id !== initialMessages[0].id),
-        ]
-      })
+      setMessages((current) => mergeRealtimeMessages(current, olderMessages, initialMessages[0].id))
       setHistoryCursor(body.nextCursor ?? null)
       setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
     } catch (loadError) {
@@ -180,11 +175,7 @@ export default function FloatingChat() {
   const recoverRealtimeGap = useCallback(async () => {
     const knownIds = new Set(messagesRef.current.map((message) => message.id))
     const fetched = await fetchMessagesUntilOverlap(knownIds)
-    setMessages((current) => {
-      const known = new Set(current.map((message) => message.id))
-      const additions = fetched.filter((message) => !known.has(message.id))
-      return additions.length ? [...current, ...additions] : current
-    })
+    setMessages((current) => mergeRealtimeMessages(current, fetched, initialMessages[0].id))
   }, [])
 
   const handleRealtimeEvent = useCallback(
@@ -203,15 +194,13 @@ export default function FloatingChat() {
         pageUrl: event.message.pageUrl,
         createdAt: new Date(event.message.createdAt).toISOString(),
       })
-      setMessages((current) =>
-        current.some((message) => message.id === incoming.id) ? current : [...current, incoming]
-      )
+      setMessages((current) => mergeRealtimeMessages(current, [incoming], initialMessages[0].id))
     },
     [conversationId]
   )
 
   useChatRealtime({
-    enabled: open && Boolean(conversationId),
+    enabled: open && realtimeEnabled && Boolean(conversationId),
     path: '/api/chat/realtime',
     onEvent: handleRealtimeEvent,
     onReconnect: recoverRealtimeGap,
@@ -226,7 +215,8 @@ export default function FloatingChat() {
         .then((body) => {
           const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
           setConversationId(body.conversation?.id ?? null)
-          setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
+          setRealtimeEnabled(body.realtimeEnabled)
+          setMessages(mergeRealtimeMessages([initialMessages[0]], history, initialMessages[0].id))
           setHistoryCursor(body.nextCursor ?? null)
           setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
           setError(null)
@@ -245,9 +235,7 @@ export default function FloatingChat() {
     void fetchMessagesUntilOverlap(knownIds)
       .then((fetched) => {
         setMessages((current) => {
-          const known = new Set(current.map((message) => message.id))
-          const additions = fetched.filter((message) => !known.has(message.id))
-          return additions.length ? [...current, ...additions] : current
+          return mergeRealtimeMessages(current, fetched, initialMessages[0].id)
         })
         setError(null)
       })

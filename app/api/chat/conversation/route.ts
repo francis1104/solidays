@@ -5,8 +5,19 @@ import { CHAT_LIMITS } from '@/lib/chat/limits'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { getVisitorId } from '@/lib/chat/session'
 import { toConversationDto, toMessageDto } from '@/lib/chat/types'
+import { isChatRealtimeEnabled } from '@/lib/chat/realtime'
 
 export const dynamic = 'force-dynamic'
+
+function emptyConversationResponse(realtimeEnabled: boolean) {
+  return {
+    realtimeEnabled,
+    conversation: null,
+    messages: [],
+    hasMore: false,
+    nextCursor: null,
+  }
+}
 
 function getEnv(): CloudflareEnv | null {
   try {
@@ -32,7 +43,7 @@ export async function GET(request: Request) {
 
   const visitorCandidate = getVisitorId(request)
   if (!visitorCandidate) {
-    return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
   }
 
   const url = new URL(request.url)
@@ -57,7 +68,7 @@ export async function GET(request: Request) {
   }
 
   if (!visitorId) {
-    return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
   }
 
   const visitorRateLimit = await checkVisitorRateLimit(env, visitorId, 'conversation-read')
@@ -77,10 +88,10 @@ export async function GET(request: Request) {
       cursor,
       Math.min(limit, CHAT_LIMITS.historyPageSize)
     )
-    if (!result)
-      return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    if (!result) return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
 
     return jsonResponse({
+      realtimeEnabled: isChatRealtimeEnabled(env),
       conversation: toConversationDto(result.conversation),
       messages: result.messages.messages.map(toMessageDto),
       hasMore: result.messages.hasMore,

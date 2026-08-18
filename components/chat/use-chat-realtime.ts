@@ -34,7 +34,6 @@ export function useChatRealtime({
     let disposed = false
     let reconnectTimer: number | null = null
     let reconnectAttempt = 0
-    let connectedOnce = false
     let activeSocket: WebSocket | null = null
 
     const connect = () => {
@@ -42,19 +41,45 @@ export function useChatRealtime({
 
       const socket = new WebSocket(getWebSocketUrl(path))
       activeSocket = socket
+      let recovering = false
+      let bufferedEvents: ChatRealtimeEvent[] = []
+
       socket.onopen = () => {
-        reconnectAttempt = 0
-        if (connectedOnce) {
-          void Promise.resolve(onReconnectRef.current?.()).catch(() => undefined)
-        }
-        connectedOnce = true
+        recovering = true
+        bufferedEvents = []
+
+        // Recover on the first connection as well as reconnects. History was
+        // loaded before the socket opened, so writes in that gap must be read.
+        void Promise.resolve()
+          .then(() => onReconnectRef.current?.())
+          .then(() => {
+            if (disposed || activeSocket !== socket) return
+
+            reconnectAttempt = 0
+            recovering = false
+            const pendingEvents = bufferedEvents
+            bufferedEvents = []
+            for (const event of pendingEvents) onEventRef.current(event)
+          })
+          .catch((error: unknown) => {
+            if (disposed || activeSocket !== socket) return
+
+            recovering = false
+            console.warn('Chat realtime history recovery failed; reconnecting', error)
+            socket.close(1012, 'Realtime history recovery failed')
+          })
       }
       socket.onmessage = (message) => {
         if (typeof message.data !== 'string') return
 
         try {
           const event: unknown = JSON.parse(message.data)
-          if (isChatRealtimeEvent(event)) onEventRef.current(event)
+          if (!isChatRealtimeEvent(event)) return
+          if (recovering) {
+            bufferedEvents.push(event)
+            return
+          }
+          onEventRef.current(event)
         } catch {
           // Ignore malformed server frames; they must not affect the chat UI.
         }

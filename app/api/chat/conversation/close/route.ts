@@ -4,7 +4,7 @@ import { emptyResponse, errorResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin } from '@/lib/chat/security'
 import { getVisitorId } from '@/lib/chat/session'
-import { publishConversationEvent } from '@/lib/chat/realtime'
+import { scheduleConversationEvent } from '@/lib/chat/realtime'
 import { buildConversationClosedEvent } from '@/lib/chat/realtime-events'
 
 export const dynamic = 'force-dynamic'
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   try {
     const conversation = await closeOpenConversation(env.CHAT_DB, visitorId)
     if (conversation) {
-      await publishConversationEvent(
+      scheduleConversationEvent(
         env,
         conversation.id,
         buildConversationClosedEvent(conversation.id, conversation.updated_at)

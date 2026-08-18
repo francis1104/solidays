@@ -11,6 +11,7 @@ import {
   type AdminReplyResponse,
 } from './admin-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import { mergeRealtimeMessages } from '@/lib/chat/realtime-client'
 import { useChatRealtime } from '@/components/chat/use-chat-realtime'
 
 type ConversationDetailProps = {
@@ -78,6 +79,7 @@ export function ConversationDetail({
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const pendingScrollAdjustRef = useRef<number | null>(null)
@@ -91,14 +93,16 @@ export function ConversationDetail({
     setError(null)
     setHasMore(false)
     setNextCursor(null)
+    setRealtimeEnabled(false)
 
     void loadAdminMessages(conversationId, null)
       .then((body) => {
         if (cancelled) return
         stickToBottomRef.current = true
-        setMessages(body.messages)
+        setMessages(mergeRealtimeMessages([], body.messages))
         setHasMore(Boolean(body.hasMore && body.nextCursor))
         setNextCursor(body.nextCursor ?? null)
+        setRealtimeEnabled(body.realtimeEnabled)
         setVisitorLabel(`访客 #${body.conversation.visitorId.slice(0, 8)}`)
         setStatus('ready')
       })
@@ -143,11 +147,7 @@ export function ConversationDetail({
       const body = await loadAdminMessages(conversationId, cursor)
       stickToBottomRef.current = false
       pendingScrollAdjustRef.current = scrollRef.current?.scrollHeight ?? 0
-      setMessages((current) => {
-        const known = new Set(current.map((message) => message.id))
-        const older = body.messages.filter((message) => !known.has(message.id))
-        return [...older, ...current]
-      })
+      setMessages((current) => mergeRealtimeMessages(current, body.messages))
       setHasMore(Boolean(body.hasMore && body.nextCursor))
       setNextCursor(body.nextCursor ?? null)
     } catch (loadError) {
@@ -165,11 +165,7 @@ export function ConversationDetail({
   const recoverRealtimeGap = useCallback(async () => {
     const knownIds = new Set(messagesRef.current.map((message) => message.id))
     const fetched = await fetchAdminMessagesUntilOverlap(conversationId, knownIds)
-    setMessages((current) => {
-      const known = new Set(current.map((message) => message.id))
-      const additions = fetched.filter((message) => !known.has(message.id))
-      return additions.length ? [...current, ...additions] : current
-    })
+    setMessages((current) => mergeRealtimeMessages(current, fetched))
   }, [conversationId])
 
   const handleRealtimeEvent = useCallback(
@@ -184,15 +180,13 @@ export function ConversationDetail({
         pageUrl: event.message.pageUrl,
         createdAt: new Date(event.message.createdAt).toISOString(),
       }
-      setMessages((current) =>
-        current.some((message) => message.id === incoming.id) ? current : [...current, incoming]
-      )
+      setMessages((current) => mergeRealtimeMessages(current, [incoming]))
     },
     [conversationId]
   )
 
   useChatRealtime({
-    enabled: status === 'ready',
+    enabled: status === 'ready' && realtimeEnabled,
     path: `/api/admin/conversations/${conversationId}/realtime`,
     onEvent: handleRealtimeEvent,
     onReconnect: recoverRealtimeGap,
@@ -226,10 +220,7 @@ export function ConversationDetail({
 
         const body = (await response.json()) as AdminReplyResponse
         stickToBottomRef.current = true
-        setMessages((current) => {
-          if (current.some((message) => message.id === body.message.id)) return current
-          return [...current, body.message]
-        })
+        setMessages((current) => mergeRealtimeMessages(current, [body.message]))
         setInput('')
       } catch (sendError) {
         setError(sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。')

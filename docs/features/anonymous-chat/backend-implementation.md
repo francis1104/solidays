@@ -40,8 +40,13 @@
 
 `custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
 `101 Switching Protocols` 响应；普通 HTTP 请求仍由原有 Next.js route handler 处理。
-`components/chat/use-chat-realtime.ts` 负责指数退避重连。重连成功后，访客端和 Admin 端都会从 D1
-按游标补拉到已知消息 ID，避免断线期间漏消息；HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+`components/chat/use-chat-realtime.ts` 负责指数退避重连。首次连接和重连都会从 D1 按游标补拉到已知
+消息 ID；补拉期间到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线
+期间漏消息或顺序反转。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+
+消息写入成功后，DO 广播通过 OpenNext execution context 的 `waitUntil()` 调度，不阻塞 201/204
+响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
+客户端只在服务端开关打开时建立 WebSocket，避免生产开关关闭时持续重试 404 endpoint。
 
 本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；`wrangler.jsonc` 默认值仍为
 `false`，因此生产实时入口在完成 DEV 浏览器验收前不会被启用。当前阶段尚未实现 Queue 异步投递、
@@ -136,7 +141,8 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 - [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
       1 个访客、1 个开放会话和 3 条 visitor 消息。
 - [x] DEV 已接入会话级 `ChatConversation` Durable Object、访客/Admin WebSocket、消息创建和
-      会话关闭事件、断线指数退避重连、D1 补拉和客户端消息去重；本地已完成双端事件互通 smoke test。
+      会话关闭事件、首次连接/断线指数退避重连、D1 补拉、恢复事件缓冲、稳定排序和客户端消息去重；
+      本地已完成双端事件互通 smoke test。
 - [x] 本地 Worker 已验证 WebSocket `101` 握手、访客/Admin 双端同时收取 visitor/owner 消息、关闭事件、
       无效客户端帧忽略以及未授权连接拒绝。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后

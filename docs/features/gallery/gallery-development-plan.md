@@ -813,7 +813,7 @@ preview.mp4
 脚本输出：
 
 ```text
-gallery-phase2/
+gallery-phase2/vN/
 ├─ xxx-480.webp
 ├─ xxx-768.webp
 ├─ xxx-1280.webp
@@ -1140,16 +1140,17 @@ GalleryLightbox
 
 > 2026-08-18 状态：页面能力已在 DEV 实现并完成本地 Worker + 浏览器验收。
 > 82 条 preview 视频和三档响应式 poster 已生成到独立目录并发布到 R2 的
-> `gallery-phase2/` 前缀；catalog 已写入可选 asset 字段。
+> `gallery-phase2/v2/` 前缀；`data/gallery-phase2-assets.json` 是可复现的资源 manifest，
+> catalog 已写入可选 asset 字段。
 
-- [x] 生成 3~5 秒 preview mp4（82 条已生成并发布到 `gallery-phase2/`）
+- [x] 生成 3~5 秒 preview mp4（82 条已生成并发布到 `gallery-phase2/v2/`）
 - [x] Hero hover video preview（有 preview 时延迟 200ms、muted、loop、playsInline；无 preview 回退 poster）
 - [x] Index hover video preview（同上，离开列表行停止并卸载）
 - [x] smoother preview crossfade（poster、preview video 和筛选预览均使用轻量 opacity 过渡）
 - [x] mobile swipe（由 YARL carousel 提供，显式保留 `touchAction: 'none'` 和循环滑动）
 - [x] URL hash / query 保存当前 Lightbox clip（兼容 `#clip=`，新状态使用 `?clip=`）
 - [x] filter state 写入 URL（`year`、`q`、`view` 使用 replaceState，不污染历史记录）
-- [x] poster responsive srcset（82 条 `posterSrcSet` 已写入 catalog，三档 poster 已发布到 `gallery-phase2/`）
+- [x] poster responsive srcset（82 条 `posterSrcSet` 已写入 catalog，三档 poster 已发布到 `gallery-phase2/v2/`）
 - [x] skeleton / blur placeholder（poster 加载时 skeleton + blur，加载后平滑清晰）
 
 ---

@@ -3,7 +3,8 @@
 > 建立于 2026-08-17。状态：**Approved，Gallery 二阶段资源已发布**。
 > A/B 已锁 CRF 21；`solidays-gallery` + `media.solidays.win` 已就绪；
 > 82 条基础 Web 成品已上传（164 对象），二阶段另上传 328 个对象：82 个 preview
-> 和 246 个响应式 poster，全部位于独立的 `gallery-phase2/` 前缀；私有桶未泄露。
+> 和 246 个响应式 poster，全部位于独立的版本化 `gallery-phase2/v2/` 前缀；私有桶未泄露。
+> 二阶段 manifest 已提交到 `data/gallery-phase2-assets.json`，生成流程缺少它会直接失败。
 > 首次上传走 Wrangler OAuth，不是 S3 Access Key。评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
@@ -44,7 +45,7 @@
 | 桶 | 角色 | 访问 | 对象 |
 | --- | --- | --- | --- |
 | `solidays-media` | 现有私有媒体 | Worker `MEDIA_BUCKET` → `/media/<key>`，只放行 `fnds/`、`profile/` | FNDS 原图、头像 |
-| `solidays-gallery` | **新建**公开 Gallery 成品 | 只绑 `media.solidays.win`，不绑 Worker | `gaming/<id>.mp4`、`gaming/<id>.webp`；`gallery-phase2/<id>-preview.mp4`、响应式 poster |
+| `solidays-gallery` | **新建**公开 Gallery 成品 | 只绑 `media.solidays.win`，不绑 Worker | `gaming/<id>.mp4`、`gaming/<id>.webp`；`gallery-phase2/vN/<id>-preview.mp4`、响应式 poster |
 
 R2 桶接上 custom domain 后，该桶内对象都可通过这个域名公开读取。若把 `media.solidays.win` 接到 `solidays-media`，现有 `fnds/*`、`profile/*` 只要知道 key 就能绕过 `/media` Worker。这是一次安全边界变化，本文不采用。
 
@@ -228,14 +229,17 @@ gaming/rainbow-six-siege-20221208-071037.webp
 
 二阶段资源独立放在另一个前缀：
 
-gallery-phase2/rainbow-six-siege-20221208-071037-preview.mp4
-gallery-phase2/rainbow-six-siege-20221208-071037-480.webp
-gallery-phase2/rainbow-six-siege-20221208-071037-768.webp
-gallery-phase2/rainbow-six-siege-20221208-071037-1280.webp
+gallery-phase2/v2/rainbow-six-siege-20221208-071037-preview.mp4
+gallery-phase2/v2/rainbow-six-siege-20221208-071037-480.webp
+gallery-phase2/v2/rainbow-six-siege-20221208-071037-768.webp
+gallery-phase2/v2/rainbow-six-siege-20221208-071037-1280.webp
 ```
 
-R2 没有真正的文件夹；`gaming/...` 和 `gallery-phase2/...` 都是扁平 object key 的前缀。
+R2 没有真正的文件夹；`gaming/...` 和 `gallery-phase2/vN/...` 都是扁平 object key 的前缀。
 桶本身已经把 Gallery 和私有媒体隔开，key 里不必再重复 `gallery/`。
+
+二阶段资源必须带版本段 `vN`。如果重新编码、修改 poster 或调整 HTTP metadata，递增版本（例如
+`v2` → `v3`），重新生成 manifest 并上传新前缀；不要覆盖旧的 `immutable` URL。
 
 ### 5.2 id 规则
 
@@ -327,51 +331,42 @@ export const galleryItems: GalleryItem[] = [
 - 处理方式（remux / transcode）只留在本地决策表和处理报告里，不进页面数据。
 - `type: 'phone'` 只复用这份数据契约。未来 phone 素材先重新做 codec / color / rotation / frame-timing intake，再决定 Web 转码参数；不默认复用第 4、6 节的 Xbox 流水线和决策表。
 
-### 5.4 上传契约（HTTP metadata + write-once）
+### 5.4 上传契约（HTTP metadata + versioned write-once）
 
 ```text
 https://media.solidays.win/gaming/<id>.mp4
 https://media.solidays.win/gaming/<id>.webp
-https://media.solidays.win/gallery-phase2/<id>-preview.mp4
-https://media.solidays.win/gallery-phase2/<id>-480.webp
-https://media.solidays.win/gallery-phase2/<id>-768.webp
-https://media.solidays.win/gallery-phase2/<id>-1280.webp
+https://media.solidays.win/gallery-phase2/v2/<id>-preview.mp4
+https://media.solidays.win/gallery-phase2/v2/<id>-480.webp
+https://media.solidays.win/gallery-phase2/v2/<id>-768.webp
+https://media.solidays.win/gallery-phase2/v2/<id>-1280.webp
 ```
 
 上传写到 `solidays-gallery`，并显式带上 MIME 和 Cache-Control。长期缓存行为不能留给平台默认值。
 
-Wrangler 的 `r2 object` 只有 `get` / `put` / `delete`，没有 object list；`get` 会下载整段视频，不能当存在性探测。更关键的是「先检查再 put」是 check-then-write，并发时两个进程都可能判定不存在然后都写入。因此 **write-once 必须落在存储层**：用 R2 的 S3 兼容 API 做条件 `PutObject`，带 `If-None-Match: *`。对象已存在则返回 `412 Precondition Failed`，请求失败，不覆盖。
+`data/gallery-phase2-assets.json` 是唯一的二阶段资源清单，包含 `schemaVersion`、版本化
+`r2Prefix` 和每条记录的 preview / poster URL。`process.py batch` 只从这个 manifest 读取二阶段字段，
+不检查未纳入 Git 的本地成品目录；manifest 缺失、版本前缀不合法或和基础视频 ID 不一致时直接失败。
 
-HTTP metadata 仍要写上。上传脚本走 R2 S3 兼容 endpoint。凭证使用 R2 S3 API credentials（Access Key ID / Secret Access Key，由 R2 API Token 生成），仅从本地环境变量或凭证存储读取，不进仓库、不进命令历史。每个对象一次条件 PUT：
+`scripts/gallery/upload-phase2-wrangler.py` 读取同一个 manifest，并从本地
+`~/Movies/xbox-gallery-web/web/gallery-phase2/` 找文件。每次上传前用公开域名的一字节 Range GET
+做存在性探测：已返回 `200` / `206` 的对象跳过，只有 `404` 才执行 Wrangler `r2 object put`。
+这不是存储层的原子条件 PUT，因此安全边界是**版本化前缀 + 禁止覆盖已公开对象**；并发发布同一版本时应只运行一个上传任务。
 
-| 对象 | Key | `Content-Type` | `Cache-Control` | 条件头 |
+HTTP metadata 仍要写上。凭证使用 Wrangler OAuth，仅从本地 Wrangler 凭证存储读取，不进仓库、不进命令历史。每个新版本对象都写入：
+
+| 对象 | Key | `Content-Type` | `Cache-Control` | 上传策略 |
 | --- | --- | --- | --- | --- |
-| 视频 | `gaming/<id>.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
-| poster | `gaming/<id>.webp` | `image/webp` | `public, max-age=31536000, immutable` | `If-None-Match: *` |
-| preview | `gallery-phase2/<id>-preview.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | 新前缀、禁止覆盖 |
-| poster 480/768/1280 | `gallery-phase2/<id>-<width>.webp` | `image/webp` | `public, max-age=31536000, immutable` | 新前缀、禁止覆盖 |
-
-已存在 → `412 Precondition Failed`，脚本失败退出。使用 AWS SDK for JavaScript v3 的 `PutObjectCommand.IfNoneMatch: '*'`，无需先 HEAD/GET，也无需自定义 middleware 手工注入条件头：
-
-```ts
-new PutObjectCommand({
-  Bucket: 'solidays-gallery',
-  Key: key,
-  Body: body,
-  ContentType: 'video/mp4',
-  CacheControl: 'public, max-age=31536000, immutable',
-  IfNoneMatch: '*',
-})
-```
-
-写上传脚本时把 `@aws-sdk/client-s3` 加为 **devDependency**，只属于开发/媒体处理工具链，不进网站运行时依赖。S3Client 配置 `accessKeyId` / `secretAccessKey`（由 R2 API Token 生成），从本地环境变量（如 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`）或凭证存储读取，不把 Cloudflare API token 字符串直接塞进 SDK，也不进仓库。
-
-不要用 `wrangler r2 object put` 做首次发布。它没有条件写入，会静默覆盖。该命令只适合对照 MIME / Cache-Control 字段，或在已经决定覆盖并准备 purge 的例外路径。
+| 视频 | `gaming/<id>.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | 现有基础上传脚本，禁止覆盖 |
+| poster | `gaming/<id>.webp` | `image/webp` | `public, max-age=31536000, immutable` | 现有基础上传脚本，禁止覆盖 |
+| preview | `gallery-phase2/vN/<id>-preview.mp4` | `video/mp4` | `public, max-age=31536000, immutable` | 递增版本、禁止覆盖 |
+| poster 480/768/1280 | `gallery-phase2/vN/<id>-<width>.webp` | `image/webp` | `public, max-age=31536000, immutable` | 递增版本、禁止覆盖 |
 
 其余约定：
 
-- 重转码换新 key，例如 `gaming/<id>-v2.mp4`，并改 `data/gallery.ts` 的 `video` / `poster`。旧对象可保留，或确认新 URL 可播后再删。
-- 只有必须复用同一 URL 时才覆盖同 key：此时去掉 `If-None-Match`，覆盖后必须按 URL purge `media.solidays.win` 上对应对象。未 purge 前，客户端可能一直拿到旧的 `immutable` 副本。
+- 二阶段只通过递增 `gallery-phase2/vN/` 换 key；生成器支持 `--force` 重建本地同名成品，上传器仍只会写新版本前缀。
+- 基础成品重转码也换新 key，例如 `gaming/<id>-v2.mp4`，并改 `data/gallery.ts` 的 `video` / `poster`。
+- 不覆盖同一个 `immutable` URL，也不依赖 CDN purge 让旧 URL 变新；旧对象可以保留，待确认新 URL 可播后再按独立清理流程处理。
 - 自定义域名未接好、未写入 `data/gallery.ts` 之前，不要上传，也不要把 `r2.dev` 写进页面。
 
 ## 6. 转码决策表
@@ -518,11 +513,12 @@ crf                                         remux 则为空
    `media.solidays.win/fnds/...` 为 404；`solidays-media` 无自定义域名；gallery 桶未开 `r2.dev`。
 6. ~~发布第二阶段媒体。~~ **已完成（2026-08-18）。**
    `scripts/gallery/generate-phase2-assets.py` 将成品写入本地独立目录
-   `~/Movies/xbox-gallery-web/web/gallery-phase2/`，并由
-   `scripts/gallery/upload-phase2-wrangler.py` 上传到 `gallery-phase2/` 前缀。
+   `~/Movies/xbox-gallery-web/web/gallery-phase2/`；生成结果写入仓库
+   `data/gallery-phase2-assets.json`，并由 `scripts/gallery/upload-phase2-wrangler.py`
+   上传到版本化的 `gallery-phase2/v2/` 前缀。
    82 个 preview 和 246 个 poster variant 共 328 个对象全部上传成功；
-   页面 `data/gallery.ts` 已写入对应可选字段。
-7. Gallery 页面继续沿用独立的 `gallery-phase2/` 媒体前缀，不改动 `gaming/` 基础成品。
+   页面 `data/gallery.ts` 已写入对应可选字段。以后调整编码参数时递增 `vN`，不覆盖旧对象。
+7. Gallery 页面继续沿用独立的 `gallery-phase2/vN/` 媒体前缀，不改动 `gaming/` 基础成品。
 
 A/B 已把第 4.2 节 CRF 21 定为采用值。
 
@@ -535,7 +531,7 @@ A/B 已把第 4.2 节 CRF 21 定为采用值。
 | 项 | 初版问题 | 现行约定 |
 | --- | --- | --- |
 | 必须 | 给 `solidays-media` 挂 `media.solidays.win`，会把 `fnds/*`、`profile/*` 一并公开 | 新建公开桶 `solidays-gallery`；自定义域名只绑新桶；私有桶与 `/media` 白名单不变；Worker 不绑定新桶 |
-| 必须 | 上传只有 `--file`，长期缓存依赖默认值 | 条件 `PutObject` 写 `Content-Type` + `Cache-Control: public, max-age=31536000, immutable` |
+| 必须 | 上传只有 `--file`，长期缓存依赖默认值 | Wrangler 写 `Content-Type` + `Cache-Control: public, max-age=31536000, immutable`；二阶段另用版本化前缀避免覆盖 |
 | 建议 | 「100 MB 经 Worker 浪费 CPU」不准确 | 改为：避开 OpenNext / Worker 路径，并直接使用 R2 custom-domain CDN；现有出口策略只缓存 `image/*` |
 | 建议 | 「手机视频共用同一套结构」容易被理解成共用转码流水线 | 只共用 `GalleryItem`；phone 必须重新 intake，不套用 Xbox 决策表 |
 

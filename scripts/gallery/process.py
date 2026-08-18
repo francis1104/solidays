@@ -17,7 +17,7 @@ from catalog import (
     CRF,
     MAXRATE,
     OUTPUT_DIR,
-    PHASE2_DIR,
+    PHASE2_MANIFEST,
     PHASE2_PREFIX,
     POSTER_QUALITY,
     POSTER_SS,
@@ -27,6 +27,7 @@ from catalog import (
     decision_for_mbps,
     parse_source_name,
 )
+from phase2_manifest import Phase2ManifestError, load_phase2_manifest
 
 
 def run(cmd: list[str]) -> None:
@@ -190,6 +191,21 @@ def js_string(value: str) -> str:
 def write_gallery_ts(rows: list[dict], dest: Path) -> None:
     items = []
     for row in sorted(rows, key=lambda item: (item["title"], item["recorded_at"], item["id"])):
+        phase2_asset = row.get("phase2_asset")
+        phase2_fields = ""
+        if phase2_asset:
+            phase2_fields = (
+                f"    preview: {js_string(phase2_asset['preview'])},\n"
+                "    posterSrcSet: [\n"
+                + "\n".join(
+                    "      {\n"
+                    f"        src: {js_string(source['src'])},\n"
+                    f"        width: {source['width']},\n"
+                    "      },"
+                    for source in phase2_asset["posterSrcSet"]
+                )
+                + "\n    ],\n"
+            )
         items.append(
             "  {\n"
             f"    id: {js_string(row['id'])},\n"
@@ -199,24 +215,7 @@ def write_gallery_ts(rows: list[dict], dest: Path) -> None:
             f"    recordedAt: {js_string(row['recorded_at'])},\n"
             f"    video: {js_string('/gaming/' + row['id'] + '.mp4')},\n"
             f"    poster: {js_string('/gaming/' + row['id'] + '.webp')},\n"
-            + (
-                f"    preview: {js_string(PHASE2_PREFIX + '/' + row['id'] + '-preview.mp4')},\n"
-                if row.get("preview_path")
-                else ""
-            )
-            + (
-                "    posterSrcSet: [\n"
-                + "\n".join(
-                    "      {\n"
-                    f"        src: {js_string(source['src'])},\n"
-                    f"        width: {source['width']},\n"
-                    "      },"
-                    for source in row["poster_src_set"]
-                )
-                + "\n    ],\n"
-                if row.get("poster_src_set")
-                else ""
-            )
+            + phase2_fields
             + f"    width: {row['out_width']},\n"
             + f"    height: {row['out_height']},\n"
             + f"    duration: {round(row['out_duration'], 1)},\n"
@@ -301,18 +300,13 @@ def cmd_ab(jobs: int) -> None:
         )
 
 
-def process_one(src: Path, crf: int) -> dict:
+def process_one(src: Path, crf: int, phase2_assets: dict[str, dict[str, object]]) -> dict:
     slug, title, item_id, recorded = parse_source_name(src.name)
+    phase2_asset = phase2_assets[item_id]
     source = probe(src)
     decision = decision_for_mbps(source["mbps"])
     video_path = Path(WEB_DIR) / f"{item_id}.mp4"
     poster_path = Path(WEB_DIR) / f"{item_id}.webp"
-    preview_path = Path(PHASE2_DIR) / f"{item_id}-preview.mp4"
-    poster_src_set = [
-        {"src": f"{PHASE2_PREFIX}/{item_id}-{width}.webp", "width": width}
-        for width in (480, 768, 1280)
-        if (Path(PHASE2_DIR) / f"{item_id}-{width}.webp").exists()
-    ]
 
     if not video_path.exists():
         print(f"{decision} {item_id} ({source['mbps']:.1f}Mbps)", flush=True)
@@ -356,20 +350,35 @@ def process_one(src: Path, crf: int) -> dict:
         "out_duration": output["duration"],
         "video_path": str(video_path),
         "poster_path": str(poster_path),
-        "preview_path": str(preview_path) if preview_path.exists() else None,
-        "poster_src_set": poster_src_set,
+        "phase2_asset": phase2_asset,
     }
 
 
-def cmd_batch(jobs: int, crf: int, gallery_ts: Path) -> None:
+def cmd_batch(jobs: int, crf: int, gallery_ts: Path, phase2_manifest: Path) -> None:
+    manifest = load_phase2_manifest(phase2_manifest, expected_prefix=PHASE2_PREFIX)
+    phase2_assets = manifest["by_id"]
+    if not isinstance(phase2_assets, dict):
+        raise Phase2ManifestError("phase-two manifest index is invalid")
+
     Path(WEB_DIR).mkdir(parents=True, exist_ok=True)
     sources = list_sources()
-    if len(sources) != 82:
-        raise SystemExit(f"expected 82 sources, found {len(sources)}")
+    if not sources:
+        raise SystemExit(f"no Gallery sources found in {SOURCE_DIR}")
+    source_ids = {parse_source_name(source.name)[2] for source in sources}
+    manifest_ids = set(phase2_assets)
+    missing = sorted(source_ids - manifest_ids)
+    extra = sorted(manifest_ids - source_ids)
+    if missing or extra:
+        details = []
+        if missing:
+            details.append(f"missing ids: {', '.join(missing)}")
+        if extra:
+            details.append(f"unknown ids: {', '.join(extra)}")
+        raise SystemExit("phase-two manifest does not match sources (" + "; ".join(details) + ")")
 
     rows: list[dict] = []
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(process_one, src, crf) for src in sources]
+        futures = [pool.submit(process_one, src, crf, phase2_assets) for src in sources]
         for future in as_completed(futures):
             rows.append(future.result())
 
@@ -391,16 +400,23 @@ def main() -> None:
         "--gallery-ts",
         default=str(Path(__file__).resolve().parents[2] / "data" / "gallery.ts"),
     )
+    parser.add_argument(
+        "--phase2-manifest",
+        "--manifest",
+        dest="phase2_manifest",
+        default=PHASE2_MANIFEST,
+    )
     args = parser.parse_args()
     os.chdir(Path(__file__).resolve().parent)
     if args.command == "ab":
         cmd_ab(args.jobs)
     else:
-        cmd_batch(args.jobs, args.crf, Path(args.gallery_ts))
+        cmd_batch(args.jobs, args.crf, Path(args.gallery_ts), Path(args.phase2_manifest))
 
 
 if __name__ == "__main__":
     try:
         main()
-    except subprocess.CalledProcessError as error:
-        sys.exit(error.returncode)
+    except (FileNotFoundError, Phase2ManifestError, subprocess.CalledProcessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(error.returncode if isinstance(error, subprocess.CalledProcessError) else 1)

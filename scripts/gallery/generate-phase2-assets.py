@@ -13,7 +13,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from catalog import OUTPUT_DIR, PHASE2_DIR, PHASE2_PREFIX, WEB_DIR
+from catalog import PHASE2_DIR, PHASE2_MANIFEST, PHASE2_PREFIX, WEB_DIR
+from phase2_manifest import build_phase2_manifest, load_phase2_manifest
 
 PREVIEW_SECONDS = 4
 PREVIEW_START = 1
@@ -91,6 +92,7 @@ def process_item(
     source_dir: Path,
     output_dir: Path,
     r2_prefix: str,
+    force: bool,
 ) -> dict[str, object]:
     item_id = video.stem
     poster = source_dir / f'{item_id}.webp'
@@ -98,7 +100,7 @@ def process_item(
         raise FileNotFoundError(f'missing poster for {item_id}: {poster}')
 
     preview = output_dir / f'{item_id}-preview.mp4'
-    if not preview.exists():
+    if force or not preview.exists():
         print(f'preview {item_id}', flush=True)
         generate_preview(video, preview)
     else:
@@ -107,7 +109,7 @@ def process_item(
     sources: list[dict[str, object]] = []
     for width in POSTER_WIDTHS:
         variant = output_dir / f'{item_id}-{width}.webp'
-        if not variant.exists():
+        if force or not variant.exists():
             print(f'poster {item_id} {width}w', flush=True)
             generate_poster_variant(poster, variant, width)
         sources.append({'src': phase2_url(r2_prefix, variant.name), 'width': width})
@@ -123,13 +125,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--manifest',
-        default=str(Path(OUTPUT_DIR) / 'phase2-assets.json'),
-        help='Local manifest path; it is not committed or uploaded automatically.',
+        default=PHASE2_MANIFEST,
+        help='Committed phase-two manifest path.',
     )
     parser.add_argument('--source-dir', default=WEB_DIR)
     parser.add_argument('--output-dir', default=PHASE2_DIR)
     parser.add_argument('--r2-prefix', default=PHASE2_PREFIX)
     parser.add_argument('--id', action='append', dest='ids', help='Only process a selected id.')
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Regenerate selected assets instead of reusing local files.',
+    )
     parser.add_argument('--jobs', type=int, default=3)
     args = parser.parse_args()
 
@@ -138,23 +145,38 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     selected = set(args.ids or [])
     videos = sorted(path for path in source_dir.glob('*.mp4') if not path.name.endswith('-preview.mp4'))
+    available_ids = {path.stem for path in videos}
+    unknown_ids = sorted(selected - available_ids)
+    if unknown_ids:
+        raise SystemExit(f'unknown phase-two ids: {", ".join(unknown_ids)}')
     if selected:
         videos = [path for path in videos if path.stem in selected]
+
+    manifest_path = Path(args.manifest)
+    existing_assets: dict[str, dict[str, object]] = {}
+    if selected:
+        existing = load_phase2_manifest(manifest_path, expected_prefix=args.r2_prefix)
+        existing_assets = existing['by_id']
 
     manifest: list[dict[str, object]] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = [
-            pool.submit(process_item, video, source_dir, output_dir, args.r2_prefix)
+            pool.submit(process_item, video, source_dir, output_dir, args.r2_prefix, args.force)
             for video in videos
         ]
         for future in as_completed(futures):
             manifest.append(future.result())
 
-    manifest.sort(key=lambda item: str(item['id']))
+    generated_assets = {str(item['id']): item for item in manifest}
+    if selected:
+        existing_assets.update(generated_assets)
+        manifest_assets = [existing_assets[item_id] for item_id in sorted(existing_assets)]
+    else:
+        manifest_assets = [generated_assets[item_id] for item_id in sorted(generated_assets)]
 
-    manifest_path = Path(args.manifest)
+    document = build_phase2_manifest(manifest_assets, args.r2_prefix)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    manifest_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + '\n')
     print(f'wrote {manifest_path}')
 
 

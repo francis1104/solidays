@@ -88,7 +88,6 @@ export function useChatRealtime({
           }
 
           handshakeFailures = 0
-          reconnectAttempt = 0
           scheduleReconnect()
         })
         .catch((error: unknown) => {

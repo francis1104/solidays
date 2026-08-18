@@ -168,6 +168,25 @@ def main() -> None:
     existing_assets: dict[str, dict[str, object]] = {}
     if selected:
         existing = load_phase2_manifest(manifest_path, expected_prefix=args.r2_prefix)
+        existing_ids = set(existing['by_id'])
+        inventory_ids = load_gallery_inventory(inventory_path)
+        missing_from_manifest = sorted(selected - existing_ids)
+        missing_from_inventory = sorted(selected - inventory_ids)
+        if missing_from_manifest or missing_from_inventory:
+            details: list[str] = []
+            if missing_from_manifest:
+                details.append(
+                    'not in manifest: ' + ', '.join(missing_from_manifest)
+                )
+            if missing_from_inventory:
+                details.append(
+                    'not in inventory: ' + ', '.join(missing_from_inventory)
+                )
+            raise SystemExit(
+                '--id only repairs existing Gallery items; '
+                'use full generation with --allow-inventory-change for new ids '
+                f"({'; '.join(details)})"
+            )
         existing_assets = existing['by_id']
     else:
         current_ids = available_ids

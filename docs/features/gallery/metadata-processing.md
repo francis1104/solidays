@@ -352,7 +352,8 @@ https://media.solidays.win/gallery-phase2/v2/<id>-1280.webp
 
 `generate-phase2-assets.py` 的全量模式默认要求当前 source ID 集合同时匹配 committed manifest 和 inventory。
 本地目录不完整时不会重写 manifest；只有明确传入 `--allow-inventory-change` 才允许新增/删除 ID，并同步
-更新 `data/gallery-inventory.json`。单条修复使用 `--id`，不会重建完整 inventory。
+更新 `data/gallery-inventory.json`。单条修复使用 `--id`，且只允许选择同时存在于 committed manifest 和 inventory
+的 ID；新增 ID 必须回到全量模式并显式传入 `--allow-inventory-change`，不会由 `--id` 静默写入 manifest。
 
 `scripts/gallery/upload-phase2-wrangler.py` 读取同一个 manifest，并从本地
 `~/Movies/xbox-gallery-web/web/gallery-phase2/` 找文件。每次上传前用公开域名的一字节 Range GET

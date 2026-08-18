@@ -107,6 +107,37 @@ class Phase2ManifestTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("refusing to rewrite", result.stderr + result.stdout)
 
+    def test_generator_rejects_selected_new_id(self) -> None:
+        new_id = "new-game-20260818-000000"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_dir = root / "gaming"
+            source_dir.mkdir()
+            (source_dir / f"{new_id}.mp4").touch()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/gallery/generate-phase2-assets.py"),
+                    "--source-dir",
+                    str(source_dir),
+                    "--output-dir",
+                    str(root / "phase2"),
+                    "--manifest",
+                    str(MANIFEST),
+                    "--inventory",
+                    str(INVENTORY),
+                    "--id",
+                    new_id,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "--id only repairs existing Gallery items",
+                result.stderr + result.stdout,
+            )
+
 
 def load_phase2_manifest_from_document(document: dict[str, object]) -> None:
     import json

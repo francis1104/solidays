@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 SCHEMA_VERSION = 1
+INVENTORY_SCHEMA_VERSION = 1
 POSTER_WIDTHS = (480, 768, 1280)
 VERSIONED_PREFIX = re.compile(r"^gallery-phase2/v\d+$")
 
@@ -31,11 +32,15 @@ def validate_versioned_prefix(prefix: object) -> str:
     return normalized
 
 
-def _validate_asset_path(value: object, label: str, prefix: str) -> str:
+def _validate_asset_path(
+    value: object, label: str, prefix: str, expected_basename: str | None = None
+) -> str:
     if not isinstance(value, str) or not value.startswith(prefix + "/"):
         raise Phase2ManifestError(f"{label} must start with {prefix}/")
     if value.endswith("/") or "?" in value or "#" in value:
         raise Phase2ManifestError(f"{label} must be a plain asset path")
+    if expected_basename is not None and value.rsplit("/", 1)[-1] != expected_basename:
+        raise Phase2ManifestError(f"{label} must end with {expected_basename}")
     return value
 
 
@@ -71,7 +76,12 @@ def _validate_document(document: object, expected_prefix: str | None = None) -> 
             raise Phase2ManifestError(f"duplicate phase-two asset id: {item_id}")
         seen_ids.add(item_id)
 
-        preview = _validate_asset_path(raw_asset.get("preview"), f"{label}.preview", prefix)
+        preview = _validate_asset_path(
+            raw_asset.get("preview"),
+            f"{label}.preview",
+            prefix,
+            f"{item_id}-preview.mp4",
+        )
         raw_sources = raw_asset.get("posterSrcSet")
         if not isinstance(raw_sources, list):
             raise Phase2ManifestError(f"{label}.posterSrcSet must be an array")
@@ -91,7 +101,10 @@ def _validate_document(document: object, expected_prefix: str | None = None) -> 
             poster_sources.append(
                 {
                     "src": _validate_asset_path(
-                        raw_source.get("src"), f"{source_label}.src", prefix
+                        raw_source.get("src"),
+                        f"{source_label}.src",
+                        prefix,
+                        f"{item_id}-{width}.webp",
                     ),
                     "width": width,
                 }
@@ -150,5 +163,44 @@ def build_phase2_manifest(
 
 def write_phase2_manifest(path: Path, assets: list[dict[str, object]], prefix: str) -> None:
     document = build_phase2_manifest(assets, prefix)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+
+
+def load_gallery_inventory(path: Path) -> set[str]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Gallery inventory is required: {path}")
+    try:
+        document = json.loads(path.read_text())
+    except json.JSONDecodeError as error:
+        raise Phase2ManifestError(f"invalid Gallery inventory JSON: {path}") from error
+
+    if not isinstance(document, dict):
+        raise Phase2ManifestError("Gallery inventory must be a JSON object")
+    if document.get("schemaVersion") != INVENTORY_SCHEMA_VERSION:
+        raise Phase2ManifestError(
+            f"unsupported Gallery inventory schema: {document.get('schemaVersion')!r}"
+        )
+    raw_ids = document.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise Phase2ManifestError("Gallery inventory ids must be a non-empty array")
+
+    ids: set[str] = set()
+    for index, item_id in enumerate(raw_ids):
+        if not isinstance(item_id, str) or not item_id or "/" in item_id:
+            raise Phase2ManifestError(f"Gallery inventory ids[{index}] is not path-safe")
+        if item_id in ids:
+            raise Phase2ManifestError(f"duplicate Gallery inventory id: {item_id}")
+        ids.add(item_id)
+    return ids
+
+
+def write_gallery_inventory(path: Path, ids: set[str]) -> None:
+    if not ids:
+        raise Phase2ManifestError("cannot write an empty Gallery inventory")
+    document = {
+        "schemaVersion": INVENTORY_SCHEMA_VERSION,
+        "ids": sorted(ids),
+    }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n")

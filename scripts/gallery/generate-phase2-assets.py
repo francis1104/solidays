@@ -13,8 +13,13 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from catalog import PHASE2_DIR, PHASE2_MANIFEST, PHASE2_PREFIX, WEB_DIR
-from phase2_manifest import build_phase2_manifest, load_phase2_manifest
+from catalog import GALLERY_INVENTORY, PHASE2_DIR, PHASE2_MANIFEST, PHASE2_PREFIX, WEB_DIR
+from phase2_manifest import (
+    build_phase2_manifest,
+    load_gallery_inventory,
+    load_phase2_manifest,
+    write_gallery_inventory,
+)
 
 PREVIEW_SECONDS = 4
 PREVIEW_START = 1
@@ -131,7 +136,13 @@ def main() -> None:
     parser.add_argument('--source-dir', default=WEB_DIR)
     parser.add_argument('--output-dir', default=PHASE2_DIR)
     parser.add_argument('--r2-prefix', default=PHASE2_PREFIX)
+    parser.add_argument('--inventory', default=GALLERY_INVENTORY)
     parser.add_argument('--id', action='append', dest='ids', help='Only process a selected id.')
+    parser.add_argument(
+        '--allow-inventory-change',
+        action='store_true',
+        help='Allow full generation to add or remove Gallery source ids and update inventory.',
+    )
     parser.add_argument(
         '--force',
         action='store_true',
@@ -153,10 +164,50 @@ def main() -> None:
         videos = [path for path in videos if path.stem in selected]
 
     manifest_path = Path(args.manifest)
+    inventory_path = Path(args.inventory)
     existing_assets: dict[str, dict[str, object]] = {}
     if selected:
         existing = load_phase2_manifest(manifest_path, expected_prefix=args.r2_prefix)
         existing_assets = existing['by_id']
+    else:
+        current_ids = available_ids
+        if not manifest_path.is_file() and not args.allow_inventory_change:
+            raise SystemExit(
+                'full generation requires an existing phase-two manifest; '
+                'use --allow-inventory-change to create or change inventory'
+            )
+        if not inventory_path.is_file() and not args.allow_inventory_change:
+            raise SystemExit(
+                'full generation requires the committed Gallery inventory; '
+                'use --allow-inventory-change to create or change inventory'
+            )
+
+        mismatches: list[str] = []
+        if manifest_path.is_file():
+            existing = load_phase2_manifest(manifest_path, expected_prefix=args.r2_prefix)
+            existing_ids = set(existing['by_id'])
+            if current_ids != existing_ids:
+                missing = ', '.join(sorted(existing_ids - current_ids))
+                extra = ', '.join(sorted(current_ids - existing_ids))
+                mismatches.append(
+                    f'manifest mismatch (missing source ids: {missing or "none"}; '
+                    f'new source ids: {extra or "none"})'
+                )
+        if inventory_path.is_file():
+            inventory_ids = load_gallery_inventory(inventory_path)
+            if current_ids != inventory_ids:
+                missing = ', '.join(sorted(inventory_ids - current_ids))
+                extra = ', '.join(sorted(current_ids - inventory_ids))
+                mismatches.append(
+                    f'inventory mismatch (missing source ids: {missing or "none"}; '
+                    f'new source ids: {extra or "none"})'
+                )
+        if mismatches and not args.allow_inventory_change:
+            raise SystemExit(
+                'refusing to rewrite the full phase-two manifest: '
+                + '; '.join(mismatches)
+                + '; use --allow-inventory-change to confirm this inventory change'
+            )
 
     manifest: list[dict[str, object]] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
@@ -177,6 +228,8 @@ def main() -> None:
     document = build_phase2_manifest(manifest_assets, args.r2_prefix)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + '\n')
+    if not selected:
+        write_gallery_inventory(inventory_path, available_ids)
     print(f'wrote {manifest_path}')
 
 

@@ -15,6 +15,7 @@ from catalog import (
     AUDIO_BITRATE,
     BUFSIZE,
     CRF,
+    GALLERY_INVENTORY,
     MAXRATE,
     OUTPUT_DIR,
     PHASE2_MANIFEST,
@@ -27,7 +28,7 @@ from catalog import (
     decision_for_mbps,
     parse_source_name,
 )
-from phase2_manifest import Phase2ManifestError, load_phase2_manifest
+from phase2_manifest import Phase2ManifestError, load_gallery_inventory, load_phase2_manifest
 
 
 def run(cmd: list[str]) -> None:
@@ -354,18 +355,32 @@ def process_one(src: Path, crf: int, phase2_assets: dict[str, dict[str, object]]
     }
 
 
-def cmd_batch(jobs: int, crf: int, gallery_ts: Path, phase2_manifest: Path) -> None:
+def cmd_batch(
+    jobs: int,
+    crf: int,
+    gallery_ts: Path,
+    phase2_manifest: Path,
+    gallery_inventory: Path,
+) -> None:
     manifest = load_phase2_manifest(phase2_manifest, expected_prefix=PHASE2_PREFIX)
     phase2_assets = manifest["by_id"]
     if not isinstance(phase2_assets, dict):
         raise Phase2ManifestError("phase-two manifest index is invalid")
+    inventory_ids = load_gallery_inventory(gallery_inventory)
+    manifest_ids = set(phase2_assets)
+    if manifest_ids != inventory_ids:
+        missing = ", ".join(sorted(inventory_ids - manifest_ids)) or "none"
+        extra = ", ".join(sorted(manifest_ids - inventory_ids)) or "none"
+        raise SystemExit(
+            "phase-two manifest does not match committed Gallery inventory "
+            f"(missing manifest ids: {missing}; unknown manifest ids: {extra})"
+        )
 
     Path(WEB_DIR).mkdir(parents=True, exist_ok=True)
     sources = list_sources()
     if not sources:
         raise SystemExit(f"no Gallery sources found in {SOURCE_DIR}")
     source_ids = {parse_source_name(source.name)[2] for source in sources}
-    manifest_ids = set(phase2_assets)
     missing = sorted(source_ids - manifest_ids)
     extra = sorted(manifest_ids - source_ids)
     if missing or extra:
@@ -406,12 +421,19 @@ def main() -> None:
         dest="phase2_manifest",
         default=PHASE2_MANIFEST,
     )
+    parser.add_argument("--gallery-inventory", default=GALLERY_INVENTORY)
     args = parser.parse_args()
     os.chdir(Path(__file__).resolve().parent)
     if args.command == "ab":
         cmd_ab(args.jobs)
     else:
-        cmd_batch(args.jobs, args.crf, Path(args.gallery_ts), Path(args.phase2_manifest))
+        cmd_batch(
+            args.jobs,
+            args.crf,
+            Path(args.gallery_ts),
+            Path(args.phase2_manifest),
+            Path(args.gallery_inventory),
+        )
 
 
 if __name__ == "__main__":

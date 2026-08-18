@@ -4,7 +4,8 @@
 > A/B 已锁 CRF 21；`solidays-gallery` + `media.solidays.win` 已就绪；
 > 82 条基础 Web 成品已上传（164 对象），二阶段另上传 328 个对象：82 个 preview
 > 和 246 个响应式 poster，全部位于独立的版本化 `gallery-phase2/v2/` 前缀；私有桶未泄露。
-> 二阶段 manifest 已提交到 `data/gallery-phase2-assets.json`，生成流程缺少它会直接失败。
+> 二阶段 manifest 已提交到 `data/gallery-phase2-assets.json`，完整 Gallery inventory 已提交到
+> `data/gallery-inventory.json`；生成流程缺少任一文件或发现 ID 不一致都会直接失败。
 > 首次上传走 Wrangler OAuth，不是 S3 Access Key。评审记录见第 9 节。
 > 本文只约定源片处理、Web 成品、R2 发布和 Gallery 元数据；不覆盖页面 UI。
 > 首批素材是 `xbox录屏精选` 的 82 个 Xbox 短片。
@@ -344,9 +345,14 @@ https://media.solidays.win/gallery-phase2/v2/<id>-1280.webp
 
 上传写到 `solidays-gallery`，并显式带上 MIME 和 Cache-Control。长期缓存行为不能留给平台默认值。
 
-`data/gallery-phase2-assets.json` 是唯一的二阶段资源清单，包含 `schemaVersion`、版本化
-`r2Prefix` 和每条记录的 preview / poster URL。`process.py batch` 只从这个 manifest 读取二阶段字段，
-不检查未纳入 Git 的本地成品目录；manifest 缺失、版本前缀不合法或和基础视频 ID 不一致时直接失败。
+`data/gallery-inventory.json` 是提交到仓库的 Gallery ID 基准；`data/gallery-phase2-assets.json` 是二阶段
+资源清单，包含 `schemaVersion`、版本化 `r2Prefix` 和每条记录的 preview / poster URL。
+`process.py batch` 只从 manifest 读取二阶段字段，不检查未纳入 Git 的本地成品目录；manifest、inventory
+缺失或三者 ID 不一致时直接失败。
+
+`generate-phase2-assets.py` 的全量模式默认要求当前 source ID 集合同时匹配 committed manifest 和 inventory。
+本地目录不完整时不会重写 manifest；只有明确传入 `--allow-inventory-change` 才允许新增/删除 ID，并同步
+更新 `data/gallery-inventory.json`。单条修复使用 `--id`，不会重建完整 inventory。
 
 `scripts/gallery/upload-phase2-wrangler.py` 读取同一个 manifest，并从本地
 `~/Movies/xbox-gallery-web/web/gallery-phase2/` 找文件。每次上传前用公开域名的一字节 Range GET

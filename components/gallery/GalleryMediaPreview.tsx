@@ -32,6 +32,7 @@ export default function GalleryMediaPreview({
   const [previewFailed, setPreviewFailed] = useState(false)
   const [previewRequested, setPreviewRequested] = useState(false)
   const [pointerInside, setPointerInside] = useState(false)
+  const imageRef = useRef<HTMLImageElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -66,6 +67,15 @@ export default function GalleryMediaPreview({
     ?.map((source) => `${galleryUrl(source.src)} ${source.width}w`)
     .join(', ')
 
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image?.complete) return
+
+    const loaded = image.naturalWidth > 0
+    setImageReady(true)
+    setImageFailed(!loaded)
+  }, [item.id])
+
   return (
     <div
       className={cn('relative overflow-hidden bg-gray-200 dark:bg-gray-900', className)}
@@ -86,6 +96,7 @@ export default function GalleryMediaPreview({
       {/* Posters are already WebP on the media CDN; skip Next image optimization. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imageRef}
         src={galleryUrl(item.poster)}
         srcSet={posterSrcSet}
         sizes={posterSrcSet ? '(min-width: 1024px) 50vw, 100vw' : undefined}
@@ -95,7 +106,10 @@ export default function GalleryMediaPreview({
         loading={loading}
         fetchPriority={fetchPriority}
         decoding="async"
-        onLoad={() => setImageReady(true)}
+        onLoad={() => {
+          setImageReady(true)
+          setImageFailed(false)
+        }}
         onError={() => {
           setImageFailed(true)
           setImageReady(true)

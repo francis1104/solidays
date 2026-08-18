@@ -2,6 +2,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { ChatRealtimeEvent } from './realtime-events'
 import {
   CHAT_REALTIME_AUDIENCE_HEADER,
+  CHAT_REALTIME_AUTH_EXPIRES_AT_HEADER,
   CHAT_REALTIME_CONVERSATION_HEADER,
   type ChatSocketAudience,
 } from './realtime-protocol'
@@ -53,11 +54,15 @@ export function connectConversation(
   env: CloudflareEnv,
   request: Request,
   conversationId: string,
-  audience: ChatSocketAudience
+  audience: ChatSocketAudience,
+  authExpiresAt?: number
 ): Promise<Response> {
   const headers = new Headers(request.headers)
   headers.set(CHAT_REALTIME_AUDIENCE_HEADER, audience)
   headers.set(CHAT_REALTIME_CONVERSATION_HEADER, conversationId)
+  if (authExpiresAt !== undefined) {
+    headers.set(CHAT_REALTIME_AUTH_EXPIRES_AT_HEADER, String(authExpiresAt))
+  }
 
   return env.CHAT_CONVERSATIONS.getByName(conversationId).fetch(new Request(request, { headers }))
 }

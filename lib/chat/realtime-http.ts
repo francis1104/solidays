@@ -1,6 +1,7 @@
-import { hasValidAdminSession } from '../admin/auth'
+import { getAdminSession } from '../admin/auth'
 import { getConversationById } from '../admin/repository'
 import { errorResponse } from './http'
+import { checkIpRateLimit, checkVisitorRateLimit } from './rate-limit'
 import { findOpenConversation, findVisitor } from './repository'
 import { connectConversation, isChatRealtimeEnabled } from './realtime'
 import { isAllowedOrigin } from './security'
@@ -31,6 +32,26 @@ export async function handleVisitorRealtimeRequest(
   if (!visitorId) return errorResponse(401, 'CHAT_UNAUTHORIZED', '访客会话无效。')
 
   try {
+    const ipRateLimit = await checkIpRateLimit(env, request, 'realtime-connect')
+    if (!ipRateLimit.success) {
+      if (ipRateLimit.unavailable) {
+        return errorResponse(503, 'RATE_LIMIT_UNAVAILABLE', '访问保护服务暂时不可用，请稍后再试。')
+      }
+      return errorResponse(429, 'RATE_LIMITED', '连接太频繁了，请稍后再试。', {
+        headers: { 'retry-after': '60' },
+      })
+    }
+
+    const visitorRateLimit = await checkVisitorRateLimit(env, visitorId, 'realtime-connect')
+    if (!visitorRateLimit.success) {
+      if (visitorRateLimit.unavailable) {
+        return errorResponse(503, 'RATE_LIMIT_UNAVAILABLE', '访问保护服务暂时不可用，请稍后再试。')
+      }
+      return errorResponse(429, 'RATE_LIMITED', '连接太频繁了，请稍后再试。', {
+        headers: { 'retry-after': '60' },
+      })
+    }
+
     const existingVisitor = await findVisitor(env.CHAT_DB, visitorId)
     if (!existingVisitor) return errorResponse(401, 'CHAT_UNAUTHORIZED', '访客会话无效。')
 
@@ -54,7 +75,8 @@ export async function handleAdminRealtimeRequest(
   if (!isChatRealtimeEnabled(env)) {
     return errorResponse(404, 'CHAT_REALTIME_DISABLED', '实时留言暂未启用。')
   }
-  if (!(await hasValidAdminSession(env, request))) {
+  const adminSession = await getAdminSession(env, request)
+  if (!adminSession) {
     return errorResponse(401, 'ADMIN_UNAUTHORIZED', '未登录或会话已过期。')
   }
   if (!isWebSocketUpgrade(request)) {
@@ -71,7 +93,7 @@ export async function handleAdminRealtimeRequest(
     const conversation = await getConversationById(env.CHAT_DB, conversationId)
     if (!conversation) return errorResponse(404, 'CONVERSATION_NOT_FOUND', '会话不存在。')
 
-    return await connectConversation(env, request, conversationId, 'admin')
+    return await connectConversation(env, request, conversationId, 'admin', adminSession.expiresAt)
   } catch {
     console.error('Admin realtime connection failed')
     return errorResponse(503, 'CHAT_REALTIME_UNAVAILABLE', '实时连接暂时不可用，请稍后再试。')

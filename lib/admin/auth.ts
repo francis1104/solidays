@@ -5,6 +5,10 @@ export const ADMIN_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const ADMIN_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 const TOKEN_PATTERN = /^v1\.(\d{1,16})\.([0-9a-f]{64})\.([0-9a-f]{64})$/
 
+export type AdminSession = {
+  expiresAt: number
+}
+
 function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
@@ -81,18 +85,28 @@ export async function createAdminSessionToken(env: CloudflareEnv): Promise<strin
   return `${payload}.${mac}`
 }
 
-export async function verifyAdminSessionToken(env: CloudflareEnv, token: string): Promise<boolean> {
+async function getVerifiedAdminSessionExpiry(
+  env: CloudflareEnv,
+  token: string
+): Promise<number | null> {
   const secret = env.ADMIN_SESSION_SECRET
-  if (!secret) return false
+  if (!secret) return null
 
   const match = TOKEN_PATTERN.exec(token)
-  if (!match) return false
+  if (!match) return null
 
   const [, expiresAtValue, random, mac] = match
-  const expectedMac = await signPayload(`v1.${expiresAtValue}.${random}`, secret)
-  if (!timingSafeEqualHex(mac, expectedMac)) return false
+  const expiresAt = Number(expiresAtValue)
+  if (!Number.isSafeInteger(expiresAt)) return null
 
-  return Number(expiresAtValue) > Date.now()
+  const expectedMac = await signPayload(`v1.${expiresAtValue}.${random}`, secret)
+  if (!timingSafeEqualHex(mac, expectedMac)) return null
+
+  return expiresAt > Date.now() ? expiresAt : null
+}
+
+export async function verifyAdminSessionToken(env: CloudflareEnv, token: string): Promise<boolean> {
+  return (await getVerifiedAdminSessionExpiry(env, token)) !== null
 }
 
 function getCookie(request: Request, name: string): string | null {
@@ -116,10 +130,18 @@ function getCookie(request: Request, name: string): string | null {
 }
 
 export async function hasValidAdminSession(env: CloudflareEnv, request: Request): Promise<boolean> {
-  const token = getCookie(request, ADMIN_COOKIE_NAME)
-  if (!token) return false
+  return (await getAdminSession(env, request)) !== null
+}
 
-  return verifyAdminSessionToken(env, token)
+export async function getAdminSession(
+  env: CloudflareEnv,
+  request: Request
+): Promise<AdminSession | null> {
+  const token = getCookie(request, ADMIN_COOKIE_NAME)
+  if (!token) return null
+
+  const expiresAt = await getVerifiedAdminSessionExpiry(env, token)
+  return expiresAt === null ? null : { expiresAt }
 }
 
 export function buildAdminSessionCookie(token: string): string {

@@ -25,8 +25,9 @@
 
 - `wrangler.jsonc` 声明 `CHAT_CONVERSATIONS` Durable Object binding，类名为
   `ChatConversation`，并登记 `chat-realtime-v1` SQLite migration。
-- `lib/chat/realtime-object.ts` 实现会话级 Hibernation WebSocket：连接只保存 audience 和
-  conversation ID attachment；客户端帧全部忽略，不能绕过 HTTP 接口写入消息。
+- `lib/chat/realtime-object.ts` 实现会话级 Hibernation WebSocket：连接保存 audience、会话 ID，
+  Admin 连接同时保存已签名会话的绝对过期时间；每次广播前会清理已过期的 Admin socket。
+  客户端帧全部忽略，不能绕过 HTTP 接口写入消息。
 - `lib/chat/realtime-events.ts` 定义并校验 `message.created` 与 `conversation.closed` 事件。
 - `lib/chat/realtime.ts` 在 D1 写入成功后调用对应 Durable Object 广播；广播失败只记录结构化日志，
   不回滚或阻断已经成功的 D1 写入。
@@ -35,7 +36,7 @@
 
 | 接口 | 作用 | 额外保护 |
 | --- | --- | --- |
-| `GET /api/chat/realtime` | 当前访客开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话、同源 Origin、WebSocket Upgrade |
+| `GET /api/chat/realtime` | 当前访客开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话、同源 Origin、WebSocket Upgrade、IP + 访客建连限流 |
 | `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话 ID/存在性、同源 Origin、WebSocket Upgrade |
 
 `custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
@@ -43,6 +44,11 @@
 `components/chat/use-chat-realtime.ts` 负责指数退避重连。首次连接和重连都会从 D1 按游标补拉到已知
 消息 ID；补拉期间到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线
 期间漏消息或顺序反转。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+
+连续三次握手未成功时，客户端会重新执行对应的 HTTP bootstrap：会话不存在、实时开关关闭或 Admin
+会话过期会停止 socket 重试；暂时性的 bootstrap 失败仍按退避策略重试。Admin socket 的过期时间由
+Worker 在握手时传给 Durable Object，DO 在广播和客户端帧事件上再次校验，避免已过期的 Admin 连接
+继续接收新事件。
 
 消息写入成功后，DO 广播通过 OpenNext execution context 的 `waitUntil()` 调度，不阻塞 201/204
 响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
@@ -77,7 +83,7 @@ Slack 通知和生产灰度开关；这些属于实时改造方案的后续阶�
 `wrangler.jsonc` 已配置：
 
 - D1 binding：`CHAT_DB` → `solidays-chat`。
-- Rate Limiting binding：`CHAT_RATE_LIMITER`，留言、结束留言和历史读取均按 IP/访客分 bucket，
+- Rate Limiting binding：`CHAT_RATE_LIMITER`，留言、结束留言、历史读取和 realtime 建连均按 IP/访客分 bucket，
   每个 key 每 60 秒 10 次。
 - Required secret：`TURNSTILE_SECRET_KEY`。
 

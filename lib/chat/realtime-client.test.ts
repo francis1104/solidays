@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mergeRealtimeMessages } from './realtime-client.ts'
+import {
+  MAX_REALTIME_HANDSHAKE_FAILURES,
+  mergeRealtimeMessages,
+  shouldRefreshRealtimeBootstrap,
+} from './realtime-client.ts'
+import { isChatSocketAttachment } from './realtime-protocol.ts'
 
 test('mergeRealtimeMessages deduplicates and follows D1 created_at/id order', () => {
   const result = mergeRealtimeMessages(
@@ -45,5 +50,34 @@ test('mergeRealtimeMessages keeps the greeting before persisted messages', () =>
   assert.deepEqual(
     result.map((message) => message.id),
     ['assistant-greeting', 'message-1']
+  )
+})
+
+test('realtime handshake refresh starts only after the failure threshold', () => {
+  assert.equal(shouldRefreshRealtimeBootstrap(MAX_REALTIME_HANDSHAKE_FAILURES - 1), false)
+  assert.equal(shouldRefreshRealtimeBootstrap(MAX_REALTIME_HANDSHAKE_FAILURES), true)
+})
+
+test('socket attachments require an audience and conversation id', () => {
+  assert.equal(
+    isChatSocketAttachment({
+      audience: 'admin',
+      conversationId: 'conversation-1',
+      authExpiresAt: Date.now() + 60_000,
+    }),
+    true
+  )
+  assert.equal(
+    isChatSocketAttachment({ audience: 'admin', conversationId: 'conversation-1' }),
+    true
+  )
+  assert.equal(isChatSocketAttachment({ audience: 'visitor' }), false)
+  assert.equal(
+    isChatSocketAttachment({
+      audience: 'admin',
+      conversationId: 'conversation-1',
+      authExpiresAt: Number.NaN,
+    }),
+    false
   )
 })

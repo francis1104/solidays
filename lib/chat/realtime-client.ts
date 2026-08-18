@@ -3,6 +3,14 @@ export type RealtimeUiMessage = {
   createdAt?: string
 }
 
+export type RealtimeBootstrapResult = 'retry' | 'stop'
+
+export const MAX_REALTIME_HANDSHAKE_FAILURES = 3
+
+export function shouldRefreshRealtimeBootstrap(handshakeFailures: number): boolean {
+  return handshakeFailures >= MAX_REALTIME_HANDSHAKE_FAILURES
+}
+
 function getTimestamp(message: RealtimeUiMessage): number {
   if (!message.createdAt) return Number.NEGATIVE_INFINITY
 

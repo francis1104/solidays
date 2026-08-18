@@ -2,12 +2,19 @@
 
 import { useEffect, useRef } from 'react'
 import { isChatRealtimeEvent, type ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import {
+  shouldRefreshRealtimeBootstrap,
+  type RealtimeBootstrapResult,
+} from '@/lib/chat/realtime-client'
+
+export type { RealtimeBootstrapResult } from '@/lib/chat/realtime-client'
 
 type UseChatRealtimeOptions = {
   enabled: boolean
   path: string
   onEvent: (event: ChatRealtimeEvent) => void
   onReconnect?: () => void | Promise<void>
+  onHandshakeFailure?: () => RealtimeBootstrapResult | Promise<RealtimeBootstrapResult>
 }
 
 const MAX_RECONNECT_DELAY_MS = 10_000
@@ -22,11 +29,14 @@ export function useChatRealtime({
   path,
   onEvent,
   onReconnect,
+  onHandshakeFailure,
 }: UseChatRealtimeOptions): void {
   const onEventRef = useRef(onEvent)
   const onReconnectRef = useRef(onReconnect)
+  const onHandshakeFailureRef = useRef(onHandshakeFailure)
   onEventRef.current = onEvent
   onReconnectRef.current = onReconnect
+  onHandshakeFailureRef.current = onHandshakeFailure
 
   useEffect(() => {
     if (!enabled) return
@@ -34,17 +44,74 @@ export function useChatRealtime({
     let disposed = false
     let reconnectTimer: number | null = null
     let reconnectAttempt = 0
+    let handshakeFailures = 0
+    let bootstrapInFlight = false
     let activeSocket: WebSocket | null = null
+
+    const stop = () => {
+      disposed = true
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer !== null || bootstrapInFlight) return
+
+      const delay = Math.min(500 * 2 ** reconnectAttempt, MAX_RECONNECT_DELAY_MS)
+      reconnectAttempt += 1
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null
+        connect()
+      }, delay)
+    }
+
+    const refreshBootstrapAfterHandshakeFailures = () => {
+      if (disposed || bootstrapInFlight) return
+
+      const refresh = onHandshakeFailureRef.current
+      if (!refresh) {
+        console.warn('Chat realtime handshake failed repeatedly; stopping retries')
+        stop()
+        return
+      }
+
+      bootstrapInFlight = true
+      void Promise.resolve()
+        .then(() => refresh())
+        .then((result) => {
+          bootstrapInFlight = false
+          if (disposed) return
+
+          if (result === 'stop') {
+            stop()
+            return
+          }
+
+          handshakeFailures = 0
+          reconnectAttempt = 0
+          scheduleReconnect()
+        })
+        .catch((error: unknown) => {
+          bootstrapInFlight = false
+          if (disposed) return
+
+          console.warn('Chat realtime bootstrap refresh failed; retrying', error)
+          scheduleReconnect()
+        })
+    }
 
     const connect = () => {
       if (disposed) return
 
       const socket = new WebSocket(getWebSocketUrl(path))
       activeSocket = socket
+      let socketOpened = false
       let recovering = false
       let bufferedEvents: ChatRealtimeEvent[] = []
 
       socket.onopen = () => {
+        socketOpened = true
+        handshakeFailures = 0
         recovering = true
         bufferedEvents = []
 
@@ -88,15 +155,19 @@ export function useChatRealtime({
         socket.close()
       }
       socket.onclose = () => {
+        const opened = socketOpened
         if (activeSocket === socket) activeSocket = null
         if (disposed || reconnectTimer !== null) return
 
-        const delay = Math.min(500 * 2 ** reconnectAttempt, MAX_RECONNECT_DELAY_MS)
-        reconnectAttempt += 1
-        reconnectTimer = window.setTimeout(() => {
-          reconnectTimer = null
-          connect()
-        }, delay)
+        if (!opened) {
+          handshakeFailures += 1
+          if (shouldRefreshRealtimeBootstrap(handshakeFailures)) {
+            refreshBootstrapAfterHandshakeFailures()
+            return
+          }
+        }
+
+        scheduleReconnect()
       }
     }
 

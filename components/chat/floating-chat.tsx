@@ -8,7 +8,7 @@ import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import { mergeRealtimeMessages } from '@/lib/chat/realtime-client'
-import { useChatRealtime } from './use-chat-realtime'
+import { useChatRealtime, type RealtimeBootstrapResult } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
 
@@ -38,6 +38,16 @@ async function getResponseMessage(response: Response, fallback: string): Promise
   }
 }
 
+class ChatBootstrapError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'ChatBootstrapError'
+  }
+}
+
 function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
   const url = cursor
     ? '/api/chat/conversation?cursor=' + encodeURIComponent(cursor)
@@ -45,7 +55,10 @@ function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
 
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
     if (!response.ok) {
-      throw new Error(await getResponseMessage(response, '留言读取失败，请稍后再试。'))
+      throw new ChatBootstrapError(
+        response.status,
+        await getResponseMessage(response, '留言读取失败，请稍后再试。')
+      )
     }
     return (await response.json()) as ChatApiResponse
   })
@@ -178,6 +191,25 @@ export default function FloatingChat() {
     setMessages((current) => mergeRealtimeMessages(current, fetched, initialMessages[0].id))
   }, [])
 
+  const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
+    try {
+      const body = await loadConversationPage(null)
+      const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+      setConversationId(body.conversation?.id ?? null)
+      setRealtimeEnabled(body.realtimeEnabled)
+      setMessages((current) => mergeRealtimeMessages(current, history, initialMessages[0].id))
+      setHistoryCursor(body.nextCursor ?? null)
+      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+      setError(null)
+
+      return body.realtimeEnabled && Boolean(body.conversation) ? 'retry' : 'stop'
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。'
+      setError(message)
+      return loadError instanceof ChatBootstrapError && loadError.status === 401 ? 'stop' : 'retry'
+    }
+  }, [])
+
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {
       if (event.conversationId !== conversationId) return
@@ -204,6 +236,7 @@ export default function FloatingChat() {
     path: '/api/chat/realtime',
     onEvent: handleRealtimeEvent,
     onReconnect: recoverRealtimeGap,
+    onHandshakeFailure: refreshRealtimeBootstrap,
   })
 
   useEffect(() => {

@@ -12,12 +12,22 @@ import {
 } from './admin-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import { mergeRealtimeMessages } from '@/lib/chat/realtime-client'
-import { useChatRealtime } from '@/components/chat/use-chat-realtime'
+import { useChatRealtime, type RealtimeBootstrapResult } from '@/components/chat/use-chat-realtime'
 
 type ConversationDetailProps = {
   conversationId: string
   onBack: () => void
   onSessionExpired: () => void
+}
+
+class AdminMessagesError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'AdminMessagesError'
+  }
 }
 
 async function loadAdminMessages(
@@ -32,7 +42,7 @@ async function loadAdminMessages(
     cache: 'no-store',
   })
   if (response.status === 401) throw new Error('session expired')
-  if (!response.ok) throw new Error('会话读取失败，请稍后再试。')
+  if (!response.ok) throw new AdminMessagesError(response.status, '会话读取失败，请稍后再试。')
   return (await response.json()) as AdminMessagesResponse
 }
 
@@ -168,6 +178,34 @@ export function ConversationDetail({
     setMessages((current) => mergeRealtimeMessages(current, fetched))
   }, [conversationId])
 
+  const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
+    try {
+      const body = await loadAdminMessages(conversationId, null)
+      setMessages((current) => mergeRealtimeMessages(current, body.messages))
+      setHasMore(Boolean(body.hasMore && body.nextCursor))
+      setNextCursor(body.nextCursor ?? null)
+      setRealtimeEnabled(body.realtimeEnabled)
+      setVisitorLabel(`访客 #${body.conversation.visitorId.slice(0, 8)}`)
+      setError(null)
+
+      return body.realtimeEnabled ? 'retry' : 'stop'
+    } catch (loadError) {
+      if (loadError instanceof Error && loadError.message === 'session expired') {
+        onSessionExpired()
+        return 'stop'
+      }
+
+      if (loadError instanceof AdminMessagesError && loadError.status === 404) {
+        setRealtimeEnabled(false)
+        setError(loadError.message)
+        return 'stop'
+      }
+
+      setError(loadError instanceof Error ? loadError.message : '会话读取失败，请稍后再试。')
+      return 'retry'
+    }
+  }, [conversationId, onSessionExpired])
+
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {
       if (event.conversationId !== conversationId) return
@@ -190,6 +228,7 @@ export function ConversationDetail({
     path: `/api/admin/conversations/${conversationId}/realtime`,
     onEvent: handleRealtimeEvent,
     onReconnect: recoverRealtimeGap,
+    onHandshakeFailure: refreshRealtimeBootstrap,
   })
 
   const sendReply = useCallback(

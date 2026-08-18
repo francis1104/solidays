@@ -4,6 +4,7 @@ import {
   applyConversationClosedBarrier,
   applyRealtimeError,
   decideRealtimeEvent,
+  decideRealtimeSendSuccess,
   hasConversationIdentityChanged,
   isRealtimeGenerationCurrent,
   MAX_REALTIME_HANDSHAKE_FAILURES,
@@ -67,8 +68,73 @@ test('realtime handshake refresh starts only after the failure threshold', () =>
 test('conversation generation fencing rejects stale responses', () => {
   assert.equal(isRealtimeGenerationCurrent(4, 4), true)
   assert.equal(isRealtimeGenerationCurrent(4, 5), false)
+  assert.deepEqual(decideRealtimeSendSuccess(4, 4), { type: 'apply-response' })
+  assert.deepEqual(decideRealtimeSendSuccess(4, 5), { type: 'reconcile' })
   assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-b'), true)
   assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-a'), false)
+})
+
+test('initial bootstrap generation change reconciles a successful send without dropping its message', () => {
+  const decision = decideRealtimeSendSuccess(0, 1)
+  assert.deepEqual(decision, { type: 'reconcile' })
+
+  const authoritativeSnapshot = {
+    conversationId: 'conversation-a',
+    messages: mergeRealtimeMessages(
+      [{ id: 'assistant-greeting' }],
+      [{ id: 'message-a', createdAt: '2026-08-18T00:00:01.000Z' }],
+      'assistant-greeting'
+    ),
+  }
+  assert.equal(authoritativeSnapshot.conversationId, 'conversation-a')
+  assert.deepEqual(
+    authoritativeSnapshot.messages.map((message) => message.id),
+    ['assistant-greeting', 'message-a']
+  )
+})
+
+test('a stale send success after close/create converges on the authoritative new conversation', () => {
+  const decision = decideRealtimeSendSuccess(8, 9)
+  assert.deepEqual(decision, { type: 'reconcile' })
+
+  const committedMessage = { id: 'message-b', createdAt: '2026-08-18T00:00:02.000Z' }
+  const authoritativeSnapshot = {
+    conversationId: 'conversation-b',
+    messages: mergeRealtimeMessages(
+      [{ id: 'assistant-greeting' }],
+      [committedMessage],
+      'assistant-greeting'
+    ),
+  }
+  assert.equal(authoritativeSnapshot.conversationId, 'conversation-b')
+  assert.equal(
+    authoritativeSnapshot.messages.some((message) => message.id === committedMessage.id),
+    true
+  )
+})
+
+test('a delayed send response cannot roll a newer conversation back to the old identity', () => {
+  const delayedResponse = {
+    conversationId: 'conversation-a',
+    message: { id: 'message-a', createdAt: '2026-08-18T00:00:03.000Z' },
+  }
+  const decision = decideRealtimeSendSuccess(12, 13)
+  assert.deepEqual(decision, { type: 'reconcile' })
+
+  const authoritativeSnapshot = {
+    conversationId: 'conversation-b',
+    messages: mergeRealtimeMessages(
+      [{ id: 'assistant-greeting' }],
+      [{ id: 'message-b', createdAt: '2026-08-18T00:00:04.000Z' }],
+      'assistant-greeting'
+    ),
+  }
+  assert.notEqual(delayedResponse.conversationId, authoritativeSnapshot.conversationId)
+  assert.equal(authoritativeSnapshot.conversationId, 'conversation-b')
+  assert.equal(
+    authoritativeSnapshot.messages.some((message) => message.id === delayedResponse.message.id),
+    false
+  )
 })
 
 test('visitor realtime event decisions fence buffered messages after recovery closes or switches conversation', () => {

@@ -22,6 +22,8 @@ export type RealtimeEventDecision =
       message: Extract<ChatRealtimeEvent, { type: 'message.created' }>['message']
     }
 
+export type RealtimeSendSuccessDecision = { type: 'apply-response' } | { type: 'reconcile' }
+
 export const MAX_REALTIME_HANDSHAKE_FAILURES = 3
 
 export function shouldRefreshRealtimeBootstrap(handshakeFailures: number): boolean {
@@ -30,6 +32,15 @@ export function shouldRefreshRealtimeBootstrap(handshakeFailures: number): boole
 
 export function isRealtimeGenerationCurrent(expected: number, current: number): boolean {
   return expected === current
+}
+
+export function decideRealtimeSendSuccess(
+  expectedGeneration: number,
+  currentGeneration: number
+): RealtimeSendSuccessDecision {
+  return isRealtimeGenerationCurrent(expectedGeneration, currentGeneration)
+    ? { type: 'apply-response' }
+    : { type: 'reconcile' }
 }
 
 export function hasConversationIdentityChanged(

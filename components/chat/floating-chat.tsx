@@ -10,6 +10,7 @@ import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import {
   applyConversationClosedBarrier,
   decideRealtimeEvent,
+  decideRealtimeSendSuccess,
   hasConversationIdentityChanged,
   isRealtimeGenerationCurrent,
   mergeRealtimeMessages,
@@ -197,83 +198,6 @@ export default function FloatingChat() {
     setOpen(false)
   }, [])
 
-  const sendMessage = useCallback(async () => {
-    const content = input.trim()
-    if (!content || isSending) return
-
-    if (!siteKey) {
-      setError('验证服务尚未配置，暂时无法提交留言。')
-      return
-    }
-
-    setError(null)
-    setIsSending(true)
-    const generation = requestGenerationRef.current
-
-    try {
-      const turnstileToken = await turnstileRef.current?.getToken()
-      if (!turnstileToken) throw new Error('TURNSTILE_TOKEN_MISSING')
-
-      const pageUrl = window.location.pathname + window.location.search
-      const response = await fetch('/api/chat/messages', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content, pageUrl, turnstileToken }),
-      })
-
-      if (!response.ok) {
-        throw new Error(await getResponseMessage(response, '留言提交失败，请稍后再试。'))
-      }
-
-      const body = (await response.json()) as {
-        conversation: ChatApiResponse['conversation']
-        message: ChatApiMessage
-        realtimeEnabled?: boolean
-      }
-      const nextConversationId = body.conversation?.id ?? null
-      const currentConversationId = conversationIdRef.current
-      const requestConversationId = currentConversationId
-      if (
-        !isRealtimeGenerationCurrent(generation, requestGenerationRef.current) &&
-        nextConversationId === requestConversationId &&
-        conversationIdRef.current !== nextConversationId
-      ) {
-        return
-      }
-
-      reconciliationPromiseRef.current = null
-      requestGenerationRef.current += 1
-      historyLoadedRef.current = true
-      conversationIdRef.current = nextConversationId
-      setConversationId(nextConversationId)
-      setRealtimeEnabled(body.realtimeEnabled === true)
-      const submittedMessage = mapApiMessage(body.message)
-      if (nextConversationId !== currentConversationId) {
-        setMessages(
-          mergeRealtimeMessages([initialMessages[0]], [submittedMessage], initialMessages[0].id)
-        )
-        setHistoryCursor(null)
-        setHasMoreHistory(false)
-      } else {
-        setMessages((current) =>
-          mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
-        )
-      }
-      setInput('')
-    } catch (submissionError) {
-      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
-      setError(
-        submissionError instanceof Error && submissionError.message !== 'TURNSTILE_TOKEN_MISSING'
-          ? submissionError.message
-          : '验证未完成，请稍后重试。'
-      )
-    } finally {
-      turnstileRef.current?.reset()
-      setIsSending(false)
-    }
-  }, [input, isSending, siteKey])
-
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
     if (!cursor || isLoadingMoreHistory) return
@@ -397,6 +321,81 @@ export default function FloatingChat() {
       return loadError instanceof ChatBootstrapError && loadError.status === 401 ? 'stop' : 'retry'
     }
   }, [applyConversationHistory])
+
+  const sendMessage = useCallback(async () => {
+    const content = input.trim()
+    if (!content || isSending) return
+
+    if (!siteKey) {
+      setError('验证服务尚未配置，暂时无法提交留言。')
+      return
+    }
+
+    setError(null)
+    setIsSending(true)
+    const generation = requestGenerationRef.current
+
+    try {
+      const turnstileToken = await turnstileRef.current?.getToken()
+      if (!turnstileToken) throw new Error('TURNSTILE_TOKEN_MISSING')
+
+      const pageUrl = window.location.pathname + window.location.search
+      const response = await fetch('/api/chat/messages', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content, pageUrl, turnstileToken }),
+      })
+
+      if (!response.ok) {
+        throw new Error(await getResponseMessage(response, '留言提交失败，请稍后再试。'))
+      }
+
+      const body = (await response.json()) as {
+        conversation: ChatApiResponse['conversation']
+        message: ChatApiMessage
+        realtimeEnabled?: boolean
+      }
+      const successDecision = decideRealtimeSendSuccess(generation, requestGenerationRef.current)
+      if (successDecision.type === 'reconcile') {
+        await reconcileRealtimeState()
+        setInput('')
+        return
+      }
+
+      const nextConversationId = body.conversation?.id ?? null
+      const currentConversationId = conversationIdRef.current
+      reconciliationPromiseRef.current = null
+      requestGenerationRef.current += 1
+      historyLoadedRef.current = true
+      conversationIdRef.current = nextConversationId
+      setConversationId(nextConversationId)
+      setRealtimeEnabled(body.realtimeEnabled === true)
+      const submittedMessage = mapApiMessage(body.message)
+      if (nextConversationId !== currentConversationId) {
+        setMessages(
+          mergeRealtimeMessages([initialMessages[0]], [submittedMessage], initialMessages[0].id)
+        )
+        setHistoryCursor(null)
+        setHasMoreHistory(false)
+      } else {
+        setMessages((current) =>
+          mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
+        )
+      }
+      setInput('')
+    } catch (submissionError) {
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+      setError(
+        submissionError instanceof Error && submissionError.message !== 'TURNSTILE_TOKEN_MISSING'
+          ? submissionError.message
+          : '验证未完成，请稍后重试。'
+      )
+    } finally {
+      turnstileRef.current?.reset()
+      setIsSending(false)
+    }
+  }, [input, isSending, reconcileRealtimeState, siteKey])
 
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {

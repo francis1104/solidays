@@ -4,6 +4,7 @@ import {
   CHAT_REALTIME_AUDIENCE_HEADER,
   CHAT_REALTIME_AUTH_EXPIRES_AT_HEADER,
   CHAT_REALTIME_CONVERSATION_HEADER,
+  isAdminRealtimeLeaseActive,
   isChatSocketAttachment,
   type ChatSocketAttachment,
   type ChatSocketAudience,
@@ -30,10 +31,6 @@ function isValidAttachmentForAudience(attachment: unknown): attachment is ChatSo
   return attachment.audience === 'visitor'
     ? attachment.authExpiresAt === undefined
     : attachment.authExpiresAt !== undefined
-}
-
-function isAdminSessionActive(attachment: ChatSocketAttachment): boolean {
-  return attachment.audience !== 'admin' || (attachment.authExpiresAt ?? 0) > Date.now()
 }
 
 function closeSocket(socket: WebSocket, code: number, reason: string): void {
@@ -70,7 +67,7 @@ export class ChatConversation extends DurableObject<CloudflareEnv> {
         closeSocket(socket, 1008, 'Invalid realtime session')
         continue
       }
-      if (!isAdminSessionActive(attachment)) {
+      if (!isAdminRealtimeLeaseActive(attachment)) {
         closeSocket(socket, 4001, 'Admin session expired')
         continue
       }
@@ -152,7 +149,7 @@ export class ChatConversation extends DurableObject<CloudflareEnv> {
       closeSocket(ws, 1008, 'Invalid realtime session')
       return
     }
-    if (!isAdminSessionActive(attachment)) {
+    if (!isAdminRealtimeLeaseActive(attachment)) {
       closeSocket(ws, 4001, 'Admin session expired')
     }
   }

@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  applyConversationClosedBarrier,
+  hasConversationIdentityChanged,
+  isRealtimeGenerationCurrent,
   MAX_REALTIME_HANDSHAKE_FAILURES,
   mergeRealtimeMessages,
   shouldRefreshRealtimeBootstrap,
 } from './realtime-client.ts'
-import { isChatSocketAttachment } from './realtime-protocol.ts'
+import { isAdminRealtimeLeaseActive, isChatSocketAttachment } from './realtime-protocol.ts'
+import { retryRealtimePublish } from './realtime-retry.ts'
 
 test('mergeRealtimeMessages deduplicates and follows D1 created_at/id order', () => {
   const result = mergeRealtimeMessages(
@@ -56,6 +60,90 @@ test('mergeRealtimeMessages keeps the greeting before persisted messages', () =>
 test('realtime handshake refresh starts only after the failure threshold', () => {
   assert.equal(shouldRefreshRealtimeBootstrap(MAX_REALTIME_HANDSHAKE_FAILURES - 1), false)
   assert.equal(shouldRefreshRealtimeBootstrap(MAX_REALTIME_HANDSHAKE_FAILURES), true)
+})
+
+test('conversation generation fencing rejects stale responses', () => {
+  assert.equal(isRealtimeGenerationCurrent(4, 4), true)
+  assert.equal(isRealtimeGenerationCurrent(4, 5), false)
+  assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-b'), true)
+  assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-a'), false)
+})
+
+test('conversation.closed is an authoritative UI barrier for the matching conversation', () => {
+  const closed = applyConversationClosedBarrier(
+    { conversationId: 'conversation-a', status: 'open', realtimeEnabled: true },
+    'conversation-a'
+  )
+  assert.deepEqual(closed, {
+    conversationId: 'conversation-a',
+    status: 'closed',
+    realtimeEnabled: false,
+  })
+
+  assert.deepEqual(
+    applyConversationClosedBarrier(
+      { conversationId: 'conversation-b', status: 'open', realtimeEnabled: true },
+      'conversation-a'
+    ),
+    { conversationId: 'conversation-b', status: 'open', realtimeEnabled: true }
+  )
+})
+
+test('an expired Admin lease closes the delivery path even when the first event is conversation.closed', () => {
+  const attachment = {
+    audience: 'admin' as const,
+    conversationId: 'conversation-a',
+    authExpiresAt: 1_000,
+  }
+  assert.equal(isAdminRealtimeLeaseActive(attachment, 999), true)
+  assert.equal(isAdminRealtimeLeaseActive(attachment, 1_000), false)
+
+  const closed = applyConversationClosedBarrier(
+    { conversationId: 'conversation-a', status: 'open', realtimeEnabled: true },
+    'conversation-a'
+  )
+  assert.equal(closed.status, 'closed')
+  assert.equal(closed.realtimeEnabled, false)
+})
+
+test('a late message remains recoverable after a close barrier and stays deduplicated', () => {
+  const closed = applyConversationClosedBarrier(
+    { conversationId: 'conversation-a', status: 'open', realtimeEnabled: true },
+    'conversation-a'
+  )
+  const reconciled = mergeRealtimeMessages(
+    [{ id: 'm-before-close', createdAt: '2026-08-18T00:00:01.000Z' }],
+    [
+      { id: 'm-before-close', createdAt: '2026-08-18T00:00:01.000Z' },
+      { id: 'm-late', createdAt: '2026-08-18T00:00:02.000Z' },
+    ]
+  )
+  assert.equal(closed.status, 'closed')
+  assert.deepEqual(
+    reconciled.map((message) => message.id),
+    ['m-before-close', 'm-late']
+  )
+})
+
+test('realtime publish retries a transient failure without changing command semantics', async () => {
+  let attempts = 0
+  await retryRealtimePublish(async () => {
+    attempts += 1
+    if (attempts < 3) throw new Error('temporary')
+  }, [0, 0, 0])
+  assert.equal(attempts, 3)
+})
+
+test('realtime publish surfaces the final error after bounded retries', async () => {
+  let attempts = 0
+  await assert.rejects(
+    retryRealtimePublish(async () => {
+      attempts += 1
+      throw new Error(`failure-${attempts}`)
+    }, [0, 0]),
+    { message: 'failure-2' }
+  )
+  assert.equal(attempts, 2)
 })
 
 test('socket attachments require an audience and conversation id', () => {

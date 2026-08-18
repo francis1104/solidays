@@ -7,7 +7,12 @@ import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
-import { mergeRealtimeMessages } from '@/lib/chat/realtime-client'
+import {
+  applyConversationClosedBarrier,
+  hasConversationIdentityChanged,
+  isRealtimeGenerationCurrent,
+  mergeRealtimeMessages,
+} from '@/lib/chat/realtime-client'
 import { useChatRealtime, type RealtimeBootstrapResult } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
@@ -48,10 +53,15 @@ class ChatBootstrapError extends Error {
   }
 }
 
-function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
-  const url = cursor
-    ? '/api/chat/conversation?cursor=' + encodeURIComponent(cursor)
-    : '/api/chat/conversation'
+function loadConversationPage(
+  cursor: string | null,
+  expectedConversationId: string | null = null
+): Promise<ChatApiResponse> {
+  const params = new URLSearchParams()
+  if (cursor) params.set('cursor', cursor)
+  if (expectedConversationId) params.set('conversationId', expectedConversationId)
+  const query = params.toString()
+  const url = query ? `/api/chat/conversation?${query}` : '/api/chat/conversation'
 
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
     if (!response.ok) {
@@ -84,7 +94,10 @@ function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
   return unique
 }
 
-async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<ConversationGapResult> {
+async function fetchMessagesUntilOverlap(
+  knownIds: Set<string>,
+  expectedConversationId: string | null
+): Promise<ConversationGapResult> {
   let cursor: string | null = null
   let combined: ChatMessage[] = []
   let firstBody: ChatApiResponse | null = null
@@ -92,7 +105,7 @@ async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<Convers
   let exhausted = false
 
   for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
-    const body = await loadConversationPage(cursor)
+    const body = await loadConversationPage(cursor, expectedConversationId)
     firstBody ??= body
     const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
     const hitKnown = fetched.some((message) => knownIds.has(message.id))
@@ -134,12 +147,50 @@ export default function FloatingChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
   const historyRequestedRef = useRef(false)
+  const historyLoadedRef = useRef(false)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
+  const requestGenerationRef = useRef(0)
+  const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
+
+  const applyConversationHistory = useCallback(
+    (
+      body: ChatApiResponse,
+      history: ChatMessage[],
+      generation?: number,
+      merge = false
+    ): boolean => {
+      if (
+        generation !== undefined &&
+        !isRealtimeGenerationCurrent(generation, requestGenerationRef.current)
+      ) {
+        return false
+      }
+
+      const nextConversationId = body.conversation?.id ?? null
+      if (hasConversationIdentityChanged(conversationIdRef.current, nextConversationId)) {
+        reconciliationPromiseRef.current = null
+        requestGenerationRef.current += 1
+      }
+      conversationIdRef.current = nextConversationId
+      setConversationId(nextConversationId)
+      setRealtimeEnabled(body.realtimeEnabled)
+      if (merge) {
+        setMessages((current) => mergeRealtimeMessages(current, history, initialMessages[0].id))
+      } else {
+        setMessages(mergeRealtimeMessages([initialMessages[0]], history, initialMessages[0].id))
+      }
+      setHistoryCursor(body.nextCursor ?? null)
+      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+      historyLoadedRef.current = true
+      return true
+    },
+    []
+  )
 
   const closeChat = useCallback(() => {
     setOpen(false)
@@ -156,6 +207,7 @@ export default function FloatingChat() {
 
     setError(null)
     setIsSending(true)
+    const generation = requestGenerationRef.current
 
     try {
       const turnstileToken = await turnstileRef.current?.getToken()
@@ -180,8 +232,21 @@ export default function FloatingChat() {
       }
       const nextConversationId = body.conversation?.id ?? null
       const currentConversationId = conversationIdRef.current
+      const requestConversationId = currentConversationId
+      if (
+        !isRealtimeGenerationCurrent(generation, requestGenerationRef.current) &&
+        nextConversationId === requestConversationId &&
+        conversationIdRef.current !== nextConversationId
+      ) {
+        return
+      }
+
+      reconciliationPromiseRef.current = null
+      requestGenerationRef.current += 1
+      historyLoadedRef.current = true
+      conversationIdRef.current = nextConversationId
       setConversationId(nextConversationId)
-      if (typeof body.realtimeEnabled === 'boolean') setRealtimeEnabled(body.realtimeEnabled)
+      setRealtimeEnabled(body.realtimeEnabled === true)
       const submittedMessage = mapApiMessage(body.message)
       if (nextConversationId !== currentConversationId) {
         setMessages(
@@ -196,6 +261,7 @@ export default function FloatingChat() {
       }
       setInput('')
     } catch (submissionError) {
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       setError(
         submissionError instanceof Error && submissionError.message !== 'TURNSTILE_TOKEN_MISSING'
           ? submissionError.message
@@ -210,74 +276,117 @@ export default function FloatingChat() {
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
     if (!cursor || isLoadingMoreHistory) return
+    const generation = requestGenerationRef.current
+    const expectedConversationId = conversationIdRef.current
 
     setIsLoadingMoreHistory(true)
     try {
-      const body = await loadConversationPage(cursor)
+      const body = await loadConversationPage(cursor, expectedConversationId)
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
 
       const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-      if ((body.conversation?.id ?? null) !== conversationIdRef.current) {
+      if (hasConversationIdentityChanged(expectedConversationId, body.conversation?.id ?? null)) {
         const freshBody = await loadConversationPage(null)
         const freshHistory = Array.isArray(freshBody.messages)
           ? freshBody.messages.map(mapApiMessage)
           : []
-        setConversationId(freshBody.conversation?.id ?? null)
-        setRealtimeEnabled(freshBody.realtimeEnabled)
-        setMessages(
-          mergeRealtimeMessages([initialMessages[0]], freshHistory, initialMessages[0].id)
-        )
-        setHistoryCursor(freshBody.nextCursor ?? null)
-        setHasMoreHistory(Boolean(freshBody.hasMore && freshBody.nextCursor))
+        applyConversationHistory(freshBody, freshHistory, generation)
         return
       }
       setMessages((current) => mergeRealtimeMessages(current, olderMessages, initialMessages[0].id))
       setHistoryCursor(body.nextCursor ?? null)
       setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
+      let errorForDisplay: unknown = loadError
+      if (loadError instanceof ChatBootstrapError && loadError.status === 409) {
+        try {
+          const body = await loadConversationPage(null)
+          const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+          if (!applyConversationHistory(body, history, generation)) return
+          setError(null)
+          return
+        } catch (refreshError) {
+          errorForDisplay = refreshError
+        }
+      }
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+      setError(
+        errorForDisplay instanceof Error ? errorForDisplay.message : '留言读取失败，请稍后再试。'
+      )
     } finally {
       setIsLoadingMoreHistory(false)
     }
-  }, [historyCursor, isLoadingMoreHistory])
+  }, [applyConversationHistory, historyCursor, isLoadingMoreHistory])
 
-  const replaceConversationHistory = useCallback(
-    (body: ChatApiResponse, history: ChatMessage[]) => {
-      setConversationId(body.conversation?.id ?? null)
-      setRealtimeEnabled(body.realtimeEnabled)
-      setMessages(mergeRealtimeMessages([initialMessages[0]], history, initialMessages[0].id))
-      setHistoryCursor(body.nextCursor ?? null)
-      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
-    },
-    []
-  )
+  const reconcileRealtimeState = useCallback(async () => {
+    if (reconciliationPromiseRef.current) return reconciliationPromiseRef.current
 
-  const recoverRealtimeGap = useCallback(async () => {
-    const knownIds = new Set(messagesRef.current.map((message) => message.id))
-    const result = await fetchMessagesUntilOverlap(knownIds)
-    const nextConversationId = result.body.conversation?.id ?? null
+    const generation = requestGenerationRef.current
+    const expectedConversationId = conversationIdRef.current
+    const task = (async () => {
+      let result: ConversationGapResult
+      try {
+        result = await fetchMessagesUntilOverlap(
+          new Set(messagesRef.current.map((message) => message.id)),
+          expectedConversationId
+        )
+      } catch (loadError) {
+        if (!(loadError instanceof ChatBootstrapError && loadError.status === 409)) {
+          throw loadError
+        }
 
-    if (nextConversationId !== conversationIdRef.current) {
-      replaceConversationHistory(result.body, result.messages)
+        const body = await loadConversationPage(null)
+        const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+        applyConversationHistory(body, history, generation)
+        return
+      }
+
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+
+      const nextConversationId = result.body.conversation?.id ?? null
+      if (hasConversationIdentityChanged(expectedConversationId, nextConversationId)) {
+        applyConversationHistory(result.body, result.messages, generation)
+        setError(null)
+        return
+      }
+
+      if (!result.reachedOverlap && !result.exhausted) {
+        setError('留言历史较多，暂时无法完成实时同步，请稍后再试。')
+        throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
+      }
+
+      setRealtimeEnabled(result.body.realtimeEnabled)
+      setHistoryCursor(result.body.nextCursor ?? null)
+      setHasMoreHistory(Boolean(result.body.hasMore && result.body.nextCursor))
+      setMessages((current) =>
+        mergeRealtimeMessages(current, result.messages, initialMessages[0].id)
+      )
       setError(null)
-      return
-    }
+    })()
 
-    if (!result.reachedOverlap && !result.exhausted) {
-      setError('留言历史较多，暂时无法完成实时同步，请稍后再试。')
-      throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
-    }
+    const trackedPromise = task.finally(() => {
+      if (reconciliationPromiseRef.current === trackedPromise) {
+        reconciliationPromiseRef.current = null
+      }
+    })
+    reconciliationPromiseRef.current = trackedPromise
+    return trackedPromise
+  }, [applyConversationHistory])
 
-    setRealtimeEnabled(result.body.realtimeEnabled)
-    setHistoryCursor(result.body.nextCursor ?? null)
-    setHasMoreHistory(Boolean(result.body.hasMore && result.body.nextCursor))
-    setMessages((current) => mergeRealtimeMessages(current, result.messages, initialMessages[0].id))
-  }, [replaceConversationHistory])
+  const recoverRealtimeGap = useCallback(() => reconcileRealtimeState(), [reconcileRealtimeState])
 
   const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
+    const generation = requestGenerationRef.current
     try {
-      const body = await loadConversationPage(null)
+      let body: ChatApiResponse
+      try {
+        body = await loadConversationPage(null, conversationIdRef.current)
+      } catch (loadError) {
+        if (!(loadError instanceof ChatBootstrapError && loadError.status === 409)) throw loadError
+        body = await loadConversationPage(null)
+      }
       const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-      replaceConversationHistory(body, history)
+      if (!applyConversationHistory(body, history, generation)) return 'stop'
       setError(null)
 
       return body.realtimeEnabled && Boolean(body.conversation) ? 'retry' : 'stop'
@@ -286,18 +395,32 @@ export default function FloatingChat() {
       setError(message)
       return loadError instanceof ChatBootstrapError && loadError.status === 401 ? 'stop' : 'retry'
     }
-  }, [replaceConversationHistory])
+  }, [applyConversationHistory])
 
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {
       if (event.conversationId !== conversationId) return
 
       if (event.type === 'conversation.closed') {
+        const barrier = applyConversationClosedBarrier(
+          {
+            conversationId,
+            status: 'open',
+            realtimeEnabled,
+          },
+          event.conversationId
+        )
+        if (barrier.conversationId !== conversationId) return
+
+        reconciliationPromiseRef.current = null
+        requestGenerationRef.current += 1
+        conversationIdRef.current = null
         setConversationId(null)
-        setRealtimeEnabled(false)
+        setRealtimeEnabled(barrier.realtimeEnabled)
         setMessages(initialMessages)
         setHistoryCursor(null)
         setHasMoreHistory(false)
+        historyLoadedRef.current = true
         setError(null)
         return
       }
@@ -311,7 +434,7 @@ export default function FloatingChat() {
       })
       setMessages((current) => mergeRealtimeMessages(current, [incoming], initialMessages[0].id))
     },
-    [conversationId]
+    [conversationId, realtimeEnabled]
   )
 
   useChatRealtime({
@@ -327,51 +450,75 @@ export default function FloatingChat() {
   useEffect(() => {
     if (!open) return
 
+    const generation = requestGenerationRef.current
     if (!historyRequestedRef.current) {
       historyRequestedRef.current = true
+      historyLoadedRef.current = false
       void loadConversationPage(null)
         .then((body) => {
           const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-          setConversationId(body.conversation?.id ?? null)
-          setRealtimeEnabled(body.realtimeEnabled)
-          setMessages(mergeRealtimeMessages([initialMessages[0]], history, initialMessages[0].id))
-          setHistoryCursor(body.nextCursor ?? null)
-          setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+          if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+
+          if (!applyConversationHistory(body, history, generation)) return
           setError(null)
         })
         .catch((loadError) => {
+          if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
           historyRequestedRef.current = false
+          historyLoadedRef.current = false
+          conversationIdRef.current = null
           setConversationId(null)
           setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
         })
-      return
+
+      return () => {
+        requestGenerationRef.current += 1
+        reconciliationPromiseRef.current = null
+        if (!historyLoadedRef.current) historyRequestedRef.current = false
+      }
     }
 
     // Reopened within the same page load: walk newest → older until we overlap
     // a locally known message so replies added while closed cannot leave a gap.
-    const knownIds = new Set(messagesRef.current.map((message) => message.id))
-    void fetchMessagesUntilOverlap(knownIds)
-      .then((result) => {
-        const nextConversationId = result.body.conversation?.id ?? null
-        if (nextConversationId !== conversationIdRef.current) {
-          replaceConversationHistory(result.body, result.messages)
-        } else {
-          if (!result.reachedOverlap && !result.exhausted) {
-            throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
-          }
-          setRealtimeEnabled(result.body.realtimeEnabled)
-          setHistoryCursor(result.body.nextCursor ?? null)
-          setHasMoreHistory(Boolean(result.body.hasMore && result.body.nextCursor))
-          setMessages((current) =>
-            mergeRealtimeMessages(current, result.messages, initialMessages[0].id)
-          )
+    void reconcileRealtimeState()
+      .then(() => {
+        if (isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) {
+          setError(null)
         }
-        setError(null)
       })
       .catch((loadError) => {
+        if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
         setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
       })
-  }, [open, replaceConversationHistory])
+
+    return () => {
+      requestGenerationRef.current += 1
+      reconciliationPromiseRef.current = null
+    }
+  }, [applyConversationHistory, open, reconcileRealtimeState])
+
+  useEffect(() => {
+    if (!open || !conversationId || !realtimeEnabled) return
+
+    const reconcile = () => {
+      void reconcileRealtimeState().catch(() => undefined)
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') reconcile()
+    }
+
+    window.addEventListener('online', reconcile)
+    window.addEventListener('focus', reconcile)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const interval = window.setInterval(reconcile, 60_000)
+
+    return () => {
+      window.removeEventListener('online', reconcile)
+      window.removeEventListener('focus', reconcile)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.clearInterval(interval)
+    }
+  }, [conversationId, open, realtimeEnabled, reconcileRealtimeState])
 
   useEffect(() => {
     if (!open) return

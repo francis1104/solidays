@@ -29,24 +29,37 @@
   Admin 连接同时保存已签名会话的绝对过期时间；每次广播前会清理已过期的 Admin socket。
   客户端帧全部忽略，不能绕过 HTTP 接口写入消息。
 - `lib/chat/realtime-events.ts` 定义并校验 `message.created` 与 `conversation.closed` 事件。
-- `lib/chat/realtime.ts` 在 D1 写入成功后调用对应 Durable Object 广播；广播失败只记录结构化日志，
-  不回滚或阻断已经成功的 D1 写入。
+- `lib/chat/realtime.ts` 在 D1 写入成功后调用对应 Durable Object 广播；广播最多做有限次短退避重试，
+  最终失败只记录结构化日志，不回滚或阻断已经成功的 D1 写入。
 
 ### 接口与前端
 
 | 接口 | 作用 | 额外保护 |
 | --- | --- | --- |
 | `GET /api/chat/realtime?conversationId=<id>` | 当前访客指定开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话与客户端期望 ID 一致、同源 Origin、WebSocket Upgrade、IP + 访客建连限流 |
-| `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话 ID/存在性、同源 Origin、WebSocket Upgrade |
+| `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话存在且仍为 open、同源 Origin、WebSocket Upgrade |
 
 `custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
 `101 Switching Protocols` 响应；普通 HTTP 请求仍由原有 Next.js route handler 处理。
 `components/chat/use-chat-realtime.ts` 负责指数退避重连。访客连接会携带客户端当前的
-`conversationId`，Worker 只允许连接到同一个仍处于 open 状态的会话；如果 bootstrap 发现会话已切换，
-前端会替换历史而不是把两个会话合并。首次连接和重连都会从 D1 按游标补拉到已知消息 ID；补拉期间
+`conversationId`，Worker 只允许连接到同一个仍处于 open 状态的会话；HTTP 历史接口在携带期望 ID
+时同样执行这个一致性检查，发现会话不存在或已切换会返回 `CONVERSATION_CHANGED`，前端随后重新
+bootstrap 并替换历史，而不是把两个会话合并。visitor 写入使用条件 INSERT 与 open 状态检查处于同一
+D1 batch；如果 pre-read 后被并发 close，会丢弃旧会话写入并重解析/创建新的 open 会话后重试。
+首次连接和重连都会从 D1 按游标补拉到已知消息 ID；补拉期间
 到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线期间漏消息或顺序反转。
 达到恢复页数上限却没有找到重叠消息时，恢复会被判定为 incomplete 并触发下一轮连接，不会静默宣告
 同步成功。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+
+客户端的历史 bootstrap、load-more、reconnect recovery 和 handshake refresh 都带有 request generation；
+conversation identity 变化、visitor mutation、Admin 切换详情或 close barrier 都会推进 generation，过期
+响应不能回写当前会话。Admin 收到 `conversation.closed` 后立即禁用 composer 和 realtime，并在断开订阅
+前做一次 D1 authoritative final reconciliation，以收拢 close event 与最后一条 message event 的乱序。
+Admin 回复遇到 `409 CONVERSATION_CLOSED` 也走同一条 closed/reconciliation 路径。
+
+保持页面在线且连接健康时，visitor 与 Admin 会在浏览器重新 online、窗口 focus、页面恢复可见以及低频
+定时器触发时执行一次 D1 对账；这用于弥补单次 best-effort DO publish 失败，不把 realtime 故障升级为
+消息写入失败，也不引入 durable event log。
 
 连续三次握手未成功时，客户端会重新执行对应的 HTTP bootstrap：会话不存在、实时开关关闭或 Admin
 会话过期会停止 socket 重试；暂时性的 bootstrap 失败仍按退避策略重试。Admin socket 使用 10 分钟的
@@ -158,6 +171,9 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       10 分钟短租约，同浏览器登出通过 `BroadcastChannel` 关闭其他标签页的连接。
 - [x] 本地 Worker 已验证 WebSocket `101` 握手、访客/Admin 双端同时收取 visitor/owner 消息、关闭事件、
       无效客户端帧忽略以及未授权连接拒绝。
+- [x] visitor message/close 并发写入使用 D1 open-status 原子边界；Admin closed barrier、最终 D1 对账、
+      stale-response generation fencing、publish 有限重试和 online/visibility/focus/定时 reconciliation
+      已落地；实时回归测试覆盖 15 个事件、状态、重试与 repository race 用例。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
 - [ ] 将实时开关从 DEV 本地验证推进到生产灰度；发布前需要按

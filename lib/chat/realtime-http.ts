@@ -100,6 +100,9 @@ export async function handleAdminRealtimeRequest(
   try {
     const conversation = await getConversationById(env.CHAT_DB, conversationId)
     if (!conversation) return errorResponse(404, 'CONVERSATION_NOT_FOUND', '会话不存在。')
+    if (conversation.status !== 'open') {
+      return errorResponse(409, 'CONVERSATION_CLOSED', '会话已关闭。')
+    }
 
     return await connectConversation(
       env,

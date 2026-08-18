@@ -27,3 +27,10 @@ export function isChatSocketAttachment(value: unknown): value is ChatSocketAttac
     (typeof attachment.authExpiresAt === 'number' && Number.isFinite(attachment.authExpiresAt))
   )
 }
+
+export function isAdminRealtimeLeaseActive(
+  attachment: ChatSocketAttachment,
+  now = Date.now()
+): boolean {
+  return attachment.audience !== 'admin' || (attachment.authExpiresAt ?? 0) > now
+}

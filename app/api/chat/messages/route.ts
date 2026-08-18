@@ -1,5 +1,10 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { ChatQuotaExceededError, findVisitor, persistVisitorMessage } from '@/lib/chat/repository'
+import {
+  ChatQuotaExceededError,
+  ChatWriteConflictError,
+  findVisitor,
+  persistVisitorMessage,
+} from '@/lib/chat/repository'
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin, normalizePageUrl } from '@/lib/chat/security'
@@ -97,6 +102,9 @@ export async function POST(request: Request) {
         'CHAT_QUOTA_EXCEEDED',
         '留言数量或存储上限已达到，请结束当前留言或稍后再试。'
       )
+    }
+    if (error instanceof ChatWriteConflictError) {
+      return errorResponse(503, 'CHAT_WRITE_RETRY', '留言状态刚刚发生变化，请稍后重试。')
     }
     console.error('Chat message write failed')
     return errorResponse(500, 'CHAT_WRITE_FAILED', '留言保存失败，请稍后再试。')

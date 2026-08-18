@@ -6,8 +6,10 @@ import {
   CHAT_REALTIME_CONVERSATION_HEADER,
   type ChatSocketAudience,
 } from './realtime-protocol'
+import { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry'
 
 export const ADMIN_REALTIME_LEASE_MS = 10 * 60 * 1000
+export { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry'
 
 export function isChatRealtimeEnabled(env: CloudflareEnv): boolean {
   return String(env.CHAT_REALTIME_ENABLED) === 'true'
@@ -21,7 +23,10 @@ async function publishConversationEvent(
   if (!isChatRealtimeEnabled(env)) return
 
   try {
-    await env.CHAT_CONVERSATIONS.getByName(conversationId).publish(event)
+    await retryRealtimePublish(
+      () => env.CHAT_CONVERSATIONS.getByName(conversationId).publish(event),
+      REALTIME_PUBLISH_RETRY_DELAYS_MS
+    )
   } catch (error) {
     // D1 is authoritative. A DO outage must not turn a successful message
     // write into a failed HTTP command.

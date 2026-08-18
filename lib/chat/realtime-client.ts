@@ -5,10 +5,40 @@ export type RealtimeUiMessage = {
 
 export type RealtimeBootstrapResult = 'retry' | 'stop'
 
+export type RealtimeConversationSnapshot = {
+  conversationId: string | null
+  status: 'open' | 'closed'
+  realtimeEnabled: boolean
+}
+
 export const MAX_REALTIME_HANDSHAKE_FAILURES = 3
 
 export function shouldRefreshRealtimeBootstrap(handshakeFailures: number): boolean {
   return handshakeFailures >= MAX_REALTIME_HANDSHAKE_FAILURES
+}
+
+export function isRealtimeGenerationCurrent(expected: number, current: number): boolean {
+  return expected === current
+}
+
+export function hasConversationIdentityChanged(
+  currentConversationId: string | null,
+  nextConversationId: string | null
+): boolean {
+  return currentConversationId !== nextConversationId
+}
+
+export function applyConversationClosedBarrier(
+  state: RealtimeConversationSnapshot,
+  conversationId: string
+): RealtimeConversationSnapshot {
+  if (state.conversationId !== conversationId) return state
+
+  return {
+    ...state,
+    status: 'closed',
+    realtimeEnabled: false,
+  }
 }
 
 function getTimestamp(message: RealtimeUiMessage): number {

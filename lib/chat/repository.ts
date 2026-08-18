@@ -1,10 +1,17 @@
-import type { ChatMessageInput, ConversationRow, MessageRow } from './types'
-import { CHAT_LIMITS } from './limits'
+import type { ChatMessageInput, ConversationRow, MessageRow } from './types.ts'
+import { CHAT_LIMITS } from './limits.ts'
 
 export class ChatQuotaExceededError extends Error {
   constructor() {
     super('CHAT_QUOTA_EXCEEDED')
     this.name = 'ChatQuotaExceededError'
+  }
+}
+
+export class ChatWriteConflictError extends Error {
+  constructor() {
+    super('CHAT_WRITE_CONFLICT')
+    this.name = 'ChatWriteConflictError'
   }
 }
 
@@ -139,32 +146,39 @@ async function appendToConversation(
   }
 
   try {
-    await db.batch([
+    const results = await db.batch([
       db
         .prepare('INSERT OR IGNORE INTO visitors (id, created_at, last_seen_at) VALUES (?, ?, ?)')
         .bind(visitorId, now, now),
       db
         .prepare(
+          `UPDATE conversations
+           SET updated_at = ?, last_page_url = COALESCE(?, last_page_url)
+           WHERE id = ? AND visitor_id = ? AND status = 'open'`
+        )
+        .bind(now, input.pageUrl, conversation.id, visitorId),
+      db
+        .prepare(
           `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+           SELECT ?, id, ?, ?, ?, ?
+           FROM conversations
+           WHERE id = ? AND visitor_id = ? AND status = 'open'`
         )
         .bind(
           message.id,
-          message.conversation_id,
           message.role,
           message.content,
           message.page_url,
-          message.created_at
+          message.created_at,
+          conversation.id,
+          visitorId
         ),
-      db
-        .prepare(
-          `UPDATE conversations
-           SET updated_at = ?, last_page_url = COALESCE(?, last_page_url)
-           WHERE id = ? AND status = 'open'`
-        )
-        .bind(now, input.pageUrl, conversation.id),
       db.prepare('UPDATE visitors SET last_seen_at = ? WHERE id = ?').bind(now, visitorId),
     ])
+
+    if ((results[1]?.meta.changes ?? 0) !== 1 || (results[2]?.meta.changes ?? 0) !== 1) {
+      throw new ChatWriteConflictError()
+    }
   } catch (error) {
     if (isQuotaExceededError(error)) throw new ChatQuotaExceededError()
     throw error
@@ -180,16 +194,14 @@ async function appendToConversation(
   }
 }
 
-export async function persistVisitorMessage(
+const MAX_VISITOR_WRITE_ATTEMPTS = 2
+
+async function createConversationWithMessage(
   db: D1Database,
   visitorId: string,
   input: ChatMessageInput
 ): Promise<{ conversation: ConversationRow; message: MessageRow }> {
-  const existing = await findOpenConversation(db, visitorId)
   const now = Date.now()
-
-  if (existing) return appendToConversation(db, existing, input, visitorId, now)
-
   const conversation: ConversationRow = {
     id: crypto.randomUUID(),
     visitor_id: visitorId,
@@ -207,48 +219,73 @@ export async function persistVisitorMessage(
     created_at: now,
   }
 
-  try {
-    await db.batch([
-      db
-        .prepare('INSERT OR IGNORE INTO visitors (id, created_at, last_seen_at) VALUES (?, ?, ?)')
-        .bind(visitorId, now, now),
-      db
-        .prepare(
-          `INSERT INTO conversations (id, visitor_id, status, last_page_url, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          conversation.id,
-          conversation.visitor_id,
-          conversation.status,
-          conversation.last_page_url,
-          conversation.created_at,
-          conversation.updated_at
-        ),
-      db
-        .prepare(
-          `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          message.id,
-          message.conversation_id,
-          message.role,
-          message.content,
-          message.page_url,
-          message.created_at
-        ),
-    ])
+  await db.batch([
+    db
+      .prepare('INSERT OR IGNORE INTO visitors (id, created_at, last_seen_at) VALUES (?, ?, ?)')
+      .bind(visitorId, now, now),
+    db
+      .prepare(
+        `INSERT INTO conversations (id, visitor_id, status, last_page_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        conversation.id,
+        conversation.visitor_id,
+        conversation.status,
+        conversation.last_page_url,
+        conversation.created_at,
+        conversation.updated_at
+      ),
+    db
+      .prepare(
+        `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        message.id,
+        message.conversation_id,
+        message.role,
+        message.content,
+        message.page_url,
+        message.created_at
+      ),
+  ])
 
-    return { conversation, message }
-  } catch (error) {
-    if (isQuotaExceededError(error)) throw new ChatQuotaExceededError()
+  return { conversation, message }
+}
 
-    const concurrent = await findOpenConversation(db, visitorId)
-    if (!concurrent) throw error
+export async function persistVisitorMessage(
+  db: D1Database,
+  visitorId: string,
+  input: ChatMessageInput
+): Promise<{ conversation: ConversationRow; message: MessageRow }> {
+  let lastConflict: ChatWriteConflictError | null = null
 
-    return appendToConversation(db, concurrent, input, visitorId, Date.now())
+  for (let attempt = 0; attempt < MAX_VISITOR_WRITE_ATTEMPTS; attempt += 1) {
+    const existing = await findOpenConversation(db, visitorId)
+
+    if (existing) {
+      try {
+        return await appendToConversation(db, existing, input, visitorId, Date.now())
+      } catch (error) {
+        if (!(error instanceof ChatWriteConflictError)) throw error
+        lastConflict = error
+        continue
+      }
+    }
+
+    try {
+      return await createConversationWithMessage(db, visitorId, input)
+    } catch (error) {
+      if (isQuotaExceededError(error)) throw new ChatQuotaExceededError()
+
+      const concurrent = await findOpenConversation(db, visitorId)
+      if (!concurrent) throw error
+      lastConflict = new ChatWriteConflictError()
+    }
   }
+
+  throw lastConflict ?? new ChatWriteConflictError()
 }
 
 export async function closeOpenConversation(

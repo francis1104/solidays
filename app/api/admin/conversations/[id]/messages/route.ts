@@ -49,7 +49,7 @@ export async function GET(request: Request, { params }: MessageRouteContext) {
 
     const page = await listMessages(env.CHAT_DB, id, cursor, CHAT_LIMITS.historyPageSize)
     return jsonResponse({
-      realtimeEnabled: isChatRealtimeEnabled(env),
+      realtimeEnabled: isChatRealtimeEnabled(env) && conversation.status === 'open',
       conversation: toAdminConversationDto(conversation),
       messages: page.messages.map(toAdminMessageDto),
       hasMore: page.hasMore,

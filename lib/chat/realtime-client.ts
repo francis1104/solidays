@@ -22,9 +22,47 @@ export type RealtimeEventDecision =
       message: Extract<ChatRealtimeEvent, { type: 'message.created' }>['message']
     }
 
-export type RealtimeSendSuccessDecision = { type: 'apply-response' } | { type: 'reconcile' }
+export type RealtimeSendSuccessDecision =
+  | {
+      type: 'apply-response'
+      commandCommitted: true
+      inputAcknowledged: true
+      stateSynchronized: true
+    }
+  | {
+      type: 'reconcile'
+      commandCommitted: true
+      inputAcknowledged: true
+      stateSynchronized: false
+    }
+
+export type RealtimeCommandSyncDecision =
+  | {
+      type: 'synchronized'
+      commandCommitted: true
+      inputAcknowledged: true
+      stateSynchronized: true
+      retryScheduled: false
+    }
+  | {
+      type: 'retrying'
+      commandCommitted: true
+      inputAcknowledged: true
+      stateSynchronized: false
+      retryScheduled: true
+    }
+  | {
+      type: 'sync-failed'
+      commandCommitted: true
+      inputAcknowledged: true
+      stateSynchronized: false
+      retryScheduled: false
+    }
 
 export const MAX_REALTIME_HANDSHAKE_FAILURES = 3
+export const MAX_AUTHORITATIVE_RECONCILIATION_RETRIES = 3
+
+const AUTHORITATIVE_RECONCILIATION_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const
 
 export function shouldRefreshRealtimeBootstrap(handshakeFailures: number): boolean {
   return handshakeFailures >= MAX_REALTIME_HANDSHAKE_FAILURES
@@ -39,8 +77,62 @@ export function decideRealtimeSendSuccess(
   currentGeneration: number
 ): RealtimeSendSuccessDecision {
   return isRealtimeGenerationCurrent(expectedGeneration, currentGeneration)
-    ? { type: 'apply-response' }
-    : { type: 'reconcile' }
+    ? {
+        type: 'apply-response',
+        commandCommitted: true,
+        inputAcknowledged: true,
+        stateSynchronized: true,
+      }
+    : {
+        type: 'reconcile',
+        commandCommitted: true,
+        inputAcknowledged: true,
+        stateSynchronized: false,
+      }
+}
+
+export function decideRealtimeCommandSync(
+  sendSuccess: RealtimeSendSuccessDecision,
+  reconciliation: 'succeeded' | 'failed',
+  retryScheduled = false
+): RealtimeCommandSyncDecision {
+  if (sendSuccess.stateSynchronized || reconciliation === 'succeeded') {
+    return {
+      type: 'synchronized',
+      commandCommitted: true,
+      inputAcknowledged: true,
+      stateSynchronized: true,
+      retryScheduled: false,
+    }
+  }
+
+  return retryScheduled
+    ? {
+        type: 'retrying',
+        commandCommitted: true,
+        inputAcknowledged: true,
+        stateSynchronized: false,
+        retryScheduled: true,
+      }
+    : {
+        type: 'sync-failed',
+        commandCommitted: true,
+        inputAcknowledged: true,
+        stateSynchronized: false,
+        retryScheduled: false,
+      }
+}
+
+export function getAuthoritativeReconciliationRetryDelay(attempt: number): number | null {
+  if (
+    !Number.isInteger(attempt) ||
+    attempt < 0 ||
+    attempt >= MAX_AUTHORITATIVE_RECONCILIATION_RETRIES
+  ) {
+    return null
+  }
+
+  return AUTHORITATIVE_RECONCILIATION_RETRY_DELAYS_MS[attempt]
 }
 
 export function hasConversationIdentityChanged(

@@ -9,8 +9,10 @@ import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import {
   applyConversationClosedBarrier,
+  decideRealtimeCommandSync,
   decideRealtimeEvent,
   decideRealtimeSendSuccess,
+  getAuthoritativeReconciliationRetryDelay,
   hasConversationIdentityChanged,
   isRealtimeGenerationCurrent,
   mergeRealtimeMessages,
@@ -156,6 +158,10 @@ export default function FloatingChat() {
   conversationIdRef.current = conversationId
   const requestGenerationRef = useRef(0)
   const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
+  const authoritativeRetryRef = useRef<{ attempt: number; timer: number | null }>({
+    attempt: 0,
+    timer: null,
+  })
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
@@ -298,6 +304,64 @@ export default function FloatingChat() {
     return trackedPromise
   }, [applyConversationHistory])
 
+  const resetAuthoritativeReconciliationRetry = useCallback(() => {
+    const retryState = authoritativeRetryRef.current
+    if (retryState.timer !== null) window.clearTimeout(retryState.timer)
+    retryState.attempt = 0
+    retryState.timer = null
+  }, [])
+
+  const scheduleAuthoritativeReconciliationRetry = useCallback(
+    (sendSuccess: ReturnType<typeof decideRealtimeSendSuccess>): boolean => {
+      const scheduleNext = (): boolean => {
+        const retryState = authoritativeRetryRef.current
+        if (retryState.timer !== null) return true
+
+        const delay = getAuthoritativeReconciliationRetryDelay(retryState.attempt)
+        if (delay === null) return false
+
+        retryState.attempt += 1
+        retryState.timer = window.setTimeout(() => {
+          retryState.timer = null
+          const retryGeneration = requestGenerationRef.current
+          void reconcileRealtimeState()
+            .then(() => {
+              const syncDecision = decideRealtimeCommandSync(sendSuccess, 'succeeded')
+              resetAuthoritativeReconciliationRetry()
+              if (
+                syncDecision.type === 'synchronized' &&
+                isRealtimeGenerationCurrent(retryGeneration, requestGenerationRef.current)
+              ) {
+                setError(null)
+              }
+            })
+            .catch(() => {
+              const retryScheduled = scheduleNext()
+              const syncDecision = decideRealtimeCommandSync(sendSuccess, 'failed', retryScheduled)
+              if (
+                isRealtimeGenerationCurrent(retryGeneration, requestGenerationRef.current) &&
+                syncDecision.type !== 'synchronized'
+              ) {
+                setError(
+                  syncDecision.type === 'retrying'
+                    ? '留言已提交，但状态同步暂时失败，正在重试。'
+                    : '留言已提交，但状态同步失败，请重新打开聊天重试。'
+                )
+              }
+            })
+        }, delay)
+        return true
+      }
+
+      return scheduleNext()
+    },
+    [reconcileRealtimeState, resetAuthoritativeReconciliationRetry]
+  )
+
+  useEffect(() => {
+    return () => resetAuthoritativeReconciliationRetry()
+  }, [resetAuthoritativeReconciliationRetry])
+
   const recoverRealtimeGap = useCallback(() => reconcileRealtimeState(), [reconcileRealtimeState])
 
   const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
@@ -357,9 +421,35 @@ export default function FloatingChat() {
         realtimeEnabled?: boolean
       }
       const successDecision = decideRealtimeSendSuccess(generation, requestGenerationRef.current)
-      if (successDecision.type === 'reconcile') {
-        await reconcileRealtimeState()
+      if (successDecision.commandCommitted && successDecision.inputAcknowledged) {
         setInput('')
+      }
+      if (successDecision.type === 'reconcile') {
+        const reconciliationGeneration = requestGenerationRef.current
+        try {
+          await reconcileRealtimeState()
+          const syncDecision = decideRealtimeCommandSync(successDecision, 'succeeded')
+          resetAuthoritativeReconciliationRetry()
+          if (
+            syncDecision.type === 'synchronized' &&
+            isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
+          ) {
+            setError(null)
+          }
+        } catch {
+          const retryScheduled = scheduleAuthoritativeReconciliationRetry(successDecision)
+          const syncDecision = decideRealtimeCommandSync(successDecision, 'failed', retryScheduled)
+          if (
+            isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current) &&
+            syncDecision.type !== 'synchronized'
+          ) {
+            setError(
+              syncDecision.type === 'retrying'
+                ? '留言已提交，但状态同步暂时失败，正在重试。'
+                : '留言已提交，但状态同步失败，请重新打开聊天重试。'
+            )
+          }
+        }
         return
       }
 
@@ -383,7 +473,6 @@ export default function FloatingChat() {
           mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
         )
       }
-      setInput('')
     } catch (submissionError) {
       if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       setError(
@@ -395,7 +484,14 @@ export default function FloatingChat() {
       turnstileRef.current?.reset()
       setIsSending(false)
     }
-  }, [input, isSending, reconcileRealtimeState, siteKey])
+  }, [
+    input,
+    isSending,
+    reconcileRealtimeState,
+    resetAuthoritativeReconciliationRetry,
+    scheduleAuthoritativeReconciliationRetry,
+    siteKey,
+  ])
 
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {

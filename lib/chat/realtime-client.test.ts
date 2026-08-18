@@ -3,10 +3,13 @@ import test from 'node:test'
 import {
   applyConversationClosedBarrier,
   applyRealtimeError,
+  decideRealtimeCommandSync,
   decideRealtimeEvent,
   decideRealtimeSendSuccess,
+  getAuthoritativeReconciliationRetryDelay,
   hasConversationIdentityChanged,
   isRealtimeGenerationCurrent,
+  MAX_AUTHORITATIVE_RECONCILIATION_RETRIES,
   MAX_REALTIME_HANDSHAKE_FAILURES,
   mergeRealtimeMessages,
   shouldRefreshRealtimeBootstrap,
@@ -68,15 +71,45 @@ test('realtime handshake refresh starts only after the failure threshold', () =>
 test('conversation generation fencing rejects stale responses', () => {
   assert.equal(isRealtimeGenerationCurrent(4, 4), true)
   assert.equal(isRealtimeGenerationCurrent(4, 5), false)
-  assert.deepEqual(decideRealtimeSendSuccess(4, 4), { type: 'apply-response' })
-  assert.deepEqual(decideRealtimeSendSuccess(4, 5), { type: 'reconcile' })
+  assert.deepEqual(decideRealtimeSendSuccess(4, 4), {
+    type: 'apply-response',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: true,
+  })
+  assert.deepEqual(decideRealtimeSendSuccess(4, 5), {
+    type: 'reconcile',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: false,
+  })
   assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-b'), true)
   assert.equal(hasConversationIdentityChanged('conversation-a', 'conversation-a'), false)
 })
 
 test('initial bootstrap generation change reconciles a successful send without dropping its message', () => {
   const decision = decideRealtimeSendSuccess(0, 1)
-  assert.deepEqual(decision, { type: 'reconcile' })
+  assert.deepEqual(decision, {
+    type: 'reconcile',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: false,
+  })
+  assert.equal(getAuthoritativeReconciliationRetryDelay(0), 500)
+  assert.deepEqual(decideRealtimeCommandSync(decision, 'failed', true), {
+    type: 'retrying',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: false,
+    retryScheduled: true,
+  })
+  assert.deepEqual(decideRealtimeCommandSync(decision, 'succeeded'), {
+    type: 'synchronized',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: true,
+    retryScheduled: false,
+  })
 
   const authoritativeSnapshot = {
     conversationId: 'conversation-a',
@@ -95,7 +128,14 @@ test('initial bootstrap generation change reconciles a successful send without d
 
 test('a stale send success after close/create converges on the authoritative new conversation', () => {
   const decision = decideRealtimeSendSuccess(8, 9)
-  assert.deepEqual(decision, { type: 'reconcile' })
+  assert.deepEqual(decision, {
+    type: 'reconcile',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: false,
+  })
+  assert.equal(getAuthoritativeReconciliationRetryDelay(1), 1_000)
+  assert.deepEqual(decideRealtimeCommandSync(decision, 'failed', true).type, 'retrying')
 
   const committedMessage = { id: 'message-b', createdAt: '2026-08-18T00:00:02.000Z' }
   const authoritativeSnapshot = {
@@ -119,7 +159,14 @@ test('a delayed send response cannot roll a newer conversation back to the old i
     message: { id: 'message-a', createdAt: '2026-08-18T00:00:03.000Z' },
   }
   const decision = decideRealtimeSendSuccess(12, 13)
-  assert.deepEqual(decision, { type: 'reconcile' })
+  assert.deepEqual(decision, {
+    type: 'reconcile',
+    commandCommitted: true,
+    inputAcknowledged: true,
+    stateSynchronized: false,
+  })
+  assert.deepEqual(decideRealtimeCommandSync(decision, 'failed', true).type, 'retrying')
+  assert.deepEqual(decideRealtimeCommandSync(decision, 'succeeded').type, 'synchronized')
 
   const authoritativeSnapshot = {
     conversationId: 'conversation-b',
@@ -134,6 +181,10 @@ test('a delayed send response cannot roll a newer conversation back to the old i
   assert.equal(
     authoritativeSnapshot.messages.some((message) => message.id === delayedResponse.message.id),
     false
+  )
+  assert.equal(
+    getAuthoritativeReconciliationRetryDelay(MAX_AUTHORITATIVE_RECONCILIATION_RETRIES),
+    null
   )
 })
 

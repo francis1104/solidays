@@ -10,6 +10,8 @@ import {
   type AdminMessagesResponse,
   type AdminReplyResponse,
 } from './admin-types'
+import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import { useChatRealtime } from '@/components/chat/use-chat-realtime'
 
 type ConversationDetailProps = {
   conversationId: string
@@ -33,6 +35,35 @@ async function loadAdminMessages(
   return (await response.json()) as AdminMessagesResponse
 }
 
+const MAX_REFRESH_PAGES = 25
+
+async function fetchAdminMessagesUntilOverlap(
+  conversationId: string,
+  knownIds: Set<string>
+): Promise<AdminMessage[]> {
+  let cursor: string | null = null
+  let combined: AdminMessage[] = []
+
+  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
+    const body = await loadAdminMessages(conversationId, cursor)
+    const fetched = Array.isArray(body.messages) ? body.messages : []
+    const hitKnown = fetched.some((message) => knownIds.has(message.id))
+    combined = page === 0 ? fetched : [...fetched, ...combined]
+
+    if (hitKnown || !body.hasMore || !body.nextCursor) break
+    cursor = body.nextCursor
+  }
+
+  const seen = new Set<string>()
+  const unique: AdminMessage[] = []
+  for (const message of combined) {
+    if (seen.has(message.id)) continue
+    seen.add(message.id)
+    unique.push(message)
+  }
+  return unique
+}
+
 export function ConversationDetail({
   conversationId,
   onBack,
@@ -50,6 +81,8 @@ export function ConversationDetail({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const pendingScrollAdjustRef = useRef<number | null>(null)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
   const reducedMotion = useReducedMotion() ?? false
 
   useEffect(() => {
@@ -128,6 +161,42 @@ export function ConversationDetail({
       setLoadingMore(false)
     }
   }, [conversationId, loadingMore, nextCursor, onSessionExpired])
+
+  const recoverRealtimeGap = useCallback(async () => {
+    const knownIds = new Set(messagesRef.current.map((message) => message.id))
+    const fetched = await fetchAdminMessagesUntilOverlap(conversationId, knownIds)
+    setMessages((current) => {
+      const known = new Set(current.map((message) => message.id))
+      const additions = fetched.filter((message) => !known.has(message.id))
+      return additions.length ? [...current, ...additions] : current
+    })
+  }, [conversationId])
+
+  const handleRealtimeEvent = useCallback(
+    (event: ChatRealtimeEvent) => {
+      if (event.conversationId !== conversationId) return
+      if (event.type === 'conversation.closed') return
+
+      const incoming: AdminMessage = {
+        id: event.message.id,
+        role: event.message.role,
+        content: event.message.content,
+        pageUrl: event.message.pageUrl,
+        createdAt: new Date(event.message.createdAt).toISOString(),
+      }
+      setMessages((current) =>
+        current.some((message) => message.id === incoming.id) ? current : [...current, incoming]
+      )
+    },
+    [conversationId]
+  )
+
+  useChatRealtime({
+    enabled: status === 'ready',
+    path: `/api/admin/conversations/${conversationId}/realtime`,
+    onEvent: handleRealtimeEvent,
+    onReconnect: recoverRealtimeGap,
+  })
 
   const sendReply = useCallback(
     async (event: FormEvent) => {

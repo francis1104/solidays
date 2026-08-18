@@ -3,6 +3,8 @@ import { ChatQuotaExceededError, findVisitor, persistVisitorMessage } from '@/li
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin, normalizePageUrl } from '@/lib/chat/security'
+import { publishConversationEvent } from '@/lib/chat/realtime'
+import { buildMessageCreatedEvent } from '@/lib/chat/realtime-events'
 import { buildVisitorCookie, createVisitorId, getVisitorId } from '@/lib/chat/session'
 import { toConversationDto, toMessageDto } from '@/lib/chat/types'
 import { verifyTurnstile } from '@/lib/chat/turnstile'
@@ -75,6 +77,11 @@ export async function POST(request: Request) {
       ...input,
       pageUrl: normalizePageUrl(input.pageUrl, request),
     })
+    await publishConversationEvent(
+      env,
+      result.conversation.id,
+      buildMessageCreatedEvent(result.message)
+    )
     const headers = new Headers()
     if (!visitorId) headers.set('set-cookie', buildVisitorCookie(persistedVisitorId, request))
 

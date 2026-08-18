@@ -1,10 +1,11 @@
-# Cloudflare Chat Backend V1 实施记录
+# Cloudflare Chat Backend 实施记录
 
 ## 范围
 
-本期是“匿名留言 V1”，不是 AI 聊天，也不是实时客服：访客可以提交留言、刷新后看到当前仍开放的
-留言会话，并主动结束会话。数据写入 Cloudflare D1；代码保留 `owner` 和 `system` 消息角色，供后续
-回复能力扩展，但本期不实现 owner 登录、管理后台、邮件、队列、WebSocket、Durable Objects 或 AI。
+匿名留言的权威数据仍由 Cloudflare D1 保存：访客可以提交留言、读取当前开放会话并主动结束会话。
+在 V1 HTTP 能力之上，本次已在 DEV 完成会话级实时基础层：每个开放会话对应一个
+`ChatConversation` Durable Object，访客端和 Admin 端通过 WebSocket 接收 D1 写入后的事件。
+这不是 AI 聊天；实时层只负责广播，不接受客户端写入，D1 HTTP 接口仍是唯一写入入口。
 
 ## 已落地结构
 
@@ -17,6 +18,34 @@
 - `migrations/0002_chat_quotas.sql`：消息计数/字节计数、配额触发器、历史游标索引和删除时的计数维护。
 - `custom-worker.ts`：复用 OpenNext fetch handler，并通过 Cron 定期清理过期会话。
 - `components/chat/`：前端读取历史并提交真实响应；显示“匿名留言”，不追加本地假回复。
+
+## 实时消息改造（DEV 已完成基础阶段）
+
+### Worker 与 Durable Object
+
+- `wrangler.jsonc` 声明 `CHAT_CONVERSATIONS` Durable Object binding，类名为
+  `ChatConversation`，并登记 `chat-realtime-v1` SQLite migration。
+- `lib/chat/realtime-object.ts` 实现会话级 Hibernation WebSocket：连接只保存 audience 和
+  conversation ID attachment；客户端帧全部忽略，不能绕过 HTTP 接口写入消息。
+- `lib/chat/realtime-events.ts` 定义并校验 `message.created` 与 `conversation.closed` 事件。
+- `lib/chat/realtime.ts` 在 D1 写入成功后调用对应 Durable Object 广播；广播失败只记录结构化日志，
+  不回滚或阻断已经成功的 D1 写入。
+
+### 接口与前端
+
+| 接口 | 作用 | 额外保护 |
+| --- | --- | --- |
+| `GET /api/chat/realtime` | 当前访客开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话、同源 Origin、WebSocket Upgrade |
+| `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话 ID/存在性、同源 Origin、WebSocket Upgrade |
+
+`custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
+`101 Switching Protocols` 响应；普通 HTTP 请求仍由原有 Next.js route handler 处理。
+`components/chat/use-chat-realtime.ts` 负责指数退避重连。重连成功后，访客端和 Admin 端都会从 D1
+按游标补拉到已知消息 ID，避免断线期间漏消息；HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+
+本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；`wrangler.jsonc` 默认值仍为
+`false`，因此生产实时入口在完成 DEV 浏览器验收前不会被启用。当前阶段尚未实现 Queue 异步投递、
+Slack 通知和生产灰度开关；这些属于实时改造方案的后续阶段。
 
 接口保护范围：
 
@@ -86,7 +115,7 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求映射到
 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS Origin 校验。
 
-## 当前状态（原 AGENTS.md「匿名留言 V1 状态」清单，2026-08-16 合并）
+## 当前状态（2026-08-18）
 
 - [x] 接入 `GET /api/chat/conversation`、`POST /api/chat/messages` 和
       `POST /api/chat/conversation/close`。
@@ -106,6 +135,13 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       聊天路由和伪造 token 拒绝检查已通过。
 - [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
       1 个访客、1 个开放会话和 3 条 visitor 消息。
+- [x] DEV 已接入会话级 `ChatConversation` Durable Object、访客/Admin WebSocket、消息创建和
+      会话关闭事件、断线指数退避重连、D1 补拉和客户端消息去重；本地已完成双端事件互通 smoke test。
+- [x] 本地 Worker 已验证 WebSocket `101` 握手、访客/Admin 双端同时收取 visitor/owner 消息、关闭事件、
+      无效客户端帧忽略以及未授权连接拒绝。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
-- [ ] 后续再做 owner 登录、后台回复、邮件通知或实时能力；本期不实现。
+- [ ] 将实时开关从 DEV 本地验证推进到生产灰度；发布前需要按
+      `docs/testing/pre-commit-verification.md` 和 `docs/testing/post-deployment-verification.md`
+      完成浏览器验收。
+- [ ] 后续实现 Queue 异步通知、Slack 消息通知和失败重试/可观测性闭环。

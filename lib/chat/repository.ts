@@ -251,15 +251,26 @@ export async function persistVisitorMessage(
   }
 }
 
-export async function closeOpenConversation(db: D1Database, visitorId: string): Promise<void> {
-  await db
+export async function closeOpenConversation(
+  db: D1Database,
+  visitorId: string
+): Promise<ConversationRow | null> {
+  const conversation = await findOpenConversation(db, visitorId)
+  if (!conversation) return null
+
+  const now = Date.now()
+  const result = await db
     .prepare(
       `UPDATE conversations
        SET status = 'closed', updated_at = ?
-       WHERE visitor_id = ? AND status = 'open'`
+       WHERE id = ? AND visitor_id = ? AND status = 'open'`
     )
-    .bind(Date.now(), visitorId)
+    .bind(now, conversation.id, visitorId)
     .run()
+
+  if ((result.meta.changes ?? 0) !== 1) return null
+
+  return { ...conversation, status: 'closed', updated_at: now }
 }
 
 export async function purgeExpiredChatData(

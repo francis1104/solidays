@@ -6,6 +6,8 @@ import { isAllowedOrigin } from '@/lib/chat/security'
 import { hasValidAdminSession } from '@/lib/admin/auth'
 import { getConversationById, persistOwnerMessage } from '@/lib/admin/repository'
 import { toAdminConversationDto, toAdminMessageDto } from '@/lib/admin/types'
+import { publishConversationEvent } from '@/lib/chat/realtime'
+import { buildMessageCreatedEvent } from '@/lib/chat/realtime-events'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,6 +95,8 @@ export async function POST(request: Request, { params }: MessageRouteContext) {
       }
       return errorResponse(409, 'CONVERSATION_CLOSED', '会话已关闭，无法回复。')
     }
+
+    await publishConversationEvent(env, id, buildMessageCreatedEvent(result.message))
 
     return jsonResponse(
       {

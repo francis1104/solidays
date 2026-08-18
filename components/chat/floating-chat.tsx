@@ -6,6 +6,8 @@ import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
+import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import { useChatRealtime } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
 
@@ -81,6 +83,7 @@ export default function FloatingChat() {
   const [error, setError] = useState<string | null>(null)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -127,7 +130,13 @@ export default function FloatingChat() {
         conversation: ChatApiResponse['conversation']
         message: ChatApiMessage
       }
-      setMessages((current) => [...current, mapApiMessage(body.message)])
+      setConversationId(body.conversation?.id ?? null)
+      const submittedMessage = mapApiMessage(body.message)
+      setMessages((current) =>
+        current.some((message) => message.id === submittedMessage.id)
+          ? current
+          : [...current, submittedMessage]
+      )
       setInput('')
     } catch (submissionError) {
       setError(
@@ -168,6 +177,46 @@ export default function FloatingChat() {
     }
   }, [historyCursor, isLoadingMoreHistory])
 
+  const recoverRealtimeGap = useCallback(async () => {
+    const knownIds = new Set(messagesRef.current.map((message) => message.id))
+    const fetched = await fetchMessagesUntilOverlap(knownIds)
+    setMessages((current) => {
+      const known = new Set(current.map((message) => message.id))
+      const additions = fetched.filter((message) => !known.has(message.id))
+      return additions.length ? [...current, ...additions] : current
+    })
+  }, [])
+
+  const handleRealtimeEvent = useCallback(
+    (event: ChatRealtimeEvent) => {
+      if (event.conversationId !== conversationId) return
+
+      if (event.type === 'conversation.closed') {
+        setConversationId(null)
+        return
+      }
+
+      const incoming = mapApiMessage({
+        id: event.message.id,
+        role: event.message.role,
+        content: event.message.content,
+        pageUrl: event.message.pageUrl,
+        createdAt: new Date(event.message.createdAt).toISOString(),
+      })
+      setMessages((current) =>
+        current.some((message) => message.id === incoming.id) ? current : [...current, incoming]
+      )
+    },
+    [conversationId]
+  )
+
+  useChatRealtime({
+    enabled: open && Boolean(conversationId),
+    path: '/api/chat/realtime',
+    onEvent: handleRealtimeEvent,
+    onReconnect: recoverRealtimeGap,
+  })
+
   useEffect(() => {
     if (!open) return
 
@@ -176,6 +225,7 @@ export default function FloatingChat() {
       void loadConversationPage(null)
         .then((body) => {
           const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+          setConversationId(body.conversation?.id ?? null)
           setMessages(history.length ? [initialMessages[0], ...history] : initialMessages)
           setHistoryCursor(body.nextCursor ?? null)
           setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
@@ -183,6 +233,7 @@ export default function FloatingChat() {
         })
         .catch((loadError) => {
           historyRequestedRef.current = false
+          setConversationId(null)
           setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
         })
       return

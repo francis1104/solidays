@@ -129,40 +129,151 @@ export async function loadOpenConversation(
   }
 }
 
+type ReturnedIdRow = { id: string }
+
+type VisitorMessageCommand = {
+  messageId: string
+  clientMessageId: string
+  createdAt: number
+}
+
+export type PersistedVisitorMessage = {
+  visitorId: string
+  conversation: ConversationRow
+  message: MessageRow
+  created: boolean
+}
+
+type ExistingVisitorMessageRow = {
+  conversation_id: string
+  visitor_id: string
+  conversation_status: ConversationRow['status']
+  last_page_url: string | null
+  conversation_created_at: number
+  conversation_updated_at: number
+  message_id: string
+  message_role: MessageRow['role']
+  message_content: string
+  message_page_url: string | null
+  message_created_at: number
+  client_message_id: string
+}
+
+function toPersistedVisitorMessage(row: ExistingVisitorMessageRow): PersistedVisitorMessage {
+  return {
+    visitorId: row.visitor_id,
+    conversation: {
+      id: row.conversation_id,
+      visitor_id: row.visitor_id,
+      status: row.conversation_status,
+      last_page_url: row.last_page_url,
+      created_at: row.conversation_created_at,
+      updated_at: row.conversation_updated_at,
+    },
+    message: {
+      id: row.message_id,
+      conversation_id: row.conversation_id,
+      role: row.message_role,
+      content: row.message_content,
+      page_url: row.message_page_url,
+      created_at: row.message_created_at,
+      client_message_id: row.client_message_id,
+    },
+    created: false,
+  }
+}
+
+export async function findVisitorMessageByClientMessageId(
+  db: D1Database,
+  clientMessageId: string,
+  visitorId: string | null = null
+): Promise<PersistedVisitorMessage | null> {
+  const visitorClause = visitorId ? ' AND c.visitor_id = ?' : ''
+  const values = visitorId ? [clientMessageId, visitorId] : [clientMessageId]
+  const row = await db
+    .prepare(
+      `SELECT
+         c.id AS conversation_id,
+         c.visitor_id,
+         c.status AS conversation_status,
+         c.last_page_url,
+         c.created_at AS conversation_created_at,
+         c.updated_at AS conversation_updated_at,
+         m.id AS message_id,
+         m.role AS message_role,
+         m.content AS message_content,
+         m.page_url AS message_page_url,
+         m.created_at AS message_created_at,
+         m.client_message_id
+       FROM messages m
+       INNER JOIN conversations c ON c.id = m.conversation_id
+       WHERE m.client_message_id = ?${visitorClause}
+       LIMIT 1`
+    )
+    .bind(...values)
+    .first<ExistingVisitorMessageRow>()
+
+  return row ? toPersistedVisitorMessage(row) : null
+}
+
+function createVisitorMessageCommand(input: ChatMessageInput): VisitorMessageCommand {
+  return {
+    messageId: crypto.randomUUID(),
+    clientMessageId: input.clientMessageId ?? crypto.randomUUID(),
+    createdAt: Date.now(),
+  }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes('UNIQUE constraint failed') || message.includes('SQLITE_CONSTRAINT_UNIQUE')
+  )
+}
+
+function isRetryableVisitorWriteError(error: unknown): boolean {
+  return error instanceof ChatWriteConflictError || isUniqueConstraintError(error)
+}
+
 async function appendToConversation(
   db: D1Database,
   conversation: ConversationRow,
   input: ChatMessageInput,
   visitorId: string,
-  now: number
-) {
+  command: VisitorMessageCommand
+): Promise<PersistedVisitorMessage> {
   const message: MessageRow = {
-    id: crypto.randomUUID(),
+    id: command.messageId,
     conversation_id: conversation.id,
     role: 'visitor',
     content: input.content,
     page_url: input.pageUrl,
-    created_at: now,
+    created_at: command.createdAt,
+    client_message_id: command.clientMessageId,
   }
 
   try {
     const results = await db.batch([
       db
         .prepare('INSERT OR IGNORE INTO visitors (id, created_at, last_seen_at) VALUES (?, ?, ?)')
-        .bind(visitorId, now, now),
+        .bind(visitorId, command.createdAt, command.createdAt),
       db
         .prepare(
           `UPDATE conversations
            SET updated_at = ?, last_page_url = COALESCE(?, last_page_url)
-           WHERE id = ? AND visitor_id = ? AND status = 'open'`
+           WHERE id = ? AND visitor_id = ? AND status = 'open'
+           RETURNING id`
         )
-        .bind(now, input.pageUrl, conversation.id, visitorId),
+        .bind(command.createdAt, input.pageUrl, conversation.id, visitorId),
       db
         .prepare(
-          `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-           SELECT ?, id, ?, ?, ?, ?
+          `INSERT INTO messages (
+             id, conversation_id, role, content, page_url, created_at, client_message_id
+           )
+           SELECT ?, id, ?, ?, ?, ?, ?
            FROM conversations
-           WHERE id = ? AND visitor_id = ? AND status = 'open'`
+           WHERE id = ? AND visitor_id = ? AND status = 'open'
+           RETURNING id`
         )
         .bind(
           message.id,
@@ -170,13 +281,18 @@ async function appendToConversation(
           message.content,
           message.page_url,
           message.created_at,
+          message.client_message_id,
           conversation.id,
           visitorId
         ),
-      db.prepare('UPDATE visitors SET last_seen_at = ? WHERE id = ?').bind(now, visitorId),
+      db
+        .prepare('UPDATE visitors SET last_seen_at = ? WHERE id = ?')
+        .bind(command.createdAt, visitorId),
     ])
 
-    if ((results[1]?.meta.changes ?? 0) !== 1 || (results[2]?.meta.changes ?? 0) !== 1) {
+    const updatedId = (results[1]?.results?.[0] as ReturnedIdRow | undefined)?.id
+    const insertedId = (results[2]?.results?.[0] as ReturnedIdRow | undefined)?.id
+    if (updatedId !== conversation.id || insertedId !== message.id) {
       throw new ChatWriteConflictError()
     }
   } catch (error) {
@@ -185,12 +301,14 @@ async function appendToConversation(
   }
 
   return {
+    visitorId,
     conversation: {
       ...conversation,
       last_page_url: input.pageUrl ?? conversation.last_page_url,
-      updated_at: now,
+      updated_at: command.createdAt,
     },
     message,
+    created: true,
   }
 }
 
@@ -199,9 +317,10 @@ const MAX_VISITOR_WRITE_ATTEMPTS = 2
 async function createConversationWithMessage(
   db: D1Database,
   visitorId: string,
-  input: ChatMessageInput
-): Promise<{ conversation: ConversationRow; message: MessageRow }> {
-  const now = Date.now()
+  input: ChatMessageInput,
+  command: VisitorMessageCommand
+): Promise<PersistedVisitorMessage> {
+  const now = command.createdAt
   const conversation: ConversationRow = {
     id: crypto.randomUUID(),
     visitor_id: visitorId,
@@ -211,12 +330,13 @@ async function createConversationWithMessage(
     updated_at: now,
   }
   const message: MessageRow = {
-    id: crypto.randomUUID(),
+    id: command.messageId,
     conversation_id: conversation.id,
     role: 'visitor',
     content: input.content,
     page_url: input.pageUrl,
     created_at: now,
+    client_message_id: command.clientMessageId,
   }
 
   await db.batch([
@@ -238,8 +358,10 @@ async function createConversationWithMessage(
       ),
     db
       .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO messages (
+           id, conversation_id, role, content, page_url, created_at, client_message_id
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         message.id,
@@ -247,45 +369,79 @@ async function createConversationWithMessage(
         message.role,
         message.content,
         message.page_url,
-        message.created_at
+        message.created_at,
+        message.client_message_id
       ),
   ])
 
-  return { conversation, message }
+  return { visitorId, conversation, message, created: true }
 }
 
 export async function persistVisitorMessage(
   db: D1Database,
-  visitorId: string,
+  visitorId: string | null,
   input: ChatMessageInput
-): Promise<{ conversation: ConversationRow; message: MessageRow }> {
+): Promise<PersistedVisitorMessage> {
+  const command = createVisitorMessageCommand(input)
+  if (input.clientMessageId) {
+    const existing = await findVisitorMessageByClientMessageId(db, input.clientMessageId, visitorId)
+    if (existing) return existing
+  }
+
+  const persistedVisitorId = visitorId ?? crypto.randomUUID()
+  const idempotencyVisitorId = visitorId === null ? null : persistedVisitorId
   let lastConflict: ChatWriteConflictError | null = null
 
   for (let attempt = 0; attempt < MAX_VISITOR_WRITE_ATTEMPTS; attempt += 1) {
-    const existing = await findOpenConversation(db, visitorId)
+    const committed = await findVisitorMessageByClientMessageId(
+      db,
+      command.clientMessageId,
+      idempotencyVisitorId
+    )
+    if (committed) return committed
+
+    const existing = await findOpenConversation(db, persistedVisitorId)
 
     if (existing) {
       try {
-        return await appendToConversation(db, existing, input, visitorId, Date.now())
+        return await appendToConversation(db, existing, input, persistedVisitorId, command)
       } catch (error) {
-        if (!(error instanceof ChatWriteConflictError)) throw error
-        lastConflict = error
+        if (!isRetryableVisitorWriteError(error)) throw error
+        const committedAfterError = await findVisitorMessageByClientMessageId(
+          db,
+          command.clientMessageId,
+          idempotencyVisitorId
+        )
+        if (committedAfterError) return committedAfterError
+        lastConflict = new ChatWriteConflictError()
         continue
       }
     }
 
     try {
-      return await createConversationWithMessage(db, visitorId, input)
+      return await createConversationWithMessage(db, persistedVisitorId, input, command)
     } catch (error) {
+      const committedAfterError = await findVisitorMessageByClientMessageId(
+        db,
+        command.clientMessageId,
+        idempotencyVisitorId
+      )
+      if (committedAfterError) return committedAfterError
       if (isQuotaExceededError(error)) throw new ChatQuotaExceededError()
 
-      const concurrent = await findOpenConversation(db, visitorId)
+      const concurrent = await findOpenConversation(db, persistedVisitorId)
       if (!concurrent) throw error
       try {
-        return await appendToConversation(db, concurrent, input, visitorId, Date.now())
+        return await appendToConversation(db, concurrent, input, persistedVisitorId, command)
       } catch (appendError) {
-        if (!(appendError instanceof ChatWriteConflictError)) throw appendError
-        lastConflict = appendError
+        if (!isRetryableVisitorWriteError(appendError)) throw appendError
+        const committedAfterAppendError = await findVisitorMessageByClientMessageId(
+          db,
+          command.clientMessageId,
+          idempotencyVisitorId
+        )
+        if (committedAfterAppendError) return committedAfterAppendError
+        lastConflict = new ChatWriteConflictError()
       }
     }
   }
@@ -305,12 +461,13 @@ export async function closeOpenConversation(
     .prepare(
       `UPDATE conversations
        SET status = 'closed', updated_at = ?
-       WHERE id = ? AND visitor_id = ? AND status = 'open'`
+       WHERE id = ? AND visitor_id = ? AND status = 'open'
+       RETURNING id`
     )
     .bind(now, conversation.id, visitorId)
-    .run()
+    .first<{ id: string }>()
 
-  if ((result.meta.changes ?? 0) !== 1) return null
+  if (result?.id !== conversation.id) return null
 
   return { ...conversation, status: 'closed', updated_at: now }
 }

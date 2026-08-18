@@ -159,19 +159,23 @@ export async function persistOwnerMessage(
         `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
          SELECT ?, id, ?, ?, ?, ?
          FROM conversations
-         WHERE id = ? AND status = 'open'`
+         WHERE id = ? AND status = 'open'
+         RETURNING id`
       )
       .bind(message.id, message.role, message.content, null, message.created_at, conversationId),
     db
       .prepare(
         `UPDATE conversations
          SET updated_at = ?
-         WHERE id = ? AND status = 'open'`
+         WHERE id = ? AND status = 'open'
+         RETURNING id`
       )
       .bind(now, conversationId),
   ])
 
-  if ((results[0]?.meta.changes ?? 0) !== 1) {
+  const insertedId = (results[0]?.results?.[0] as { id?: string } | undefined)?.id
+  const updatedId = (results[1]?.results?.[0] as { id?: string } | undefined)?.id
+  if (insertedId !== message.id || updatedId !== conversationId) {
     const conversation = await getConversationById(db, conversationId)
     if (!conversation) return { ok: false, reason: 'not_found' }
     if (conversation.status !== 'open') return { ok: false, reason: 'closed' }

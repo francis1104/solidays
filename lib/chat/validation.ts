@@ -2,6 +2,7 @@ import type { ChatMessageInput } from './types'
 
 const MAX_BODY_BYTES = 32 * 1024
 const MAX_TOKEN_LENGTH = 2048
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 async function readBodyWithinLimit(request: Request): Promise<string | null> {
   const reader = request.body?.getReader()
@@ -62,6 +63,7 @@ export async function parseMessageInput(request: Request): Promise<ChatMessageIn
   const content = typeof record.content === 'string' ? record.content.trim() : ''
   const pageUrl = record.pageUrl
   const turnstileToken = record.turnstileToken
+  const clientMessageId = record.clientMessageId
 
   if ([...content].length < 1 || [...content].length > 2000) return null
   if (pageUrl !== undefined && pageUrl !== null && typeof pageUrl !== 'string') return null
@@ -72,10 +74,17 @@ export async function parseMessageInput(request: Request): Promise<ChatMessageIn
   ) {
     return null
   }
+  if (
+    clientMessageId !== undefined &&
+    (typeof clientMessageId !== 'string' || !uuidPattern.test(clientMessageId))
+  ) {
+    return null
+  }
 
   return {
     content,
     pageUrl: typeof pageUrl === 'string' ? pageUrl.slice(0, 2048) : null,
     turnstileToken,
+    clientMessageId: typeof clientMessageId === 'string' ? clientMessageId : null,
   }
 }

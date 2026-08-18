@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { clearSingleFlight, getOrCreateSingleFlight } from '@/lib/chat/single-flight'
 
 type TurnstileWidgetId = string | number
 
@@ -117,9 +118,15 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
     const tokenRef = useRef<string | null>(null)
     const pendingResolveRef = useRef<((token: string | null) => void) | null>(null)
     const pendingTimeoutRef = useRef<TurnstileTimeoutHandle | null>(null)
+    const pendingTokenPromiseRef = useRef<Promise<string | null> | null>(null)
     const readyPromiseRef = useRef<Promise<TurnstileWidgetId | null> | null>(null)
     const readyResolveRef = useRef<ReadyResolve | null>(null)
     const challengeInFlightRef = useRef(false)
+
+    const settlePending = useCallback((token: string | null) => {
+      clearSingleFlight(pendingTokenPromiseRef)
+      settlePendingToken(pendingResolveRef, pendingTimeoutRef, token)
+    }, [])
 
     const startChallenge = useCallback(() => {
       const widgetId = widgetIdRef.current
@@ -131,9 +138,9 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
         turnstile.execute(widgetId)
       } catch {
         challengeInFlightRef.current = false
-        settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+        settlePending(null)
       }
-    }, [])
+    }, [settlePending])
 
     useEffect(() => {
       if (!siteKey || !containerRef.current) return
@@ -173,27 +180,27 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
               callback: (token) => {
                 tokenRef.current = token
                 challengeInFlightRef.current = false
-                settlePendingToken(pendingResolveRef, pendingTimeoutRef, token)
+                settlePending(token)
               },
               'expired-callback': () => {
                 tokenRef.current = null
                 challengeInFlightRef.current = false
-                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+                settlePending(null)
               },
               'error-callback': () => {
                 tokenRef.current = null
                 challengeInFlightRef.current = false
-                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+                settlePending(null)
               },
               'timeout-callback': () => {
                 tokenRef.current = null
                 challengeInFlightRef.current = false
-                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+                settlePending(null)
               },
               'unsupported-callback': () => {
                 tokenRef.current = null
                 challengeInFlightRef.current = false
-                settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+                settlePending(null)
               },
             })
             settleReady(readyResolveRef, resolveReady, widgetIdRef.current)
@@ -204,7 +211,7 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
         })
         .catch(() => {
           settleReady(readyResolveRef, resolveReady, null)
-          settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+          settlePending(null)
         })
 
       return () => {
@@ -213,20 +220,21 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
           readyPromiseRef.current = null
         }
         settleReady(readyResolveRef, resolveReady, null)
-        settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+        settlePending(null)
         challengeInFlightRef.current = false
         if (widgetIdRef.current !== null) {
           window.turnstile?.remove?.(widgetIdRef.current)
           widgetIdRef.current = null
         }
       }
-    }, [siteKey, startChallenge])
+    }, [siteKey, settlePending, startChallenge])
 
     useImperativeHandle(
       ref,
       () => ({
         getToken: async () => {
           if (!siteKey) return null
+          if (pendingTokenPromiseRef.current) return pendingTokenPromiseRef.current
 
           let widgetId = widgetIdRef.current
           if (widgetId === null) {
@@ -244,23 +252,26 @@ export const ChatTurnstile = forwardRef<ChatTurnstileHandle, ChatTurnstileProps>
             return token
           }
 
-          return new Promise((resolve) => {
-            pendingResolveRef.current = resolve
-            pendingTimeoutRef.current = window.setTimeout(() => {
-              settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
-            }, TURNSTILE_TOKEN_TIMEOUT_MS)
-            startChallenge()
+          const pendingPromise = getOrCreateSingleFlight(pendingTokenPromiseRef, () => {
+            return new Promise<string | null>((resolve) => {
+              pendingResolveRef.current = resolve
+              pendingTimeoutRef.current = window.setTimeout(() => {
+                settlePending(null)
+              }, TURNSTILE_TOKEN_TIMEOUT_MS)
+            })
           })
+          startChallenge()
+          return pendingPromise
         },
         reset: () => {
           tokenRef.current = null
           challengeInFlightRef.current = false
-          settlePendingToken(pendingResolveRef, pendingTimeoutRef, null)
+          settlePending(null)
           if (widgetIdRef.current !== null) window.turnstile?.reset(widgetIdRef.current)
           startChallenge()
         },
       }),
-      [siteKey, startChallenge]
+      [siteKey, settlePending, startChallenge]
     )
 
     return <div ref={containerRef} aria-hidden="true" className="sr-only" />

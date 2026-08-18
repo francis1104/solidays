@@ -18,6 +18,7 @@ export type MessageRow = {
   content: string
   page_url: string | null
   created_at: number
+  client_message_id?: string | null
 }
 
 export type ChatMessageDto = {
@@ -48,6 +49,7 @@ export type ChatMessageInput = {
   content: string
   pageUrl: string | null
   turnstileToken: string
+  clientMessageId: string | null
 }
 
 export function toMessageDto(row: MessageRow): ChatMessageDto {

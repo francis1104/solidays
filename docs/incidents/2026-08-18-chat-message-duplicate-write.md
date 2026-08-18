@@ -6,7 +6,8 @@
 - 数据库：Cloudflare D1 `solidays-chat`
 - 相关分支：`cloudflare-worker`、`cloudflare-worker-DEV`
 - 严重程度：P0（消息写入结果与 HTTP 响应不一致，可能重复落库）
-- 当前状态：根因已完成静态分析并用生产数据高度验证；本文件只记录问题和方案，尚未修改代码
+- 当前状态：根因已完成静态分析并用生产数据高度验证；修复已在 `cloudflare-worker-DEV` 实施并通过本地
+  Worker/真实本地 D1 回归，等待 DEV 提交和生产发布后的浏览器验收
 
 这份文档记录匿名留言发送链路在生产出现的几种表现、排查证据、根因判断、为什么现有测试没有挡住，以及下一步应如何修复和验收。
 
@@ -519,7 +520,7 @@ DEV 环境单击、双击、Enter+按钮、Turnstile 慢路径
 4. 不要通过关闭 Durable Object realtime 解决，因为主问题发生在 D1 写入判定；
 5. 不要未经备份和人工确认直接删除重复消息。
 
-当前尚未执行生产数据删除或修正。本文件只记录证据和方案。
+当前尚未执行生产历史重复数据删除或修正。本事故修复只阻止新的重复写入，不自动修改既有历史数据。
 
 ## 9. 完成标准
 
@@ -543,6 +544,36 @@ DEV 环境单击、双击、Enter+按钮、Turnstile 慢路径
 - `components/chat/chat-turnstile.tsx`：token challenge、pending resolver 和 timeout
 - `migrations/0001_chat.sql`：D1 基础表结构
 - `migrations/0002_chat_quotas.sql`：消息/会话配额触发器
+- `migrations/0003_chat_message_idempotency.sql`：visitor message 幂等 key 唯一索引
 - `docs/features/anonymous-chat/backend-implementation.md`：匿名留言后端与 realtime 当前实现
 - `docs/features/anonymous-chat/realtime-messaging-refactor-plan.md`：实时消息架构方案
 
+## 11. 修复落地记录（DEV）
+
+本轮在 `cloudflare-worker-DEV` 完成以下修复，保持 D1 authoritative + Durable Object best-effort
+架构不变：
+
+- visitor append、owner reply、close conversation 的条件写入改为 SQL `RETURNING id` 判断，不再使用
+  `meta.changes === 1` 判断当前 statement 是否成功；清理统计用途的 `meta.changes` 保持不变。
+- 新增 `0003_chat_message_idempotency.sql`，以 `client_message_id` 唯一索引约束一次逻辑 visitor
+  message；同一个 key 的内部 retry、网络重试、首次响应丢失后的无 Cookie 重试都会复用已有消息。
+- 2xx response 被视为 command committed；重复命令返回已有 DTO，不再重复广播；前端成功解析后立即
+  清空 composer，后续 reconciliation 失败不会把已提交文本恢复成可再次发送状态。
+- `FloatingChat` 增加同步发送锁；`ChatTurnstile` 的并发 token 请求共享 single-flight promise。
+- `/api/chat/messages` 增加不含正文、Token、Cookie 的 `chat_message_timing` 结构化日志，拆分
+  Turnstile、D1 write 和总处理耗时。
+
+已完成的本地验证：
+
+```text
+test:chat-realtime：28 tests passed
+lint：passed
+next build：passed
+worker:build：passed
+worker:dev + local D1：同一 clientMessageId 首次 201、重复 200，数据库 1 行；无 Cookie 重试 1 行；
+close 后新会话写入成功
+```
+
+浏览器端真实 Turnstile 交互仍需按发布后验收流程在可用的 Chrome/手机浏览器中确认；本地 dummy
+Turnstile 只用于 Worker/D1 回归，不能替代 Turnstile 本身的挑战验证。生产 Turnstile 不应为了测试
+长期关闭；如必须短暂关闭，必须在测试结束后立即恢复并重新部署，同时复核 Worker 变量和日志。

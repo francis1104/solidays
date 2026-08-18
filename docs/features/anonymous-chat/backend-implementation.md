@@ -16,6 +16,8 @@
 - `migrations/0001_chat.sql`：`visitors`、`conversations`、`messages`，以及每个访客一个 open 会话的
   唯一部分索引。
 - `migrations/0002_chat_quotas.sql`：消息计数/字节计数、配额触发器、历史游标索引和删除时的计数维护。
+- `migrations/0003_chat_message_idempotency.sql`：为 visitor message 增加可空的
+  `client_message_id` 及唯一索引，保证客户端重复提交和服务端安全重试只落一条消息。
 - `custom-worker.ts`：复用 OpenNext fetch handler，并通过 Cron 定期清理过期会话。
 - `components/chat/`：前端读取历史并提交真实响应；显示“匿名留言”，不追加本地假回复。
 
@@ -72,6 +74,24 @@ DO 在广播和客户端帧事件上再次校验，避免过期 Admin 连接继�
 响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
 客户端只在服务端开关打开时建立 WebSocket，避免生产开关关闭时持续重试 404 endpoint。
 
+### 消息写入幂等与延迟观测
+
+visitor message 的条件写入使用 SQL `RETURNING id` 判断当前 open conversation 条件是否成立，
+不再用 `meta.changes === 1` 猜测 batch 中某条 statement 是否成功。数据库迁移
+`0003_chat_message_idempotency.sql` 为 `messages.client_message_id` 建立唯一索引；前端在一次
+逻辑发送开始时生成 UUID，内部 close/create/append 重试以及网络重试都会复用该 UUID。重复命令会
+返回已提交的 conversation/message（HTTP 200），不会再次触发 message.created 广播；首次响应丢失、
+浏览器尚未拿到 visitor Cookie 的重试也能按这个 key 找回原 visitor。
+
+`FloatingChat` 同时使用同步 `sendInFlightRef` 防止同一页面在 React state 更新前发起两个 POST，
+`ChatTurnstile.getToken()` 使用 single-flight promise，多个并发调用共享一个 challenge。2xx response
+解析成功后立即消费 composer 文本；后续 realtime/D1 对账失败只表示“状态同步未完成”，不会把已经提交
+的文本恢复成可重复发送状态。
+
+`POST /api/chat/messages` 输出不包含正文、Token 或 Cookie 的结构化 `chat_message_timing` 日志，
+分开记录 Turnstile siteverify、D1 write、总处理耗时和是否命中幂等复用，便于区分验证慢、D1 慢和
+应用重试。D1 仍是写入权威，Durable Object 广播失败不会把已提交的消息改判为失败。
+
 本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；生产
 `wrangler.jsonc` 已启用同一开关，实时入口进入生产灰度。若需紧急回退，只需将生产变量改为
 `false` 后重新部署。当前阶段尚未实现 Queue 异步投递和 Slack 通知；这些属于实时改造方案的后续阶段。
@@ -105,8 +125,9 @@ DO 在广播和客户端帧事件上再次校验，避免过期 Admin 连接继�
   每个 key 每 60 秒 10 次。
 - Required secret：`TURNSTILE_SECRET_KEY`。
 
-远程 `solidays-chat` 已创建，`0001_chat.sql` 已应用；本次新增的 `0002_chat_quotas.sql` 已在本地
-应用，生产迁移由 `worker:deploy:ci` 在部署前执行。迁移命令如下：
+远程 `solidays-chat` 已创建，`0001_chat.sql` 已应用；`0002_chat_quotas.sql` 和
+`0003_chat_message_idempotency.sql` 已在本地验证，生产迁移由 `worker:deploy:ci` 在部署前执行。
+迁移命令如下：
 
 ```bash
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
@@ -144,7 +165,7 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求映射到
 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS Origin 校验。
 
-## 当前状态（2026-08-18）
+## 当前状态（2026-08-19）
 
 - [x] 接入 `GET /api/chat/conversation`、`POST /api/chat/messages` 和
       `POST /api/chat/conversation/close`。
@@ -156,6 +177,9 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       512 KiB，历史每页 20 条，closed 保留 30 天，stale open 保留 90 天。
 - [x] `migrations/0002_chat_quotas.sql` 已在本地应用并验证触发器拒绝第 51 条消息；
       生产迁移由 `worker:deploy:ci` 在部署前执行。
+- [x] `migrations/0003_chat_message_idempotency.sql` 已在本地 D1 应用；visitor 条件写入改用
+      `RETURNING id`，内部 retry 和客户端重复 POST 复用 `clientMessageId`，重复请求返回已有
+      message 而不重复落库；生产迁移随 DEV → production 发布执行。
 - [x] 创建 Turnstile widget `solidays-chat-turnstile`，配置 site key 和 Worker secret；
       Widget 允许域名为 `solidays.win`、`localhost`、`127.0.0.1`，并通过官方
       siteverify 完成 Secret 校验。
@@ -174,6 +198,9 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 - [x] visitor message/close 并发写入使用 D1 open-status 原子边界；Admin closed barrier、最终 D1 对账、
       stale-response generation fencing、publish 有限重试和 online/visibility/focus/定时 reconciliation
       已落地；实时回归测试覆盖 15 个事件、状态、重试与 repository race 用例。
+- [x] 消息重复写入事故的发送锁、Turnstile single-flight、幂等 key 和 timing 日志已在 DEV 落地；
+      本地 Worker + 真实本地 D1 已验证重复请求 `201 → 200` 且同一 `clientMessageId` 只有一行，
+      无 Cookie 重试和 close 后新会话路径也已验证。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
 - [x] 将实时开关从 DEV 本地验证推进到生产灰度；发布后按

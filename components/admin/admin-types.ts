@@ -29,6 +29,7 @@ export type AdminConversationsResponse = {
 }
 
 export type AdminMessagesResponse = {
+  realtimeEnabled: boolean
   conversation: AdminConversation
   messages: AdminMessage[]
   hasMore: boolean

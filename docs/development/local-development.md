@@ -16,11 +16,14 @@ node .yarn/releases/yarn-3.6.1.cjs build
 node .yarn/releases/yarn-3.6.1.cjs worker:build
 node .yarn/releases/yarn-3.6.1.cjs worker:types
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
+node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime
 ```
 
 `worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是
 `remote: true`，本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除
-或 AI 调用。
+或 AI 调用。当前 `worker:dev` 还会只在本地命令行覆盖
+`CHAT_REALTIME_ENABLED=true`，用于验收聊天 WebSocket；生产开关由
+`wrangler.jsonc` 管理，当前已启用实时留言。
 
 ## 检查要求
 
@@ -74,5 +77,8 @@ node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --
 本地若要继续回归，可在未提交的 `.dev.vars` 中配置本地测试 Secret，再用 `worker:dev`
 验证：首次提交设置 HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile
 失败返回 403，超限返回 429，重复关闭保持幂等，关闭后提交创建新会话；历史分页返回
-固定上限，Cron 可通过
+固定上限。实时层还应验证 `GET /api/chat/realtime` 与
+`GET /api/admin/conversations/:id/realtime` 的 `101` 握手、断线重连、visitor/owner 双端事件、
+关闭事件和重复消息去重。纯事件校验可单独运行
+`node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime`。Cron 可通过
 `curl http://localhost:8787/cdn-cgi/local/scheduled?cron=0+3+*+*+*` 手动触发。

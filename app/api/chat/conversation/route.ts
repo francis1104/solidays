@@ -5,8 +5,21 @@ import { CHAT_LIMITS } from '@/lib/chat/limits'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { getVisitorId } from '@/lib/chat/session'
 import { toConversationDto, toMessageDto } from '@/lib/chat/types'
+import { isChatRealtimeEnabled } from '@/lib/chat/realtime'
 
 export const dynamic = 'force-dynamic'
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function emptyConversationResponse(realtimeEnabled: boolean) {
+  return {
+    realtimeEnabled,
+    conversation: null,
+    messages: [],
+    hasMore: false,
+    nextCursor: null,
+  }
+}
 
 function getEnv(): CloudflareEnv | null {
   try {
@@ -32,10 +45,14 @@ export async function GET(request: Request) {
 
   const visitorCandidate = getVisitorId(request)
   if (!visitorCandidate) {
-    return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
   }
 
   const url = new URL(request.url)
+  const expectedConversationId = url.searchParams.get('conversationId')
+  if (expectedConversationId && !uuidPattern.test(expectedConversationId)) {
+    return errorResponse(400, 'INVALID_CONVERSATION_ID', '留言会话 ID 无效。')
+  }
   const cursorValue = url.searchParams.get('cursor')
   const cursor = cursorValue ? decodeMessageCursor(cursorValue) : null
   if (cursorValue && !cursor) {
@@ -57,7 +74,7 @@ export async function GET(request: Request) {
   }
 
   if (!visitorId) {
-    return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
   }
 
   const visitorRateLimit = await checkVisitorRateLimit(env, visitorId, 'conversation-read')
@@ -77,10 +94,18 @@ export async function GET(request: Request) {
       cursor,
       Math.min(limit, CHAT_LIMITS.historyPageSize)
     )
-    if (!result)
-      return jsonResponse({ conversation: null, messages: [], hasMore: false, nextCursor: null })
+    if (!result) {
+      if (expectedConversationId) {
+        return errorResponse(409, 'CONVERSATION_CHANGED', '留言会话已发生变化，请重新同步。')
+      }
+      return jsonResponse(emptyConversationResponse(isChatRealtimeEnabled(env)))
+    }
+    if (expectedConversationId && result.conversation.id !== expectedConversationId) {
+      return errorResponse(409, 'CONVERSATION_CHANGED', '留言会话已发生变化，请重新同步。')
+    }
 
     return jsonResponse({
+      realtimeEnabled: isChatRealtimeEnabled(env),
       conversation: toConversationDto(result.conversation),
       messages: result.messages.messages.map(toMessageDto),
       hasMore: result.messages.hasMore,

@@ -1,10 +1,11 @@
-# Cloudflare Chat Backend V1 实施记录
+# Cloudflare Chat Backend 实施记录
 
 ## 范围
 
-本期是“匿名留言 V1”，不是 AI 聊天，也不是实时客服：访客可以提交留言、刷新后看到当前仍开放的
-留言会话，并主动结束会话。数据写入 Cloudflare D1；代码保留 `owner` 和 `system` 消息角色，供后续
-回复能力扩展，但本期不实现 owner 登录、管理后台、邮件、队列、WebSocket、Durable Objects 或 AI。
+匿名留言的权威数据仍由 Cloudflare D1 保存：访客可以提交留言、读取当前开放会话并主动结束会话。
+在 V1 HTTP 能力之上，本次已在 DEV 完成会话级实时基础层：每个开放会话对应一个
+`ChatConversation` Durable Object，访客端和 Admin 端通过 WebSocket 接收 D1 写入后的事件。
+这不是 AI 聊天；实时层只负责广播，不接受客户端写入，D1 HTTP 接口仍是唯一写入入口。
 
 ## 已落地结构
 
@@ -17,6 +18,63 @@
 - `migrations/0002_chat_quotas.sql`：消息计数/字节计数、配额触发器、历史游标索引和删除时的计数维护。
 - `custom-worker.ts`：复用 OpenNext fetch handler，并通过 Cron 定期清理过期会话。
 - `components/chat/`：前端读取历史并提交真实响应；显示“匿名留言”，不追加本地假回复。
+
+## 实时消息改造（DEV 已完成基础阶段）
+
+### Worker 与 Durable Object
+
+- `wrangler.jsonc` 声明 `CHAT_CONVERSATIONS` Durable Object binding，类名为
+  `ChatConversation`，并登记 `chat-realtime-v1` SQLite migration。
+- `lib/chat/realtime-object.ts` 实现会话级 Hibernation WebSocket：连接保存 audience、会话 ID，
+  Admin 连接同时保存已签名会话的绝对过期时间；每次广播前会清理已过期的 Admin socket。
+  客户端帧全部忽略，不能绕过 HTTP 接口写入消息。
+- `lib/chat/realtime-events.ts` 定义并校验 `message.created` 与 `conversation.closed` 事件。
+- `lib/chat/realtime.ts` 在 D1 写入成功后调用对应 Durable Object 广播；广播最多做有限次短退避重试，
+  最终失败只记录结构化日志，不回滚或阻断已经成功的 D1 写入。
+
+### 接口与前端
+
+| 接口 | 作用 | 额外保护 |
+| --- | --- | --- |
+| `GET /api/chat/realtime?conversationId=<id>` | 当前访客指定开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话与客户端期望 ID 一致、同源 Origin、WebSocket Upgrade、IP + 访客建连限流 |
+| `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话存在且仍为 open、同源 Origin、WebSocket Upgrade |
+
+`custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
+`101 Switching Protocols` 响应；普通 HTTP 请求仍由原有 Next.js route handler 处理。
+`components/chat/use-chat-realtime.ts` 负责指数退避重连。访客连接会携带客户端当前的
+`conversationId`，Worker 只允许连接到同一个仍处于 open 状态的会话；HTTP 历史接口在携带期望 ID
+时同样执行这个一致性检查，发现会话不存在或已切换会返回 `CONVERSATION_CHANGED`，前端随后重新
+bootstrap 并替换历史，而不是把两个会话合并。visitor 写入使用条件 INSERT 与 open 状态检查处于同一
+D1 batch；如果 pre-read 后被并发 close，会丢弃旧会话写入并重解析/创建新的 open 会话后重试。
+首次连接和重连都会从 D1 按游标补拉到已知消息 ID；补拉期间
+到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线期间漏消息或顺序反转。
+达到恢复页数上限却没有找到重叠消息时，恢复会被判定为 incomplete 并触发下一轮连接，不会静默宣告
+同步成功。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+
+客户端的历史 bootstrap、load-more、reconnect recovery 和 handshake refresh 都带有 request generation；
+conversation identity 变化、visitor mutation、Admin 切换详情或 close barrier 都会推进 generation，过期
+响应不能回写当前会话。Admin 收到 `conversation.closed` 后立即禁用 composer 和 realtime，并在断开订阅
+前做一次 D1 authoritative final reconciliation，以收拢 close event 与最后一条 message event 的乱序。
+Admin 回复遇到 `409 CONVERSATION_CLOSED` 也走同一条 closed/reconciliation 路径。
+
+保持页面在线且连接健康时，visitor 与 Admin 会在浏览器重新 online、窗口 focus、页面恢复可见以及低频
+定时器触发时执行一次 D1 对账；这用于弥补单次 best-effort DO publish 失败，不把 realtime 故障升级为
+消息写入失败，也不引入 durable event log。
+
+连续三次握手未成功时，客户端会重新执行对应的 HTTP bootstrap：会话不存在、实时开关关闭或 Admin
+会话过期会停止 socket 重试；暂时性的 bootstrap 失败仍按退避策略重试。Admin socket 使用 10 分钟的
+短租约，并且不会超过签名 Admin session 的绝对过期时间；租约由 Worker 在握手时传给 Durable Object，
+DO 在广播和客户端帧事件上再次校验，避免过期 Admin 连接继续接收新事件。Admin 显式登出后，页面通过
+`BroadcastChannel` 通知同浏览器的其他 Admin 标签页主动卸载详情并关闭连接；这不是服务端撤销存储，
+跨设备的既有连接仍由短租约和签名 session 到期边界控制。
+
+消息写入成功后，DO 广播通过 OpenNext execution context 的 `waitUntil()` 调度，不阻塞 201/204
+响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
+客户端只在服务端开关打开时建立 WebSocket，避免生产开关关闭时持续重试 404 endpoint。
+
+本地 `worker:dev` 会通过命令行变量打开 `CHAT_REALTIME_ENABLED=true`；生产
+`wrangler.jsonc` 已启用同一开关，实时入口进入生产灰度。若需紧急回退，只需将生产变量改为
+`false` 后重新部署。当前阶段尚未实现 Queue 异步投递和 Slack 通知；这些属于实时改造方案的后续阶段。
 
 接口保护范围：
 
@@ -43,7 +101,7 @@
 `wrangler.jsonc` 已配置：
 
 - D1 binding：`CHAT_DB` → `solidays-chat`。
-- Rate Limiting binding：`CHAT_RATE_LIMITER`，留言、结束留言和历史读取均按 IP/访客分 bucket，
+- Rate Limiting binding：`CHAT_RATE_LIMITER`，留言、结束留言、历史读取和 realtime 建连均按 IP/访客分 bucket，
   每个 key 每 60 秒 10 次。
 - Required secret：`TURNSTILE_SECRET_KEY`。
 
@@ -86,7 +144,7 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求映射到
 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS Origin 校验。
 
-## 当前状态（原 AGENTS.md「匿名留言 V1 状态」清单，2026-08-16 合并）
+## 当前状态（2026-08-18）
 
 - [x] 接入 `GET /api/chat/conversation`、`POST /api/chat/messages` 和
       `POST /api/chat/conversation/close`。
@@ -106,6 +164,19 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
       聊天路由和伪造 token 拒绝检查已通过。
 - [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
       1 个访客、1 个开放会话和 3 条 visitor 消息。
+- [x] DEV 已接入会话级 `ChatConversation` Durable Object、访客/Admin WebSocket、消息创建和
+      会话关闭事件、访客会话 ID 绑定、首次连接/断线指数退避重连、D1 补拉、恢复事件缓冲、稳定排序和客户端消息去重；
+      本地已完成双端事件互通 smoke test。
+- [x] Admin 详情会实时响应 `conversation.closed`，立即显示会话已结束并禁用回复；Admin realtime 使用
+      10 分钟短租约，同浏览器登出通过 `BroadcastChannel` 关闭其他标签页的连接。
+- [x] 本地 Worker 已验证 WebSocket `101` 握手、访客/Admin 双端同时收取 visitor/owner 消息、关闭事件、
+      无效客户端帧忽略以及未授权连接拒绝。
+- [x] visitor message/close 并发写入使用 D1 open-status 原子边界；Admin closed barrier、最终 D1 对账、
+      stale-response generation fencing、publish 有限重试和 online/visibility/focus/定时 reconciliation
+      已落地；实时回归测试覆盖 15 个事件、状态、重试与 repository race 用例。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后
       新会话；不阻塞当前线上版本。
-- [ ] 后续再做 owner 登录、后台回复、邮件通知或实时能力；本期不实现。
+- [x] 将实时开关从 DEV 本地验证推进到生产灰度；发布后按
+      `docs/testing/pre-commit-verification.md` 和 `docs/testing/post-deployment-verification.md`
+      完成浏览器验收。
+- [ ] 后续实现 Queue 异步通知、Slack 消息通知和失败重试/可观测性闭环。

@@ -6,15 +6,34 @@ import { ArrowLeft, ArrowUp } from 'lucide-react'
 import { cn } from '@/components/lib/utils'
 import {
   formatRelativeTime,
+  type AdminConversationStatus,
   type AdminMessage,
   type AdminMessagesResponse,
   type AdminReplyResponse,
 } from './admin-types'
+import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
+import {
+  applyRealtimeError,
+  applyConversationClosedBarrier,
+  isRealtimeGenerationCurrent,
+  mergeRealtimeMessages,
+} from '@/lib/chat/realtime-client'
+import { useChatRealtime, type RealtimeBootstrapResult } from '@/components/chat/use-chat-realtime'
 
 type ConversationDetailProps = {
   conversationId: string
   onBack: () => void
   onSessionExpired: () => void
+}
+
+class AdminMessagesError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'AdminMessagesError'
+  }
 }
 
 async function loadAdminMessages(
@@ -29,8 +48,57 @@ async function loadAdminMessages(
     cache: 'no-store',
   })
   if (response.status === 401) throw new Error('session expired')
-  if (!response.ok) throw new Error('会话读取失败，请稍后再试。')
+  if (!response.ok) throw new AdminMessagesError(response.status, '会话读取失败，请稍后再试。')
   return (await response.json()) as AdminMessagesResponse
+}
+
+const MAX_REFRESH_PAGES = 25
+
+type AdminGapResult = {
+  body: AdminMessagesResponse
+  messages: AdminMessage[]
+  reachedOverlap: boolean
+  exhausted: boolean
+}
+
+async function fetchAdminMessagesUntilOverlap(
+  conversationId: string,
+  knownIds: Set<string>
+): Promise<AdminGapResult> {
+  let cursor: string | null = null
+  let combined: AdminMessage[] = []
+  let firstBody: AdminMessagesResponse | null = null
+  let reachedOverlap = false
+  let exhausted = false
+
+  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
+    const body = await loadAdminMessages(conversationId, cursor)
+    firstBody ??= body
+    const fetched = Array.isArray(body.messages) ? body.messages : []
+    const hitKnown = fetched.some((message) => knownIds.has(message.id))
+    combined = page === 0 ? fetched : [...fetched, ...combined]
+
+    if (hitKnown) {
+      reachedOverlap = true
+      break
+    }
+    if (!body.hasMore || !body.nextCursor) {
+      exhausted = true
+      break
+    }
+    cursor = body.nextCursor
+  }
+
+  const seen = new Set<string>()
+  const unique: AdminMessage[] = []
+  for (const message of combined) {
+    if (seen.has(message.id)) continue
+    seen.add(message.id)
+    unique.push(message)
+  }
+  if (!firstBody) throw new Error('CHAT_REALTIME_RECOVERY_EMPTY')
+
+  return { body: firstBody, messages: unique, reachedOverlap, exhausted }
 }
 
 export function ConversationDetail({
@@ -41,37 +109,74 @@ export function ConversationDetail({
   const [messages, setMessages] = useState<AdminMessage[]>([])
   const [visitorLabel, setVisitorLabel] = useState('')
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [conversationStatus, setConversationStatus] = useState<AdminConversationStatus>('open')
   const [hasMore, setHasMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const pendingScrollAdjustRef = useRef<number | null>(null)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  const requestGenerationRef = useRef(0)
+  const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
   const reducedMotion = useReducedMotion() ?? false
 
+  const applyAdminSnapshot = useCallback(
+    (body: AdminMessagesResponse, generation: number, merge = true): boolean => {
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return false
+
+      setMessages((current) =>
+        merge
+          ? mergeRealtimeMessages(current, body.messages)
+          : mergeRealtimeMessages([], body.messages)
+      )
+      setHasMore(Boolean(body.hasMore && body.nextCursor))
+      setNextCursor(body.nextCursor ?? null)
+      setRealtimeEnabled(body.realtimeEnabled && body.conversation.status === 'open')
+      setConversationStatus(body.conversation.status)
+      setVisitorLabel(`访客 #${body.conversation.visitorId.slice(0, 8)}`)
+      return true
+    },
+    []
+  )
+
   useEffect(() => {
+    reconciliationPromiseRef.current = null
+    const generation = requestGenerationRef.current + 1
+    requestGenerationRef.current = generation
     let cancelled = false
     setStatus('loading')
     setError(null)
     setHasMore(false)
     setNextCursor(null)
+    setRealtimeEnabled(false)
+    setConversationStatus('open')
 
     void loadAdminMessages(conversationId, null)
       .then((body) => {
-        if (cancelled) return
+        if (cancelled || !isRealtimeGenerationCurrent(generation, requestGenerationRef.current))
+          return
         stickToBottomRef.current = true
-        setMessages(body.messages)
-        setHasMore(Boolean(body.hasMore && body.nextCursor))
-        setNextCursor(body.nextCursor ?? null)
-        setVisitorLabel(`访客 #${body.conversation.visitorId.slice(0, 8)}`)
+        applyAdminSnapshot(body, generation, false)
         setStatus('ready')
       })
       .catch((loadError) => {
-        if (cancelled || (loadError instanceof Error && loadError.message === 'session expired')) {
-          if (!cancelled && loadError instanceof Error && loadError.message === 'session expired') {
+        if (
+          cancelled ||
+          !isRealtimeGenerationCurrent(generation, requestGenerationRef.current) ||
+          (loadError instanceof Error && loadError.message === 'session expired')
+        ) {
+          if (
+            !cancelled &&
+            isRealtimeGenerationCurrent(generation, requestGenerationRef.current) &&
+            loadError instanceof Error &&
+            loadError.message === 'session expired'
+          ) {
             onSessionExpired()
           }
           return
@@ -82,8 +187,10 @@ export function ConversationDetail({
 
     return () => {
       cancelled = true
+      reconciliationPromiseRef.current = null
+      requestGenerationRef.current += 1
     }
-  }, [conversationId, onSessionExpired])
+  }, [applyAdminSnapshot, conversationId, onSessionExpired])
 
   useLayoutEffect(() => {
     const node = scrollRef.current
@@ -103,22 +210,19 @@ export function ConversationDetail({
   const loadOlderMessages = useCallback(async () => {
     const cursor = nextCursor
     if (!cursor || loadingMore) return
+    const generation = requestGenerationRef.current
 
     setLoadingMore(true)
     setError(null)
     try {
       const body = await loadAdminMessages(conversationId, cursor)
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       stickToBottomRef.current = false
       pendingScrollAdjustRef.current = scrollRef.current?.scrollHeight ?? 0
-      setMessages((current) => {
-        const known = new Set(current.map((message) => message.id))
-        const older = body.messages.filter((message) => !known.has(message.id))
-        return [...older, ...current]
-      })
-      setHasMore(Boolean(body.hasMore && body.nextCursor))
-      setNextCursor(body.nextCursor ?? null)
+      applyAdminSnapshot(body, generation)
     } catch (loadError) {
       pendingScrollAdjustRef.current = null
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       if (loadError instanceof Error && loadError.message === 'session expired') {
         onSessionExpired()
         return
@@ -127,14 +231,163 @@ export function ConversationDetail({
     } finally {
       setLoadingMore(false)
     }
-  }, [conversationId, loadingMore, nextCursor, onSessionExpired])
+  }, [applyAdminSnapshot, conversationId, loadingMore, nextCursor, onSessionExpired])
+
+  const recoverRealtimeGap = useCallback(async () => {
+    const generation = requestGenerationRef.current
+    const knownIds = new Set(messagesRef.current.map((message) => message.id))
+    const result = await fetchAdminMessagesUntilOverlap(conversationId, knownIds)
+    if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+    if (!result.reachedOverlap && !result.exhausted) {
+      setError('会话历史较多，暂时无法完成实时同步，请稍后再试。')
+      throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
+    }
+    applyAdminSnapshot(
+      {
+        ...result.body,
+        messages: result.messages,
+      },
+      generation
+    )
+  }, [applyAdminSnapshot, conversationId])
+
+  const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
+    const generation = requestGenerationRef.current
+    try {
+      const body = await loadAdminMessages(conversationId, null)
+      if (!applyAdminSnapshot(body, generation)) return 'stop'
+      setError(null)
+
+      return body.realtimeEnabled && body.conversation.status === 'open' ? 'retry' : 'stop'
+    } catch (loadError) {
+      if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return 'stop'
+      if (loadError instanceof Error && loadError.message === 'session expired') {
+        onSessionExpired()
+        return 'stop'
+      }
+
+      if (loadError instanceof AdminMessagesError && loadError.status === 404) {
+        setRealtimeEnabled(false)
+        setError(loadError.message)
+        return 'stop'
+      }
+
+      setError(loadError instanceof Error ? loadError.message : '会话读取失败，请稍后再试。')
+      return 'retry'
+    }
+  }, [applyAdminSnapshot, conversationId, onSessionExpired])
+
+  const reconcileAdminState = useCallback(
+    (force = false, expectedGeneration: number = requestGenerationRef.current): Promise<void> => {
+      if (!force && reconciliationPromiseRef.current) {
+        return reconciliationPromiseRef.current
+      }
+
+      const task = (async () => {
+        try {
+          const body = await loadAdminMessages(conversationId, null)
+          if (!applyAdminSnapshot(body, expectedGeneration)) return
+          setError(null)
+        } catch (loadError) {
+          if (!isRealtimeGenerationCurrent(expectedGeneration, requestGenerationRef.current)) return
+          if (loadError instanceof Error && loadError.message === 'session expired') {
+            onSessionExpired()
+            return
+          }
+          setError(loadError instanceof Error ? loadError.message : '会话读取失败，请稍后再试。')
+        }
+      })()
+
+      if (force) return task
+
+      const trackedPromise = task.finally(() => {
+        if (reconciliationPromiseRef.current === trackedPromise) {
+          reconciliationPromiseRef.current = null
+        }
+      })
+      reconciliationPromiseRef.current = trackedPromise
+      return trackedPromise
+    },
+    [applyAdminSnapshot, conversationId, onSessionExpired]
+  )
+
+  const handleRealtimeEvent = useCallback(
+    (event: ChatRealtimeEvent) => {
+      if (event.conversationId !== conversationId) return
+      if (event.type === 'conversation.closed') {
+        const barrier = applyConversationClosedBarrier(
+          {
+            conversationId,
+            status: conversationStatus,
+            realtimeEnabled,
+          },
+          event.conversationId
+        )
+        if (barrier.conversationId !== conversationId) return
+
+        reconciliationPromiseRef.current = null
+        requestGenerationRef.current += 1
+        const generation = requestGenerationRef.current
+        setConversationStatus(barrier.status)
+        setRealtimeEnabled(barrier.realtimeEnabled)
+        setError(null)
+        // The close event is a state barrier, but D1 remains authoritative:
+        // a message committed immediately before close can be published after
+        // the close event. Reconcile once before the socket is torn down.
+        void reconcileAdminState(true, generation)
+        return
+      }
+
+      const incoming: AdminMessage = {
+        id: event.message.id,
+        role: event.message.role,
+        content: event.message.content,
+        pageUrl: event.message.pageUrl,
+        createdAt: new Date(event.message.createdAt).toISOString(),
+      }
+      setMessages((current) => mergeRealtimeMessages(current, [incoming]))
+    },
+    [conversationId, conversationStatus, realtimeEnabled, reconcileAdminState]
+  )
+
+  useChatRealtime({
+    enabled: status === 'ready' && realtimeEnabled,
+    path: `/api/admin/conversations/${conversationId}/realtime`,
+    onEvent: handleRealtimeEvent,
+    onReconnect: recoverRealtimeGap,
+    onHandshakeFailure: refreshRealtimeBootstrap,
+  })
+
+  useEffect(() => {
+    if (status !== 'ready' || conversationStatus !== 'open' || !realtimeEnabled) return
+
+    const reconcile = () => {
+      void reconcileAdminState().catch(() => undefined)
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') reconcile()
+    }
+
+    window.addEventListener('online', reconcile)
+    window.addEventListener('focus', reconcile)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const interval = window.setInterval(reconcile, 60_000)
+
+    return () => {
+      window.removeEventListener('online', reconcile)
+      window.removeEventListener('focus', reconcile)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.clearInterval(interval)
+    }
+  }, [conversationStatus, realtimeEnabled, reconcileAdminState, status])
 
   const sendReply = useCallback(
     async (event: FormEvent) => {
       event.preventDefault()
       const content = input.trim()
-      if (!content || sending) return
+      if (!content || sending || conversationStatus === 'closed') return
 
+      const generation = requestGenerationRef.current
       setSending(true)
       setError(null)
       try {
@@ -145,30 +398,60 @@ export function ConversationDetail({
           body: JSON.stringify({ content }),
         })
         if (response.status === 401) {
+          if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
           onSessionExpired()
           return
         }
+        const body = (await response.json().catch(() => null)) as
+          | (AdminReplyResponse & {
+              realtimeEnabled?: boolean
+              error?: { code?: string; message?: string }
+            })
+          | { error?: { code?: string; message?: string } }
+          | null
+
+        if (response.status === 409 || body?.error?.code === 'CONVERSATION_CLOSED') {
+          if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+
+          reconciliationPromiseRef.current = null
+          requestGenerationRef.current += 1
+          const closedGeneration = requestGenerationRef.current
+          setConversationStatus('closed')
+          setRealtimeEnabled(false)
+          await reconcileAdminState(true, closedGeneration)
+          if (isRealtimeGenerationCurrent(closedGeneration, requestGenerationRef.current)) {
+            setError(body?.error?.message || '会话已关闭，无法回复。')
+          }
+          return
+        }
         if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as {
-            error?: { message?: string }
-          } | null
           throw new Error(body?.error?.message || '回复失败，请稍后再试。')
         }
 
-        const body = (await response.json()) as AdminReplyResponse
+        if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+
+        if (!body || !('message' in body) || !('conversation' in body)) {
+          throw new Error('回复响应无效，请稍后再试。')
+        }
+
+        reconciliationPromiseRef.current = null
+        requestGenerationRef.current += 1
         stickToBottomRef.current = true
-        setMessages((current) => {
-          if (current.some((message) => message.id === body.message.id)) return current
-          return [...current, body.message]
-        })
+        setConversationStatus(body.conversation.status)
+        setRealtimeEnabled(body.realtimeEnabled === true && body.conversation.status === 'open')
+        setMessages((current) => mergeRealtimeMessages(current, [body.message]))
         setInput('')
       } catch (sendError) {
-        setError(sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。')
+        const nextError = sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。'
+        if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+        setError((currentError) =>
+          applyRealtimeError(currentError, generation, requestGenerationRef.current, nextError)
+        )
       } finally {
         setSending(false)
       }
     },
-    [conversationId, input, sending, onSessionExpired]
+    [conversationId, conversationStatus, input, reconcileAdminState, sending, onSessionExpired]
   )
 
   return (
@@ -184,10 +467,19 @@ export function ConversationDetail({
         </button>
         <div>
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{visitorLabel}</p>
-          <p className="text-xs text-gray-400">
-            {hasMore
-              ? `已加载 ${messages.length} 条，还有更早消息`
-              : `已加载 ${messages.length} 条`}
+          <p
+            className={cn(
+              'text-xs',
+              conversationStatus === 'closed'
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-gray-400'
+            )}
+          >
+            {conversationStatus === 'closed'
+              ? '会话已结束'
+              : hasMore
+                ? `已加载 ${messages.length} 条，还有更早消息`
+                : `已加载 ${messages.length} 条`}
           </p>
         </div>
       </div>
@@ -260,18 +552,21 @@ export function ConversationDetail({
           }}
           aria-label="回复内容"
           placeholder="回复访客…"
-          disabled={sending}
+          disabled={sending || conversationStatus === 'closed'}
           className="max-h-28 min-h-10 flex-1 resize-none rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
         />
         <button
           type="submit"
           aria-label="发送回复"
-          disabled={!input.trim() || sending}
+          disabled={!input.trim() || sending || conversationStatus === 'closed'}
           className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-primary flex size-10 shrink-0 items-center justify-center rounded-full transition-[opacity,transform] focus-visible:outline-2 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
         >
           <ArrowUp className="size-4" strokeWidth={2.2} />
         </button>
       </form>
+      {conversationStatus === 'closed' ? (
+        <p className="text-xs text-amber-600 dark:text-amber-400">会话已结束，无法继续回复。</p>
+      ) : null}
       {error ? (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
           {error}

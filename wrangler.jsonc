@@ -8,6 +8,7 @@
   "workers_dev": false,
   "vars": {
     "CHAT_LOCAL_DEV": "false",
+    "CHAT_REALTIME_ENABLED": "true",
   },
   "assets": {
     "directory": ".open-next/assets",
@@ -53,6 +54,20 @@
       "database_name": "solidays-chat",
       "database_id": "990e1948-5748-4bf4-8e84-22ded0110d36",
       "migrations_dir": "./migrations",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT_CONVERSATIONS",
+        "class_name": "ChatConversation",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "chat-realtime-v1",
+      "new_sqlite_classes": ["ChatConversation"],
     },
   ],
   "ratelimits": [

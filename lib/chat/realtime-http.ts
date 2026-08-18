@@ -3,7 +3,7 @@ import { getConversationById } from '../admin/repository'
 import { errorResponse } from './http'
 import { checkIpRateLimit, checkVisitorRateLimit } from './rate-limit'
 import { findOpenConversation, findVisitor } from './repository'
-import { connectConversation, isChatRealtimeEnabled } from './realtime'
+import { ADMIN_REALTIME_LEASE_MS, connectConversation, isChatRealtimeEnabled } from './realtime'
 import { isAllowedOrigin } from './security'
 import { getVisitorId } from './session'
 
@@ -30,6 +30,11 @@ export async function handleVisitorRealtimeRequest(
 
   const visitorId = getVisitorId(request)
   if (!visitorId) return errorResponse(401, 'CHAT_UNAUTHORIZED', '访客会话无效。')
+
+  const expectedConversationId = new URL(request.url).searchParams.get('conversationId')
+  if (!expectedConversationId || !uuidPattern.test(expectedConversationId)) {
+    return errorResponse(400, 'INVALID_CONVERSATION_ID', '实时会话 ID 无效。')
+  }
 
   try {
     const ipRateLimit = await checkIpRateLimit(env, request, 'realtime-connect')
@@ -58,6 +63,9 @@ export async function handleVisitorRealtimeRequest(
     const openConversation = await findOpenConversation(env.CHAT_DB, visitorId)
     if (!openConversation) {
       return errorResponse(404, 'CONVERSATION_NOT_FOUND', '当前没有开放的留言会话。')
+    }
+    if (openConversation.id !== expectedConversationId) {
+      return errorResponse(409, 'CONVERSATION_CHANGED', '留言会话已发生变化，请重新同步。')
     }
 
     return await connectConversation(env, request, openConversation.id, 'visitor')
@@ -93,7 +101,13 @@ export async function handleAdminRealtimeRequest(
     const conversation = await getConversationById(env.CHAT_DB, conversationId)
     if (!conversation) return errorResponse(404, 'CONVERSATION_NOT_FOUND', '会话不存在。')
 
-    return await connectConversation(env, request, conversationId, 'admin', adminSession.expiresAt)
+    return await connectConversation(
+      env,
+      request,
+      conversationId,
+      'admin',
+      Math.min(adminSession.expiresAt, Date.now() + ADMIN_REALTIME_LEASE_MS)
+    )
   } catch {
     console.error('Admin realtime connection failed')
     return errorResponse(503, 'CHAT_REALTIME_UNAVAILABLE', '实时连接暂时不可用，请稍后再试。')

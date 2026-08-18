@@ -66,28 +66,57 @@ function loadConversationPage(cursor: string | null): Promise<ChatApiResponse> {
 
 const MAX_REFRESH_PAGES = 25
 
-async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<ChatMessage[]> {
-  let cursor: string | null = null
-  let combined: ChatMessage[] = []
+type ConversationGapResult = {
+  body: ChatApiResponse
+  messages: ChatMessage[]
+  reachedOverlap: boolean
+  exhausted: boolean
+}
 
-  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
-    const body = await loadConversationPage(cursor)
-    const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-    const hitKnown = fetched.some((message) => knownIds.has(message.id))
-    combined = page === 0 ? fetched : [...fetched, ...combined]
-
-    if (hitKnown || !body.hasMore || !body.nextCursor) break
-    cursor = body.nextCursor
-  }
-
+function uniqueMessages(messages: ChatMessage[]): ChatMessage[] {
   const seen = new Set<string>()
   const unique: ChatMessage[] = []
-  for (const message of combined) {
+  for (const message of messages) {
     if (seen.has(message.id)) continue
     seen.add(message.id)
     unique.push(message)
   }
   return unique
+}
+
+async function fetchMessagesUntilOverlap(knownIds: Set<string>): Promise<ConversationGapResult> {
+  let cursor: string | null = null
+  let combined: ChatMessage[] = []
+  let firstBody: ChatApiResponse | null = null
+  let reachedOverlap = false
+  let exhausted = false
+
+  for (let page = 0; page < MAX_REFRESH_PAGES; page += 1) {
+    const body = await loadConversationPage(cursor)
+    firstBody ??= body
+    const fetched = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+    const hitKnown = fetched.some((message) => knownIds.has(message.id))
+    combined = page === 0 ? fetched : [...fetched, ...combined]
+
+    if (hitKnown) {
+      reachedOverlap = true
+      break
+    }
+    if (!body.hasMore || !body.nextCursor) {
+      exhausted = true
+      break
+    }
+    cursor = body.nextCursor
+  }
+
+  if (!firstBody) throw new Error('CHAT_REALTIME_RECOVERY_EMPTY')
+
+  return {
+    body: firstBody,
+    messages: uniqueMessages(combined),
+    reachedOverlap,
+    exhausted,
+  }
 }
 
 export default function FloatingChat() {
@@ -107,6 +136,8 @@ export default function FloatingChat() {
   const historyRequestedRef = useRef(false)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+  const conversationIdRef = useRef(conversationId)
+  conversationIdRef.current = conversationId
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
@@ -147,12 +178,22 @@ export default function FloatingChat() {
         message: ChatApiMessage
         realtimeEnabled?: boolean
       }
-      setConversationId(body.conversation?.id ?? null)
+      const nextConversationId = body.conversation?.id ?? null
+      const currentConversationId = conversationIdRef.current
+      setConversationId(nextConversationId)
       if (typeof body.realtimeEnabled === 'boolean') setRealtimeEnabled(body.realtimeEnabled)
       const submittedMessage = mapApiMessage(body.message)
-      setMessages((current) =>
-        mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
-      )
+      if (nextConversationId !== currentConversationId) {
+        setMessages(
+          mergeRealtimeMessages([initialMessages[0]], [submittedMessage], initialMessages[0].id)
+        )
+        setHistoryCursor(null)
+        setHasMoreHistory(false)
+      } else {
+        setMessages((current) =>
+          mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
+        )
+      }
       setInput('')
     } catch (submissionError) {
       setError(
@@ -175,6 +216,20 @@ export default function FloatingChat() {
       const body = await loadConversationPage(cursor)
 
       const olderMessages = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
+      if ((body.conversation?.id ?? null) !== conversationIdRef.current) {
+        const freshBody = await loadConversationPage(null)
+        const freshHistory = Array.isArray(freshBody.messages)
+          ? freshBody.messages.map(mapApiMessage)
+          : []
+        setConversationId(freshBody.conversation?.id ?? null)
+        setRealtimeEnabled(freshBody.realtimeEnabled)
+        setMessages(
+          mergeRealtimeMessages([initialMessages[0]], freshHistory, initialMessages[0].id)
+        )
+        setHistoryCursor(freshBody.nextCursor ?? null)
+        setHasMoreHistory(Boolean(freshBody.hasMore && freshBody.nextCursor))
+        return
+      }
       setMessages((current) => mergeRealtimeMessages(current, olderMessages, initialMessages[0].id))
       setHistoryCursor(body.nextCursor ?? null)
       setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
@@ -185,21 +240,44 @@ export default function FloatingChat() {
     }
   }, [historyCursor, isLoadingMoreHistory])
 
+  const replaceConversationHistory = useCallback(
+    (body: ChatApiResponse, history: ChatMessage[]) => {
+      setConversationId(body.conversation?.id ?? null)
+      setRealtimeEnabled(body.realtimeEnabled)
+      setMessages(mergeRealtimeMessages([initialMessages[0]], history, initialMessages[0].id))
+      setHistoryCursor(body.nextCursor ?? null)
+      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+    },
+    []
+  )
+
   const recoverRealtimeGap = useCallback(async () => {
     const knownIds = new Set(messagesRef.current.map((message) => message.id))
-    const fetched = await fetchMessagesUntilOverlap(knownIds)
-    setMessages((current) => mergeRealtimeMessages(current, fetched, initialMessages[0].id))
-  }, [])
+    const result = await fetchMessagesUntilOverlap(knownIds)
+    const nextConversationId = result.body.conversation?.id ?? null
+
+    if (nextConversationId !== conversationIdRef.current) {
+      replaceConversationHistory(result.body, result.messages)
+      setError(null)
+      return
+    }
+
+    if (!result.reachedOverlap && !result.exhausted) {
+      setError('留言历史较多，暂时无法完成实时同步，请稍后再试。')
+      throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
+    }
+
+    setRealtimeEnabled(result.body.realtimeEnabled)
+    setHistoryCursor(result.body.nextCursor ?? null)
+    setHasMoreHistory(Boolean(result.body.hasMore && result.body.nextCursor))
+    setMessages((current) => mergeRealtimeMessages(current, result.messages, initialMessages[0].id))
+  }, [replaceConversationHistory])
 
   const refreshRealtimeBootstrap = useCallback(async (): Promise<RealtimeBootstrapResult> => {
     try {
       const body = await loadConversationPage(null)
       const history = Array.isArray(body.messages) ? body.messages.map(mapApiMessage) : []
-      setConversationId(body.conversation?.id ?? null)
-      setRealtimeEnabled(body.realtimeEnabled)
-      setMessages((current) => mergeRealtimeMessages(current, history, initialMessages[0].id))
-      setHistoryCursor(body.nextCursor ?? null)
-      setHasMoreHistory(Boolean(body.hasMore && body.nextCursor))
+      replaceConversationHistory(body, history)
       setError(null)
 
       return body.realtimeEnabled && Boolean(body.conversation) ? 'retry' : 'stop'
@@ -208,7 +286,7 @@ export default function FloatingChat() {
       setError(message)
       return loadError instanceof ChatBootstrapError && loadError.status === 401 ? 'stop' : 'retry'
     }
-  }, [])
+  }, [replaceConversationHistory])
 
   const handleRealtimeEvent = useCallback(
     (event: ChatRealtimeEvent) => {
@@ -216,6 +294,11 @@ export default function FloatingChat() {
 
       if (event.type === 'conversation.closed') {
         setConversationId(null)
+        setRealtimeEnabled(false)
+        setMessages(initialMessages)
+        setHistoryCursor(null)
+        setHasMoreHistory(false)
+        setError(null)
         return
       }
 
@@ -233,7 +316,9 @@ export default function FloatingChat() {
 
   useChatRealtime({
     enabled: open && realtimeEnabled && Boolean(conversationId),
-    path: '/api/chat/realtime',
+    path: conversationId
+      ? `/api/chat/realtime?conversationId=${encodeURIComponent(conversationId)}`
+      : '/api/chat/realtime',
     onEvent: handleRealtimeEvent,
     onReconnect: recoverRealtimeGap,
     onHandshakeFailure: refreshRealtimeBootstrap,
@@ -266,16 +351,27 @@ export default function FloatingChat() {
     // a locally known message so replies added while closed cannot leave a gap.
     const knownIds = new Set(messagesRef.current.map((message) => message.id))
     void fetchMessagesUntilOverlap(knownIds)
-      .then((fetched) => {
-        setMessages((current) => {
-          return mergeRealtimeMessages(current, fetched, initialMessages[0].id)
-        })
+      .then((result) => {
+        const nextConversationId = result.body.conversation?.id ?? null
+        if (nextConversationId !== conversationIdRef.current) {
+          replaceConversationHistory(result.body, result.messages)
+        } else {
+          if (!result.reachedOverlap && !result.exhausted) {
+            throw new Error('CHAT_REALTIME_RECOVERY_INCOMPLETE')
+          }
+          setRealtimeEnabled(result.body.realtimeEnabled)
+          setHistoryCursor(result.body.nextCursor ?? null)
+          setHasMoreHistory(Boolean(result.body.hasMore && result.body.nextCursor))
+          setMessages((current) =>
+            mergeRealtimeMessages(current, result.messages, initialMessages[0].id)
+          )
+        }
         setError(null)
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '留言读取失败，请稍后再试。')
       })
-  }, [open])
+  }, [open, replaceConversationHistory])
 
   useEffect(() => {
     if (!open) return

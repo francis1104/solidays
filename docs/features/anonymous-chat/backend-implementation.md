@@ -36,19 +36,24 @@
 
 | 接口 | 作用 | 额外保护 |
 | --- | --- | --- |
-| `GET /api/chat/realtime` | 当前访客开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话、同源 Origin、WebSocket Upgrade、IP + 访客建连限流 |
+| `GET /api/chat/realtime?conversationId=<id>` | 当前访客指定开放会话的实时订阅 | `chat_visitor` Cookie、访客存在性、开放会话与客户端期望 ID 一致、同源 Origin、WebSocket Upgrade、IP + 访客建连限流 |
 | `GET /api/admin/conversations/:id/realtime` | Admin 会话实时订阅 | Admin 签名 Cookie、会话 ID/存在性、同源 Origin、WebSocket Upgrade |
 
 `custom-worker.ts` 在 OpenNext 之前直接处理这两个 Upgrade 路由，以保留 Cloudflare Worker 的
 `101 Switching Protocols` 响应；普通 HTTP 请求仍由原有 Next.js route handler 处理。
-`components/chat/use-chat-realtime.ts` 负责指数退避重连。首次连接和重连都会从 D1 按游标补拉到已知
-消息 ID；补拉期间到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线
-期间漏消息或顺序反转。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
+`components/chat/use-chat-realtime.ts` 负责指数退避重连。访客连接会携带客户端当前的
+`conversationId`，Worker 只允许连接到同一个仍处于 open 状态的会话；如果 bootstrap 发现会话已切换，
+前端会替换历史而不是把两个会话合并。首次连接和重连都会从 D1 按游标补拉到已知消息 ID；补拉期间
+到达的 WebSocket 事件会暂存，补拉成功后再按 `created_at` + `id` 合并，避免断线期间漏消息或顺序反转。
+达到恢复页数上限却没有找到重叠消息时，恢复会被判定为 incomplete 并触发下一轮连接，不会静默宣告
+同步成功。HTTP 提交响应与 WebSocket 事件使用消息 ID 去重。
 
 连续三次握手未成功时，客户端会重新执行对应的 HTTP bootstrap：会话不存在、实时开关关闭或 Admin
-会话过期会停止 socket 重试；暂时性的 bootstrap 失败仍按退避策略重试。Admin socket 的过期时间由
-Worker 在握手时传给 Durable Object，DO 在广播和客户端帧事件上再次校验，避免已过期的 Admin 连接
-继续接收新事件。
+会话过期会停止 socket 重试；暂时性的 bootstrap 失败仍按退避策略重试。Admin socket 使用 10 分钟的
+短租约，并且不会超过签名 Admin session 的绝对过期时间；租约由 Worker 在握手时传给 Durable Object，
+DO 在广播和客户端帧事件上再次校验，避免过期 Admin 连接继续接收新事件。Admin 显式登出后，页面通过
+`BroadcastChannel` 通知同浏览器的其他 Admin 标签页主动卸载详情并关闭连接；这不是服务端撤销存储，
+跨设备的既有连接仍由短租约和签名 session 到期边界控制。
 
 消息写入成功后，DO 广播通过 OpenNext execution context 的 `waitUntil()` 调度，不阻塞 201/204
 响应；D1 仍是 command 成功的唯一依据。会话历史和 Admin 详情响应会携带 `realtimeEnabled`，
@@ -147,8 +152,10 @@ HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败
 - [x] 在生产页面用真实 Turnstile token 完成留言写入；手机端测试已在远程 D1 产生
       1 个访客、1 个开放会话和 3 条 visitor 消息。
 - [x] DEV 已接入会话级 `ChatConversation` Durable Object、访客/Admin WebSocket、消息创建和
-      会话关闭事件、首次连接/断线指数退避重连、D1 补拉、恢复事件缓冲、稳定排序和客户端消息去重；
+      会话关闭事件、访客会话 ID 绑定、首次连接/断线指数退避重连、D1 补拉、恢复事件缓冲、稳定排序和客户端消息去重；
       本地已完成双端事件互通 smoke test。
+- [x] Admin 详情会实时响应 `conversation.closed`，立即显示会话已结束并禁用回复；Admin realtime 使用
+      10 分钟短租约，同浏览器登出通过 `BroadcastChannel` 关闭其他标签页的连接。
 - [x] 本地 Worker 已验证 WebSocket `101` 握手、访客/Admin 双端同时收取 visitor/owner 消息、关闭事件、
       无效客户端帧忽略以及未授权连接拒绝。
 - [ ] 可选回归：用本地 Turnstile 测试 key 验证重复 token、429、关闭幂等和关闭后

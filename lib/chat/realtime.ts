@@ -7,6 +7,8 @@ import {
   type ChatSocketAudience,
 } from './realtime-protocol'
 
+export const ADMIN_REALTIME_LEASE_MS = 10 * 60 * 1000
+
 export function isChatRealtimeEnabled(env: CloudflareEnv): boolean {
   return String(env.CHAT_REALTIME_ENABLED) === 'true'
 }

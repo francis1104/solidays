@@ -132,6 +132,19 @@ export default function AdminPage() {
     [loadPage]
   )
 
+  const handleSessionExpired = useCallback(() => {
+    setStage('locked')
+    setSelectedId(null)
+  }, [])
+
+  const broadcastAdminLogout = useCallback(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+
+    const channel = new BroadcastChannel('solidays-admin-session')
+    channel.postMessage({ type: 'logout' })
+    channel.close()
+  }, [])
+
   const handleLogout = useCallback(async () => {
     if (loggingOut) return
     setLoggingOut(true)
@@ -146,6 +159,7 @@ export default function AdminPage() {
         setLogoutError('登出失败，请重试。')
         return
       }
+      broadcastAdminLogout()
       setStage('locked')
       setSelectedId(null)
       setConversations([])
@@ -157,12 +171,24 @@ export default function AdminPage() {
     } finally {
       setLoggingOut(false)
     }
-  }, [loggingOut])
+  }, [broadcastAdminLogout, loggingOut])
 
-  const handleSessionExpired = useCallback(() => {
-    setStage('locked')
-    setSelectedId(null)
-  }, [])
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+
+    const channel = new BroadcastChannel('solidays-admin-session')
+    const handleMessage = (event: MessageEvent<unknown>) => {
+      if (!event.data || typeof event.data !== 'object') return
+      if ((event.data as { type?: unknown }).type !== 'logout') return
+      handleSessionExpired()
+    }
+
+    channel.addEventListener('message', handleMessage)
+    return () => {
+      channel.removeEventListener('message', handleMessage)
+      channel.close()
+    }
+  }, [handleSessionExpired])
 
   const handleFilterChange = useCallback(
     async (nextFilter: AdminConversationFilter) => {

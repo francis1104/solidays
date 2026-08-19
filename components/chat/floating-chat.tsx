@@ -155,6 +155,7 @@ export default function FloatingChat() {
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
+  const [openedPathname, setOpenedPathname] = useState<string | null>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -169,7 +170,6 @@ export default function FloatingChat() {
   conversationIdRef.current = conversationId
   const requestGenerationRef = useRef(0)
   const pathname = usePathname()
-  const previousPathnameRef = useRef(pathname)
   const suppressLauncherFocusRef = useRef(false)
   const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
   const authoritativeRetryRef = useRef<{ attempt: number; timer: number | null }>({
@@ -221,22 +221,22 @@ export default function FloatingChat() {
 
   const openChat = useCallback(() => {
     suppressLauncherFocusRef.current = false
+    setOpenedPathname(pathname)
     setOpen(true)
-  }, [])
+  }, [pathname])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
   }, [])
 
   useEffect(() => {
-    if (previousPathnameRef.current === pathname) return
-
-    previousPathnameRef.current = pathname
-    if (!open) return
+    if (!open || openedPathname === pathname) return
 
     suppressLauncherFocusRef.current = true
     setOpen(false)
-  }, [open, pathname])
+  }, [open, openedPathname, pathname])
+
+  const panelOpen = open && openedPathname === pathname
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -718,7 +718,7 @@ export default function FloatingChat() {
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
         <AnimatePresence initial={false}>
-          {open ? (
+          {panelOpen ? (
             <ChatPanel
               key="chat-panel"
               messages={messages}
@@ -740,7 +740,7 @@ export default function FloatingChat() {
             <ChatLauncher
               key="chat-launcher"
               ref={launcherRef}
-              open={open}
+              open={panelOpen}
               panelId={PANEL_ID}
               onClick={openChat}
             />

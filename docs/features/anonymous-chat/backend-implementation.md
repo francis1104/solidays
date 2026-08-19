@@ -83,6 +83,12 @@ visitor message 的条件写入使用 SQL `RETURNING id` 判断当前 open conve
 返回已提交的 conversation/message（HTTP 200），不会再次触发 message.created 广播；首次响应丢失、
 浏览器尚未拿到 visitor Cookie 的重试也能按这个 key 找回原 visitor。
 
+Admin 回复沿用同一个 `messages.client_message_id` 唯一索引：前端发送锁会为同内容的网络重试复用
+幂等键，首次写入返回 201，重复命令返回 200 且不会重复广播；同一幂等键改用不同正文，或在
+visitor/owner 两种角色之间交叉使用，会返回不泄露旧正文的 `409 IDEMPOTENCY_KEY_REUSED`。
+已关闭会话即使找到历史幂等消息也保持 `409 CONVERSATION_CLOSED`，不会因为 replay 重新开启回复或
+realtime 订阅。
+
 `FloatingChat` 同时使用同步 `sendInFlightRef` 防止同一页面在 React state 更新前发起两个 POST，
 `ChatTurnstile.getToken()` 使用 single-flight promise，多个并发调用共享一个 challenge。2xx response
 解析成功后立即消费 composer 文本；后续 realtime/D1 对账失败只表示“状态同步未完成”，不会把已经提交
@@ -163,6 +169,9 @@ Durable Object/Rate Limiter/D1 绑定和迁移状态正常。
 HttpOnly Cookie，刷新可读历史，非法 body 返回 400，Turnstile 失败返回 403，超限返回 429，重复关闭保持
 幂等，关闭后提交创建新会话；历史分页返回固定上限，Cron 可通过
 `curl http://localhost:8787/cdn-cgi/local/scheduled?cron=0+3+*+*+*` 手动触发。
+并发幂等回归可在 Worker 启动后运行
+`node .yarn/releases/yarn-3.6.1.cjs test:chat-local-concurrent`；该脚本只使用本地 D1，
+并用 Wrangler 查询每个命令键是否恰好落一行。
 `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求映射到
 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS Origin 校验。
 

@@ -1,13 +1,22 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
-import { decodeMessageCursor, listMessages } from '@/lib/chat/repository'
+import {
+  ChatIdempotencyConflictError,
+  decodeMessageCursor,
+  listMessages,
+} from '@/lib/chat/repository'
 import { CHAT_LIMITS } from '@/lib/chat/limits'
 import { isAllowedOrigin } from '@/lib/chat/security'
 import { hasValidAdminSession } from '@/lib/admin/auth'
 import { getConversationById, persistOwnerMessage } from '@/lib/admin/repository'
 import { toAdminConversationDto, toAdminMessageDto } from '@/lib/admin/types'
-import { isChatRealtimeEnabled, scheduleConversationEvent } from '@/lib/chat/realtime'
+import {
+  isChatRealtimeEnabled,
+  isConversationRealtimeEnabled,
+  scheduleConversationEvent,
+} from '@/lib/chat/realtime'
 import { buildMessageCreatedEvent } from '@/lib/chat/realtime-events'
+import { isValidClientMessageId } from '@/lib/chat/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,9 +85,9 @@ export async function POST(request: Request, { params }: MessageRouteContext) {
   const { id } = await params
   if (!uuidPattern.test(id)) return errorResponse(400, 'INVALID_ID', '会话 ID 无效。')
 
-  let body: { content?: unknown }
+  let body: { content?: unknown; clientMessageId?: unknown }
   try {
-    body = (await request.json()) as { content?: unknown }
+    body = (await request.json()) as { content?: unknown; clientMessageId?: unknown }
   } catch {
     return errorResponse(400, 'INVALID_BODY', '请求体无效。')
   }
@@ -87,9 +96,12 @@ export async function POST(request: Request, { params }: MessageRouteContext) {
   if (content.length < 1 || content.length > 2000) {
     return errorResponse(400, 'INVALID_MESSAGE', '回复内容无效。')
   }
+  if (!isValidClientMessageId(body.clientMessageId)) {
+    return errorResponse(400, 'INVALID_MESSAGE', '回复幂等键无效。')
+  }
 
   try {
-    const result = await persistOwnerMessage(env.CHAT_DB, id, content)
+    const result = await persistOwnerMessage(env.CHAT_DB, id, content, body.clientMessageId)
     if (result.ok === false) {
       if (result.reason === 'not_found') {
         return errorResponse(404, 'CONVERSATION_NOT_FOUND', '会话不存在。')
@@ -97,17 +109,29 @@ export async function POST(request: Request, { params }: MessageRouteContext) {
       return errorResponse(409, 'CONVERSATION_CLOSED', '会话已关闭，无法回复。')
     }
 
-    scheduleConversationEvent(env, id, buildMessageCreatedEvent(result.message))
+    if (result.created) {
+      scheduleConversationEvent(env, id, buildMessageCreatedEvent(result.message))
+    }
 
     return jsonResponse(
       {
-        realtimeEnabled: isChatRealtimeEnabled(env),
+        realtimeEnabled: isConversationRealtimeEnabled(
+          isChatRealtimeEnabled(env),
+          result.conversation.status
+        ),
         conversation: toAdminConversationDto(result.conversation),
         message: toAdminMessageDto(result.message),
       },
-      201
+      result.created ? 201 : 200
     )
-  } catch {
+  } catch (error) {
+    if (error instanceof ChatIdempotencyConflictError) {
+      return errorResponse(
+        409,
+        'IDEMPOTENCY_KEY_REUSED',
+        '幂等键已用于另一条回复，请修改内容后重试。'
+      )
+    }
     console.error('Admin reply failed')
     return errorResponse(500, 'ADMIN_WRITE_FAILED', '回复保存失败，请稍后再试。')
   }

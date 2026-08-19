@@ -17,6 +17,7 @@ node .yarn/releases/yarn-3.6.1.cjs worker:build
 node .yarn/releases/yarn-3.6.1.cjs worker:types
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
 node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime
+node .yarn/releases/yarn-3.6.1.cjs test:chat-local-concurrent
 ```
 
 `worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是
@@ -24,6 +25,16 @@ node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime
 或 AI 调用。当前 `worker:dev` 还会只在本地命令行覆盖
 `CHAT_REALTIME_ENABLED=true`，用于验收聊天 WebSocket；生产开关由
 `wrangler.jsonc` 管理，当前已启用实时留言。
+
+`test:chat-local-concurrent` 是自包含的本地 Worker + 隔离 D1 并发测试。默认每次都会
+重新执行一次 `worker:build`，确保 smoke 测试的是当前工作树对应的 Worker，不会因为旧的
+`.open-next` 产物产生 false pass。然后它使用同一个系统临时 persistence 目录启动
+`wrangler dev --local --persist-to`，并将该目录通过 `CHAT_LOCAL_PERSIST_TO` 传给 D1 查询。
+测试结束会关闭 Worker、删除临时目录；如果 `localhost:8787` 已经被占用，会直接失败。
+该命令不使用 `--remote`，不会查询生产 D1。若明确确认 `.open-next` 与当前源码一致，
+可用 `CHAT_LOCAL_REUSE_BUILD=true` 跳过构建；这只适合开发时的性能优化，不应用于普通
+验证或 pre-commit。手动运行底层 smoke 时，仍可通过 `CHAT_LOCAL_ORIGIN` 和
+`CHAT_LOCAL_PERSIST_TO` 指定 Worker 地址及完全相同的本地 persistence。
 
 ## 检查要求
 

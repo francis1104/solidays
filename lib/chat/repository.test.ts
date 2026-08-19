@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { persistVisitorMessage } from './repository.ts'
+import {
+  ChatIdempotencyConflictError,
+  persistVisitorMessage,
+} from './repository.ts'
 import type { ConversationRow, MessageRow } from './types.ts'
 
 type FakeStatement = {
@@ -158,6 +161,13 @@ class FakeD1 {
           }
         }
       } else if (query.includes('INSERT INTO conversations')) {
+        if (
+          [...this.conversations.values()].some(
+            (candidate) => candidate.visitor_id === String(values[1]) && candidate.status === 'open'
+          )
+        ) {
+          throw new Error('UNIQUE constraint failed: conversations.visitor_id')
+        }
         const conversation: ConversationRow = {
           id: String(values[0]),
           visitor_id: String(values[1]),
@@ -317,6 +327,53 @@ test('repeating the same client message id returns the existing message', async 
   assert.equal(second.conversation.id, first.conversation.id)
   assert.equal(second.message.id, first.message.id)
   assert.equal(db.messages.length, 1)
+})
+
+test('reusing a client message id with different content is rejected', async () => {
+  const db = new FakeD1()
+  const clientMessageId = '77777777-7777-4777-8777-777777777777'
+
+  await persistVisitorMessage(
+    db as unknown as D1Database,
+    'visitor-7',
+    messageInput('original content', clientMessageId)
+  )
+
+  await assert.rejects(
+    persistVisitorMessage(
+      db as unknown as D1Database,
+      'visitor-7',
+      messageInput('different content', clientMessageId)
+    ),
+    ChatIdempotencyConflictError
+  )
+  assert.equal(db.messages.length, 1)
+})
+
+test('concurrent visitor commands with one client id create exactly one message', async () => {
+  const db = new FakeD1()
+  const input = messageInput(
+    'concurrent visitor command',
+    '88888888-8888-4888-8888-888888888888'
+  )
+
+  const results = await Promise.all([
+    persistVisitorMessage(db as unknown as D1Database, 'visitor-8', input),
+    persistVisitorMessage(db as unknown as D1Database, 'visitor-8', input),
+  ])
+
+  assert.deepEqual(
+    results.map((result) => result.created).sort(),
+    [false, true]
+  )
+  assert.equal(results[0]?.message.id, results[1]?.message.id)
+  assert.equal(db.messages.length, 1)
+  assert.equal(
+    [...db.conversations.values()].filter(
+      (conversation) => conversation.visitor_id === 'visitor-8' && conversation.status === 'open'
+    ).length,
+    1
+  )
 })
 
 test('a retry without the visitor cookie recovers the original visitor and message', async () => {

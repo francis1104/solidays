@@ -10,17 +10,18 @@ type ChatLauncherProps = {
   open: boolean
   onClick: () => void
   panelId: string
+  layoutId?: string
 }
 
 export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(function ChatLauncher(
-  { open, onClick, panelId },
+  { open, onClick, panelId, layoutId },
   ref
 ) {
   return (
     <motion.button
       ref={ref}
       type="button"
-      layoutId="floating-chat-surface"
+      layoutId={layoutId}
       aria-label="Open chat"
       aria-controls={panelId}
       aria-expanded={open}

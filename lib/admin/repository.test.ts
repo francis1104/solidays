@@ -20,16 +20,22 @@ const OWNER_CLIENT_MESSAGE_ID = '99999999-9999-4999-8999-999999999999'
 class FakeAdminD1 {
   conversations = new Map<string, ConversationRow>()
   messages: MessageRow[] = []
+  conversationReads: ConversationRow['status'][] = []
   private ownerBatchCalls = 0
   private releaseOwnerBatch: (() => void) | null = null
   private readonly ownerBatchBarrier: Promise<void>
   private readonly barrierEnabled: boolean
+  private closeConversationBeforeIdempotencyLookup: string | null = null
 
   constructor(barrierEnabled = false) {
     this.barrierEnabled = barrierEnabled
     this.ownerBatchBarrier = new Promise<void>((resolve) => {
       this.releaseOwnerBatch = resolve
     })
+  }
+
+  armCloseBeforeIdempotencyLookup(conversationId: string): void {
+    this.closeConversationBeforeIdempotencyLookup = conversationId
   }
 
   prepare(query: string): FakeStatement {
@@ -42,6 +48,12 @@ class FakeAdminD1 {
       },
       first: async <T>() => {
         if (query.includes('FROM messages m')) {
+          if (this.closeConversationBeforeIdempotencyLookup) {
+            const conversation = this.conversations.get(this.closeConversationBeforeIdempotencyLookup)
+            if (conversation) conversation.status = 'closed'
+            this.closeConversationBeforeIdempotencyLookup = null
+          }
+
           const clientMessageId = String(statement.values[0])
           const message = this.messages.find(
             (candidate) => candidate.client_message_id === clientMessageId
@@ -66,7 +78,9 @@ class FakeAdminD1 {
         }
 
         if (query.includes('FROM conversations')) {
-          return (this.conversations.get(String(statement.values[0])) ?? null) as T | null
+          const conversation = this.conversations.get(String(statement.values[0]))
+          if (conversation) this.conversationReads.push(conversation.status)
+          return (conversation ? { ...conversation } : null) as T | null
         }
 
         return null
@@ -236,4 +250,31 @@ test('closed owner conversations retain closed semantics on idempotent replay', 
   )
 
   assert.deepEqual(result, { ok: false, reason: 'closed' })
+})
+
+test('owner replay uses the closed conversation snapshot after a close between reads', async () => {
+  const db = new FakeAdminD1()
+  const conversation = addConversation(db, 'conversation-owner-stale-replay')
+  db.messages.push({
+    id: 'owner-message-stale-replay',
+    conversation_id: conversation.id,
+    role: 'owner',
+    content: 'already committed before close',
+    page_url: null,
+    created_at: 2,
+    client_message_id: OWNER_CLIENT_MESSAGE_ID,
+  })
+  db.armCloseBeforeIdempotencyLookup(conversation.id)
+
+  const result = await persistOwnerMessage(
+    db as unknown as D1Database,
+    conversation.id,
+    'already committed before close',
+    OWNER_CLIENT_MESSAGE_ID
+  )
+
+  assert.deepEqual(db.conversationReads, ['open'])
+  assert.deepEqual(result, { ok: false, reason: 'closed' })
+  assert.equal(db.conversations.get(conversation.id)?.status, 'closed')
+  assert.equal(db.messages.length, 1)
 })

@@ -4,6 +4,7 @@ import process from 'node:process'
 
 const origin = 'http://localhost:8787'
 const yarnPath = '.yarn/releases/yarn-3.6.1.cjs'
+const localPersistTo = process.env.CHAT_LOCAL_PERSIST_TO
 
 function getCookie(response) {
   const cookies = response.headers.getSetCookie?.() ?? []
@@ -35,6 +36,7 @@ function queryLocalD1(sql) {
       '--config',
       'wrangler.jsonc',
       '--json',
+      ...(localPersistTo ? ['--persist-to', localPersistTo] : []),
       '--command',
       sql,
     ],
@@ -152,15 +154,37 @@ const visitorRows = queryLocalD1(
 const ownerRows = queryLocalD1(
   `SELECT COUNT(*) AS count FROM messages WHERE client_message_id = ${quote(ownerCommandId)}`
 )
+// Migration 0003 intentionally keeps the quota counters visitor-only so owner
+// replies do not consume the visitor quota. Keep the counter invariant strict
+// against the rows that the counter is defined to track, while also reporting
+// the total conversation rows for diagnosis.
 const conversationCounts = queryLocalD1(
-  `SELECT message_count, (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS actual_count, (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND role = 'visitor') AS visitor_count FROM conversations c WHERE c.id = ${quote(conversationId)}`
+  `SELECT
+     c.message_count,
+     (SELECT COUNT(*)
+        FROM messages
+       WHERE conversation_id = c.id AND role = 'visitor') AS actual_visitor_count,
+     (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS total_count,
+     v.message_count AS visitor_message_count,
+     (SELECT COUNT(*)
+        FROM messages m
+        INNER JOIN conversations c2 ON c2.id = m.conversation_id
+       WHERE c2.visitor_id = c.visitor_id AND m.role = 'visitor') AS visitor_actual_count
+   FROM conversations c
+   INNER JOIN visitors v ON v.id = c.visitor_id
+   WHERE c.id = ${quote(conversationId)}`
 )
 assert(Number(visitorRows[0]?.count) === 1, 'visitor idempotency key produced more than one row')
 assert(Number(ownerRows[0]?.count) === 1, 'owner idempotency key produced more than one row')
 assert(
-  Number(conversationCounts[0]?.message_count) >= Number(conversationCounts[0]?.visitor_count) &&
-    Number(conversationCounts[0]?.message_count) <= Number(conversationCounts[0]?.actual_count),
-  'conversation message_count is outside the committed message rows'
+  Number(conversationCounts[0]?.message_count) ===
+    Number(conversationCounts[0]?.actual_visitor_count),
+  `conversation visitor message_count mismatch: stored=${conversationCounts[0]?.message_count}, actual visitor rows=${conversationCounts[0]?.actual_visitor_count}, total rows=${conversationCounts[0]?.total_count}`
+)
+assert(
+  Number(conversationCounts[0]?.visitor_message_count) ===
+    Number(conversationCounts[0]?.visitor_actual_count),
+  `visitor message_count mismatch: stored=${conversationCounts[0]?.visitor_message_count}, actual=${conversationCounts[0]?.visitor_actual_count}`
 )
 
 await request('/api/chat/conversation/close', {

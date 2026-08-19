@@ -9,6 +9,7 @@ import {
   type ChatSocketAttachment,
   type ChatSocketAudience,
 } from './realtime-protocol'
+import { buildSocketClosedLog, buildSocketErrorLog } from './realtime-observability'
 
 function isAudience(value: string | null): value is ChatSocketAudience {
   return value === 'visitor' || value === 'admin'
@@ -154,13 +155,17 @@ export class ChatConversation extends DurableObject<CloudflareEnv> {
     }
   }
 
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean
+  ): Promise<void> {
+    console.info(JSON.stringify(buildSocketClosedLog(ws, code, reason, wasClean)))
+  }
+
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
-    console.warn(
-      JSON.stringify({
-        event: 'chat.realtime.socket_error',
-        error: error instanceof Error ? error.message : String(error),
-      })
-    )
+    console.warn(JSON.stringify(buildSocketErrorLog(ws, error)))
     try {
       ws.close(1011, 'Realtime connection error')
     } catch {

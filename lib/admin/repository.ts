@@ -168,9 +168,10 @@ export async function persistOwnerMessage(
   const existing = await findChatMessageByClientMessageId(db, clientMessageId)
   if (existing) {
     assertOwnerIdempotencyMatch(existing, conversationId, content)
+    if (existing.conversation.status !== 'open') return { ok: false, reason: 'closed' }
     return {
       ok: true,
-      conversation: currentConversation,
+      conversation: existing.conversation,
       message: existing.message,
       created: false,
     }
@@ -226,9 +227,10 @@ export async function persistOwnerMessage(
     const raced = await findChatMessageByClientMessageId(db, clientMessageId)
     if (!raced) throw error
     assertOwnerIdempotencyMatch(raced, conversationId, content)
+    if (raced.conversation.status !== 'open') return { ok: false, reason: 'closed' }
     return {
       ok: true,
-      conversation: currentConversation,
+      conversation: raced.conversation,
       message: raced.message,
       created: false,
     }

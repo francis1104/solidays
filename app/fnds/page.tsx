@@ -76,7 +76,6 @@ function useMobileFndsLayout() {
 export default function FndsPage() {
   const mobileConstraintsRef = useRef<HTMLDivElement>(null)
   const isMobileLayout = useMobileFndsLayout()
-  const layoutKey = isMobileLayout ? 'mobile' : 'desktop'
 
   return (
     <DraggableCardContainer className="fnds-page relative flex min-h-0 w-full flex-1 items-center justify-center overflow-clip">
@@ -109,7 +108,7 @@ export default function FndsPage() {
       </div>
       {items.map((item, index) => (
         <DraggableCardBody
-          key={`${layoutKey}-${item.title}`}
+          key={item.title}
           constraintsRef={isMobileLayout ? mobileConstraintsRef : undefined}
           className={`${cardSizeClassName} ${item.className}`}
         >

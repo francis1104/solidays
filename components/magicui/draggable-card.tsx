@@ -11,6 +11,13 @@ import {
   useAnimationControls,
 } from 'framer-motion'
 
+type DragConstraints = {
+  top: number
+  left: number
+  right: number
+  bottom: number
+}
+
 export const DraggableCardBody = ({
   className,
   children,
@@ -24,12 +31,13 @@ export const DraggableCardBody = ({
   const mouseY = useMotionValue(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const controls = useAnimationControls()
-  const [constraints, setConstraints] = useState({
+  const [constraints, setConstraints] = useState<DragConstraints>({
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   })
+  const [measuredConstraints, setMeasuredConstraints] = useState<DragConstraints | null>(null)
 
   // physics biatch
   const velocityX = useVelocity(mouseX)
@@ -47,6 +55,59 @@ export const DraggableCardBody = ({
   const opacity = useSpring(useTransform(mouseX, [-300, 0, 300], [0.8, 1, 0.8]), springConfig)
 
   const glareOpacity = useSpring(useTransform(mouseX, [-300, 0, 300], [0.2, 0, 0.2]), springConfig)
+
+  useEffect(() => {
+    if (!constraintsRef) {
+      setMeasuredConstraints(null)
+      return
+    }
+
+    const updateConstraints = () => {
+      const card = cardRef.current
+      const constraintsElement = constraintsRef.current
+      const offsetParent = card?.offsetParent
+
+      if (!card || !constraintsElement || !offsetParent) return
+
+      const parentRect = offsetParent.getBoundingClientRect()
+      const constraintsRect = constraintsElement.getBoundingClientRect()
+      const nextConstraints = {
+        left: constraintsRect.left - parentRect.left - card.offsetLeft,
+        right: constraintsRect.right - parentRect.left - (card.offsetLeft + card.offsetWidth),
+        top: constraintsRect.top - parentRect.top - card.offsetTop,
+        bottom: constraintsRect.bottom - parentRect.top - (card.offsetTop + card.offsetHeight),
+      }
+
+      setMeasuredConstraints((previous) => {
+        if (
+          previous &&
+          previous.left === nextConstraints.left &&
+          previous.right === nextConstraints.right &&
+          previous.top === nextConstraints.top &&
+          previous.bottom === nextConstraints.bottom
+        ) {
+          return previous
+        }
+
+        return nextConstraints
+      })
+    }
+
+    updateConstraints()
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateConstraints) : null
+    resizeObserver?.observe(constraintsRef.current ?? document.body)
+    resizeObserver?.observe(cardRef.current ?? document.body)
+    window.addEventListener('resize', updateConstraints)
+    window.visualViewport?.addEventListener('resize', updateConstraints)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', updateConstraints)
+      window.visualViewport?.removeEventListener('resize', updateConstraints)
+    }
+  }, [constraintsRef])
 
   useEffect(() => {
     if (constraintsRef) return
@@ -99,7 +160,7 @@ export const DraggableCardBody = ({
     <motion.div
       ref={cardRef}
       drag
-      dragConstraints={constraintsRef ?? constraints}
+      dragConstraints={constraintsRef ? (measuredConstraints ?? constraintsRef) : constraints}
       onDragStart={() => {
         document.body.style.cursor = 'grabbing'
       }}

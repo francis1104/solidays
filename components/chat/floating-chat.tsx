@@ -237,6 +237,7 @@ export default function FloatingChat() {
   }, [open, openedPathname, pathname])
 
   const panelOpen = open && openedPathname === pathname
+  const routeMismatch = open && openedPathname !== pathname
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -673,7 +674,7 @@ export default function FloatingChat() {
   }, [conversationId, open, realtimeEnabled, reconcileRealtimeState])
 
   useEffect(() => {
-    if (!open) return
+    if (!panelOpen) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeChat()
@@ -693,7 +694,7 @@ export default function FloatingChat() {
       window.removeEventListener('keydown', handleKeyDown)
       window.clearTimeout(focusTimer)
     }
-  }, [closeChat, open, reducedMotion])
+  }, [closeChat, panelOpen, reducedMotion])
 
   useEffect(() => {
     if (open) return
@@ -717,35 +718,45 @@ export default function FloatingChat() {
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
-        <AnimatePresence initial={false}>
-          {panelOpen ? (
-            <ChatPanel
-              key="chat-panel"
-              messages={messages}
-              hasMoreHistory={hasMoreHistory}
-              isLoadingMoreHistory={isLoadingMoreHistory}
-              input={input}
-              panelId={PANEL_ID}
-              textareaRef={textareaRef}
-              onChange={setInput}
-              onClose={closeChat}
-              onLoadMoreHistory={loadMoreHistory}
-              onSubmit={sendMessage}
-              isSending={isSending}
-              error={error}
-              reducedMotion={reducedMotion}
-              scrollToLatestRequest={scrollToLatestRequest}
-            />
-          ) : (
-            <ChatLauncher
-              key="chat-launcher"
-              ref={launcherRef}
-              open={panelOpen}
-              panelId={PANEL_ID}
-              onClick={openChat}
-            />
-          )}
-        </AnimatePresence>
+        {routeMismatch ? (
+          <ChatLauncher
+            ref={launcherRef}
+            open={false}
+            layoutId={undefined}
+            panelId={PANEL_ID}
+            onClick={openChat}
+          />
+        ) : (
+          <AnimatePresence initial={false}>
+            {panelOpen ? (
+              <ChatPanel
+                key="chat-panel"
+                messages={messages}
+                hasMoreHistory={hasMoreHistory}
+                isLoadingMoreHistory={isLoadingMoreHistory}
+                input={input}
+                panelId={PANEL_ID}
+                textareaRef={textareaRef}
+                onChange={setInput}
+                onClose={closeChat}
+                onLoadMoreHistory={loadMoreHistory}
+                onSubmit={sendMessage}
+                isSending={isSending}
+                error={error}
+                reducedMotion={reducedMotion}
+                scrollToLatestRequest={scrollToLatestRequest}
+              />
+            ) : (
+              <ChatLauncher
+                key="chat-launcher"
+                ref={launcherRef}
+                open={panelOpen}
+                panelId={PANEL_ID}
+                onClick={openChat}
+              />
+            )}
+          </AnimatePresence>
+        )}
       </LayoutGroup>
     </div>
   )

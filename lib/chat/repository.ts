@@ -15,6 +15,13 @@ export class ChatWriteConflictError extends Error {
   }
 }
 
+export class ChatIdempotencyConflictError extends Error {
+  constructor() {
+    super('CHAT_IDEMPOTENCY_CONFLICT')
+    this.name = 'ChatIdempotencyConflictError'
+  }
+}
+
 function isQuotaExceededError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return message.includes('CHAT_QUOTA_EXCEEDED')
@@ -183,13 +190,10 @@ function toPersistedVisitorMessage(row: ExistingVisitorMessageRow): PersistedVis
   }
 }
 
-export async function findVisitorMessageByClientMessageId(
+export async function findChatMessageByClientMessageId(
   db: D1Database,
-  clientMessageId: string,
-  visitorId: string | null = null
+  clientMessageId: string
 ): Promise<PersistedVisitorMessage | null> {
-  const visitorClause = visitorId ? ' AND c.visitor_id = ?' : ''
-  const values = visitorId ? [clientMessageId, visitorId] : [clientMessageId]
   const row = await db
     .prepare(
       `SELECT
@@ -207,13 +211,23 @@ export async function findVisitorMessageByClientMessageId(
          m.client_message_id
        FROM messages m
        INNER JOIN conversations c ON c.id = m.conversation_id
-       WHERE m.client_message_id = ?${visitorClause}
+       WHERE m.client_message_id = ?
        LIMIT 1`
     )
-    .bind(...values)
+    .bind(clientMessageId)
     .first<ExistingVisitorMessageRow>()
 
   return row ? toPersistedVisitorMessage(row) : null
+}
+
+export async function findVisitorMessageByClientMessageId(
+  db: D1Database,
+  clientMessageId: string,
+  visitorId: string | null = null
+): Promise<PersistedVisitorMessage | null> {
+  const row = await findChatMessageByClientMessageId(db, clientMessageId)
+  if (!row || (visitorId !== null && row.visitorId !== visitorId)) return null
+  return row
 }
 
 function createVisitorMessageCommand(input: ChatMessageInput): VisitorMessageCommand {
@@ -224,11 +238,39 @@ function createVisitorMessageCommand(input: ChatMessageInput): VisitorMessageCom
   }
 }
 
-function isUniqueConstraintError(error: unknown): boolean {
+export function isUniqueConstraintError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return (
     message.includes('UNIQUE constraint failed') || message.includes('SQLITE_CONSTRAINT_UNIQUE')
   )
+}
+
+function assertVisitorIdempotencyMatch(
+  existing: PersistedVisitorMessage,
+  visitorId: string | null,
+  content: string
+): void {
+  // pageUrl is request metadata, not command identity. Normalized content,
+  // role, and visitor ownership define a visitor command.
+  if (
+    existing.message.role !== 'visitor' ||
+    (visitorId !== null && existing.visitorId !== visitorId) ||
+    existing.message.content !== content
+  ) {
+    throw new ChatIdempotencyConflictError()
+  }
+}
+
+async function findMatchingVisitorMessage(
+  db: D1Database,
+  clientMessageId: string,
+  visitorId: string | null,
+  content: string
+): Promise<PersistedVisitorMessage | null> {
+  const existing = await findChatMessageByClientMessageId(db, clientMessageId)
+  if (!existing) return null
+  assertVisitorIdempotencyMatch(existing, visitorId, content)
+  return existing
 }
 
 function isRetryableVisitorWriteError(error: unknown): boolean {
@@ -384,7 +426,12 @@ export async function persistVisitorMessage(
 ): Promise<PersistedVisitorMessage> {
   const command = createVisitorMessageCommand(input)
   if (input.clientMessageId) {
-    const existing = await findVisitorMessageByClientMessageId(db, input.clientMessageId, visitorId)
+    const existing = await findMatchingVisitorMessage(
+      db,
+      input.clientMessageId,
+      visitorId,
+      input.content
+    )
     if (existing) return existing
   }
 
@@ -393,10 +440,11 @@ export async function persistVisitorMessage(
   let lastConflict: ChatWriteConflictError | null = null
 
   for (let attempt = 0; attempt < MAX_VISITOR_WRITE_ATTEMPTS; attempt += 1) {
-    const committed = await findVisitorMessageByClientMessageId(
+    const committed = await findMatchingVisitorMessage(
       db,
       command.clientMessageId,
-      idempotencyVisitorId
+      idempotencyVisitorId,
+      input.content
     )
     if (committed) return committed
 
@@ -407,10 +455,11 @@ export async function persistVisitorMessage(
         return await appendToConversation(db, existing, input, persistedVisitorId, command)
       } catch (error) {
         if (!isRetryableVisitorWriteError(error)) throw error
-        const committedAfterError = await findVisitorMessageByClientMessageId(
+        const committedAfterError = await findMatchingVisitorMessage(
           db,
           command.clientMessageId,
-          idempotencyVisitorId
+          idempotencyVisitorId,
+          input.content
         )
         if (committedAfterError) return committedAfterError
         lastConflict = new ChatWriteConflictError()
@@ -421,10 +470,11 @@ export async function persistVisitorMessage(
     try {
       return await createConversationWithMessage(db, persistedVisitorId, input, command)
     } catch (error) {
-      const committedAfterError = await findVisitorMessageByClientMessageId(
+      const committedAfterError = await findMatchingVisitorMessage(
         db,
         command.clientMessageId,
-        idempotencyVisitorId
+        idempotencyVisitorId,
+        input.content
       )
       if (committedAfterError) return committedAfterError
       if (isQuotaExceededError(error)) throw new ChatQuotaExceededError()
@@ -435,10 +485,11 @@ export async function persistVisitorMessage(
         return await appendToConversation(db, concurrent, input, persistedVisitorId, command)
       } catch (appendError) {
         if (!isRetryableVisitorWriteError(appendError)) throw appendError
-        const committedAfterAppendError = await findVisitorMessageByClientMessageId(
+        const committedAfterAppendError = await findMatchingVisitorMessage(
           db,
           command.clientMessageId,
-          idempotencyVisitorId
+          idempotencyVisitorId,
+          input.content
         )
         if (committedAfterAppendError) return committedAfterAppendError
         lastConflict = new ChatWriteConflictError()

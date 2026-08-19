@@ -1,4 +1,9 @@
-import type { ChatRole, ConversationRow, ConversationStatus, MessageRow } from '@/lib/chat/types'
+import type { ChatRole, ConversationRow, ConversationStatus, MessageRow } from '../chat/types.ts'
+import {
+  ChatIdempotencyConflictError,
+  findChatMessageByClientMessageId,
+  isUniqueConstraintError,
+} from '../chat/repository.ts'
 
 export type AdminConversationListItem = {
   id: string
@@ -132,14 +137,45 @@ export async function getConversationById(
 }
 
 export type OwnerMessageResult =
-  | { ok: true; conversation: ConversationRow; message: MessageRow }
+  | { ok: true; conversation: ConversationRow; message: MessageRow; created: boolean }
   | { ok: false; reason: 'not_found' | 'closed' }
+
+function assertOwnerIdempotencyMatch(
+  existing: Awaited<ReturnType<typeof findChatMessageByClientMessageId>>,
+  conversationId: string,
+  content: string
+): asserts existing is NonNullable<Awaited<ReturnType<typeof findChatMessageByClientMessageId>>> {
+  if (
+    !existing ||
+    existing.message.role !== 'owner' ||
+    existing.message.conversation_id !== conversationId ||
+    existing.message.content !== content
+  ) {
+    throw new ChatIdempotencyConflictError()
+  }
+}
 
 export async function persistOwnerMessage(
   db: D1Database,
   conversationId: string,
-  content: string
+  content: string,
+  clientMessageId: string
 ): Promise<OwnerMessageResult> {
+  const currentConversation = await getConversationById(db, conversationId)
+  if (!currentConversation) return { ok: false, reason: 'not_found' }
+  if (currentConversation.status !== 'open') return { ok: false, reason: 'closed' }
+
+  const existing = await findChatMessageByClientMessageId(db, clientMessageId)
+  if (existing) {
+    assertOwnerIdempotencyMatch(existing, conversationId, content)
+    return {
+      ok: true,
+      conversation: currentConversation,
+      message: existing.message,
+      created: false,
+    }
+  }
+
   const now = Date.now()
   const message: MessageRow = {
     id: crypto.randomUUID(),
@@ -148,30 +184,55 @@ export async function persistOwnerMessage(
     content,
     page_url: null,
     created_at: now,
+    client_message_id: clientMessageId,
   }
 
-  // Keep the open-status check inside the same D1 batch as the write so a
-  // visitor close between a pre-read and INSERT cannot land a reply on a
-  // closed conversation. INSERT...SELECT matches 0 rows when missing/closed.
-  const results = await db.batch([
-    db
-      .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, page_url, created_at)
-         SELECT ?, id, ?, ?, ?, ?
-         FROM conversations
-         WHERE id = ? AND status = 'open'
-         RETURNING id`
-      )
-      .bind(message.id, message.role, message.content, null, message.created_at, conversationId),
-    db
-      .prepare(
-        `UPDATE conversations
-         SET updated_at = ?
-         WHERE id = ? AND status = 'open'
-         RETURNING id`
-      )
-      .bind(now, conversationId),
-  ])
+  let results: D1Result<unknown>[]
+  try {
+    // Keep the open-status check inside the same D1 batch as the write so a
+    // visitor close between a pre-read and INSERT cannot land a reply on a
+    // closed conversation. INSERT...SELECT matches 0 rows when missing/closed.
+    results = await db.batch([
+      db
+        .prepare(
+          `INSERT INTO messages (
+             id, conversation_id, role, content, page_url, created_at, client_message_id
+           )
+           SELECT ?, id, ?, ?, ?, ?, ?
+           FROM conversations
+           WHERE id = ? AND status = 'open'
+           RETURNING id`
+        )
+        .bind(
+          message.id,
+          message.role,
+          message.content,
+          null,
+          message.created_at,
+          clientMessageId,
+          conversationId
+        ),
+      db
+        .prepare(
+          `UPDATE conversations
+           SET updated_at = ?
+           WHERE id = ? AND status = 'open'
+           RETURNING id`
+        )
+        .bind(now, conversationId),
+    ])
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error
+    const raced = await findChatMessageByClientMessageId(db, clientMessageId)
+    if (!raced) throw error
+    assertOwnerIdempotencyMatch(raced, conversationId, content)
+    return {
+      ok: true,
+      conversation: currentConversation,
+      message: raced.message,
+      created: false,
+    }
+  }
 
   const insertedId = (results[0]?.results?.[0] as { id?: string } | undefined)?.id
   const updatedId = (results[1]?.results?.[0] as { id?: string } | undefined)?.id
@@ -185,5 +246,5 @@ export async function persistOwnerMessage(
   const conversation = await getConversationById(db, conversationId)
   if (!conversation) return { ok: false, reason: 'not_found' }
 
-  return { ok: true, conversation, message }
+  return { ok: true, conversation, message, created: true }
 }

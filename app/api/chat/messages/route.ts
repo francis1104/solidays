@@ -1,5 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import {
+  ChatIdempotencyConflictError,
   ChatQuotaExceededError,
   ChatWriteConflictError,
   findVisitor,
@@ -8,7 +9,11 @@ import {
 import { errorResponse, jsonResponse } from '@/lib/chat/http'
 import { checkIpRateLimit, checkVisitorRateLimit } from '@/lib/chat/rate-limit'
 import { isAllowedOrigin, normalizePageUrl } from '@/lib/chat/security'
-import { isChatRealtimeEnabled, scheduleConversationEvent } from '@/lib/chat/realtime'
+import {
+  isChatRealtimeEnabled,
+  isConversationRealtimeEnabled,
+  scheduleConversationEvent,
+} from '@/lib/chat/realtime'
 import { buildMessageCreatedEvent } from '@/lib/chat/realtime-events'
 import { buildVisitorCookie, getVisitorId } from '@/lib/chat/session'
 import { toConversationDto, toMessageDto } from '@/lib/chat/types'
@@ -126,7 +131,10 @@ export async function POST(request: Request) {
 
     return jsonResponse(
       {
-        realtimeEnabled: isChatRealtimeEnabled(env),
+        realtimeEnabled: isConversationRealtimeEnabled(
+          isChatRealtimeEnabled(env),
+          result.conversation.status
+        ),
         conversation: toConversationDto(result.conversation),
         message: toMessageDto(result.message),
       },
@@ -136,15 +144,24 @@ export async function POST(request: Request) {
   } catch (error) {
     logChatMessageTiming({
       outcome:
-        error instanceof ChatQuotaExceededError
-          ? 'quota_exceeded'
-          : error instanceof ChatWriteConflictError
-            ? 'write_conflict'
-            : 'write_failed',
+        error instanceof ChatIdempotencyConflictError
+          ? 'idempotency_conflict'
+          : error instanceof ChatQuotaExceededError
+            ? 'quota_exceeded'
+            : error instanceof ChatWriteConflictError
+              ? 'write_conflict'
+              : 'write_failed',
       turnstileMs,
       d1WriteMs: elapsedMs(d1StartedAt),
       totalMs: elapsedMs(requestStartedAt),
     })
+    if (error instanceof ChatIdempotencyConflictError) {
+      return errorResponse(
+        409,
+        'IDEMPOTENCY_KEY_REUSED',
+        '幂等键已用于另一条留言，请修改内容后重试。'
+      )
+    }
     if (error instanceof ChatQuotaExceededError) {
       return errorResponse(
         429,

@@ -1,18 +1,25 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import type { ChatRealtimeEvent } from './realtime-events'
+import type { ChatRealtimeEvent } from './realtime-events.ts'
 import {
   CHAT_REALTIME_AUDIENCE_HEADER,
   CHAT_REALTIME_AUTH_EXPIRES_AT_HEADER,
   CHAT_REALTIME_CONVERSATION_HEADER,
   type ChatSocketAudience,
-} from './realtime-protocol'
-import { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry'
+} from './realtime-protocol.ts'
+import { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry.ts'
 
 export const ADMIN_REALTIME_LEASE_MS = 10 * 60 * 1000
-export { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry'
+export { REALTIME_PUBLISH_RETRY_DELAYS_MS, retryRealtimePublish } from './realtime-retry.ts'
 
 export function isChatRealtimeEnabled(env: CloudflareEnv): boolean {
   return String(env.CHAT_REALTIME_ENABLED) === 'true'
+}
+
+export function isConversationRealtimeEnabled(
+  enabled: boolean,
+  status: 'open' | 'closed'
+): boolean {
+  return enabled && status === 'open'
 }
 
 async function publishConversationEvent(

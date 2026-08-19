@@ -13,6 +13,13 @@ import {
 } from './admin-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
 import {
+  acknowledgeClientMessage,
+  acquireSendLock,
+  getOrCreateClientMessageId,
+  releaseSendLock,
+  type PendingClientMessage,
+} from '@/lib/chat/client-command'
+import {
   applyRealtimeError,
   applyConversationClosedBarrier,
   isRealtimeGenerationCurrent,
@@ -124,6 +131,8 @@ export function ConversationDetail({
   messagesRef.current = messages
   const requestGenerationRef = useRef(0)
   const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
+  const sendInFlightRef = useRef(false)
+  const pendingClientMessageRef = useRef<PendingClientMessage>({ id: null, content: null })
   const reducedMotion = useReducedMotion() ?? false
 
   const applyAdminSnapshot = useCallback(
@@ -147,6 +156,7 @@ export function ConversationDetail({
 
   useEffect(() => {
     reconciliationPromiseRef.current = null
+    acknowledgeClientMessage(pendingClientMessageRef)
     const generation = requestGenerationRef.current + 1
     requestGenerationRef.current = generation
     let cancelled = false
@@ -385,9 +395,12 @@ export function ConversationDetail({
     async (event: FormEvent) => {
       event.preventDefault()
       const content = input.trim()
-      if (!content || sending || conversationStatus === 'closed') return
+      if (!content || conversationStatus === 'closed' || !acquireSendLock(sendInFlightRef)) {
+        return
+      }
 
       const generation = requestGenerationRef.current
+      const clientMessageId = getOrCreateClientMessageId(pendingClientMessageRef, content)
       setSending(true)
       setError(null)
       try {
@@ -395,7 +408,7 @@ export function ConversationDetail({
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content, clientMessageId }),
         })
         if (response.status === 401) {
           if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
@@ -409,6 +422,12 @@ export function ConversationDetail({
             })
           | { error?: { code?: string; message?: string } }
           | null
+
+        if (response.status === 409 && body?.error?.code === 'IDEMPOTENCY_KEY_REUSED') {
+          if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
+          setError(body.error?.message || '这条回复的幂等键已被占用，请修改内容后重试。')
+          return
+        }
 
         if (response.status === 409 || body?.error?.code === 'CONVERSATION_CLOSED') {
           if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
@@ -441,6 +460,7 @@ export function ConversationDetail({
         setRealtimeEnabled(body.realtimeEnabled === true && body.conversation.status === 'open')
         setMessages((current) => mergeRealtimeMessages(current, [body.message]))
         setInput('')
+        acknowledgeClientMessage(pendingClientMessageRef)
       } catch (sendError) {
         const nextError = sendError instanceof Error ? sendError.message : '回复失败，请稍后再试。'
         if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
@@ -449,9 +469,10 @@ export function ConversationDetail({
         )
       } finally {
         setSending(false)
+        releaseSendLock(sendInFlightRef)
       }
     },
-    [conversationId, conversationStatus, input, reconcileAdminState, sending, onSessionExpired]
+    [conversationId, conversationStatus, input, reconcileAdminState, onSessionExpired]
   )
 
   return (

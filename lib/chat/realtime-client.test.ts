@@ -16,6 +16,7 @@ import {
 } from './realtime-client.ts'
 import { isAdminRealtimeLeaseActive, isChatSocketAttachment } from './realtime-protocol.ts'
 import { retryRealtimePublish } from './realtime-retry.ts'
+import { isConversationRealtimeEnabled } from './realtime.ts'
 
 test('mergeRealtimeMessages deduplicates and follows D1 created_at/id order', () => {
   const result = mergeRealtimeMessages(
@@ -245,6 +246,12 @@ test('conversation.closed is an authoritative UI barrier for the matching conver
     ),
     { conversationId: 'conversation-b', status: 'open', realtimeEnabled: true }
   )
+})
+
+test('closed idempotent replays do not re-enable realtime', () => {
+  assert.equal(isConversationRealtimeEnabled(true, 'open'), true)
+  assert.equal(isConversationRealtimeEnabled(true, 'closed'), false)
+  assert.equal(isConversationRealtimeEnabled(false, 'open'), false)
 })
 
 test('a stale Admin sendReply error cannot overwrite the newer conversation error state', () => {

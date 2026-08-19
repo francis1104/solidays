@@ -4,6 +4,10 @@ const MAX_BODY_BYTES = 32 * 1024
 const MAX_TOKEN_LENGTH = 2048
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+export function isValidClientMessageId(value: unknown): value is string {
+  return typeof value === 'string' && uuidPattern.test(value)
+}
+
 async function readBodyWithinLimit(request: Request): Promise<string | null> {
   const reader = request.body?.getReader()
   if (!reader) return null
@@ -74,10 +78,7 @@ export async function parseMessageInput(request: Request): Promise<ChatMessageIn
   ) {
     return null
   }
-  if (
-    clientMessageId !== undefined &&
-    (typeof clientMessageId !== 'string' || !uuidPattern.test(clientMessageId))
-  ) {
+  if (clientMessageId !== undefined && !isValidClientMessageId(clientMessageId)) {
     return null
   }
 

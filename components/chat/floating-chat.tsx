@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
@@ -153,6 +154,7 @@ export default function FloatingChat() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
+  const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -166,6 +168,9 @@ export default function FloatingChat() {
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
   const requestGenerationRef = useRef(0)
+  const pathname = usePathname()
+  const previousPathnameRef = useRef(pathname)
+  const suppressLauncherFocusRef = useRef(false)
   const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
   const authoritativeRetryRef = useRef<{ attempt: number; timer: number | null }>({
     attempt: 0,
@@ -210,8 +215,28 @@ export default function FloatingChat() {
   )
 
   const closeChat = useCallback(() => {
+    suppressLauncherFocusRef.current = false
     setOpen(false)
   }, [])
+
+  const openChat = useCallback(() => {
+    suppressLauncherFocusRef.current = false
+    setOpen(true)
+  }, [])
+
+  const requestScrollToLatest = useCallback(() => {
+    setScrollToLatestRequest((request) => request + 1)
+  }, [])
+
+  useEffect(() => {
+    if (previousPathnameRef.current === pathname) return
+
+    previousPathnameRef.current = pathname
+    if (!open) return
+
+    suppressLauncherFocusRef.current = true
+    setOpen(false)
+  }, [open, pathname])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -341,6 +366,7 @@ export default function FloatingChat() {
                 syncDecision.type === 'synchronized' &&
                 isRealtimeGenerationCurrent(retryGeneration, requestGenerationRef.current)
               ) {
+                requestScrollToLatest()
                 setError(null)
               }
             })
@@ -364,7 +390,7 @@ export default function FloatingChat() {
 
       return scheduleNext()
     },
-    [reconcileRealtimeState, resetAuthoritativeReconciliationRetry]
+    [reconcileRealtimeState, requestScrollToLatest, resetAuthoritativeReconciliationRetry]
   )
 
   useEffect(() => {
@@ -457,6 +483,7 @@ export default function FloatingChat() {
             syncDecision.type === 'synchronized' &&
             isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
           ) {
+            requestScrollToLatest()
             setError(null)
           }
         } catch {
@@ -496,6 +523,7 @@ export default function FloatingChat() {
           mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
         )
       }
+      requestScrollToLatest()
     } catch (submissionError) {
       if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       setError(
@@ -512,6 +540,7 @@ export default function FloatingChat() {
     input,
     reconcileRealtimeState,
     resetAuthoritativeReconciliationRetry,
+    requestScrollToLatest,
     scheduleAuthoritativeReconciliationRetry,
     siteKey,
   ])
@@ -669,6 +698,11 @@ export default function FloatingChat() {
   useEffect(() => {
     if (open) return
 
+    if (suppressLauncherFocusRef.current) {
+      suppressLauncherFocusRef.current = false
+      return
+    }
+
     const focusTimer = window.setTimeout(
       () => {
         launcherRef.current?.focus()
@@ -700,6 +734,7 @@ export default function FloatingChat() {
               isSending={isSending}
               error={error}
               reducedMotion={reducedMotion}
+              scrollToLatestRequest={scrollToLatestRequest}
             />
           ) : (
             <ChatLauncher
@@ -707,7 +742,7 @@ export default function FloatingChat() {
               ref={launcherRef}
               open={open}
               panelId={PANEL_ID}
-              onClick={() => setOpen(true)}
+              onClick={openChat}
             />
           )}
         </AnimatePresence>

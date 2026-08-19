@@ -89,6 +89,15 @@ node .yarn/releases/yarn-3.6.1.cjs worker:dev
 - **聊天相关回归项**（改 `app/api/chat/**` 或 `lib/chat/` 时必测）：
   首次提交设置 HttpOnly Cookie、刷新可读历史、非法 body 400、Turnstile
   失败 403、超限 429、重复关闭幂等、关闭后提交创建新会话、历史分页上限。
+  并发幂等 smoke 使用下面的自包含命令；不要预先手动启动另一个 8787 Worker：
+
+  ```bash
+  node .yarn/releases/yarn-3.6.1.cjs test:chat-local-concurrent
+  ```
+
+  该命令会在系统临时目录创建 persistence，给 Worker 和
+  `wrangler d1 execute --local` 使用同一个目录，完成后关闭 Worker 并删除临时目录。
+  8787 已被占用时会直接失败，不会连接未知的旧 Worker。
 
 ## 5. 断点调试（必要时）
 

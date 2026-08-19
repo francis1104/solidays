@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
 
-const origin = 'http://localhost:8787'
+const origin = process.env.CHAT_LOCAL_ORIGIN ?? 'http://localhost:8787'
 const yarnPath = '.yarn/releases/yarn-3.6.1.cjs'
 const localPersistTo = process.env.CHAT_LOCAL_PERSIST_TO
 

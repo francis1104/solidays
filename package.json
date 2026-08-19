@@ -9,7 +9,7 @@
     "lint": "eslint app components contexts data lib",
     "test:scanner-path": "node --experimental-strip-types --test lib/scanner-path.test.ts",
     "test:chat-realtime": "node --experimental-strip-types --test lib/chat/realtime-events.test.ts lib/chat/realtime-client.test.ts lib/chat/realtime-observability.test.ts lib/chat/repository.test.ts lib/admin/repository.test.ts lib/chat/client-command.test.ts lib/chat/single-flight.test.ts",
-    "test:chat-local-concurrent": "node scripts/chat/concurrent-idempotency-smoke.mjs",
+    "test:chat-local-concurrent": "node scripts/chat/run-concurrent-idempotency-smoke.mjs",
     "test:gallery": "node --experimental-strip-types --test lib/gallery-format.test.ts lib/gallery-filters.test.ts lib/gallery-state.test.ts",
     "test:gallery-pipeline": "python3 -m unittest scripts/gallery/test_phase2_manifest.py",
     "gallery:phase2-assets": "python3 scripts/gallery/generate-phase2-assets.py",

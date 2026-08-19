@@ -76,13 +76,14 @@ function useMobileFndsLayout() {
 export default function FndsPage() {
   const mobileConstraintsRef = useRef<HTMLDivElement>(null)
   const isMobileLayout = useMobileFndsLayout()
+  const layoutKey = isMobileLayout ? 'mobile' : 'desktop'
 
   return (
     <DraggableCardContainer className="fnds-page relative flex min-h-0 w-full flex-1 items-center justify-center overflow-clip">
       <div
         ref={mobileConstraintsRef}
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-x-[70%] -inset-y-[52%] z-0"
+        className="fnds-mobile-constraints pointer-events-none absolute z-0"
       />
       <div
         data-fnds-copy
@@ -108,7 +109,7 @@ export default function FndsPage() {
       </div>
       {items.map((item, index) => (
         <DraggableCardBody
-          key={item.title}
+          key={`${layoutKey}-${item.title}`}
           constraintsRef={isMobileLayout ? mobileConstraintsRef : undefined}
           className={`${cardSizeClassName} ${item.className}`}
         >

@@ -389,6 +389,11 @@ sm+ 恢复：
 视觉渲染，且比可视容器向外扩展，因此卡片允许部分出界，但仍会保留可再次抓取的区域；
 不能把卡片强制完整限制在 `overflow-clip` 的可视框内，否则 375×667 无法清空文案中心。
 
+约束区域的扩展量按卡片实际尺寸计算，而不是按容器百分比计算：普通 Mobile 以约
+300px 卡片和 72px 抓取尺寸计算，短屏/横屏以约 220px 卡片和 68px 抓取尺寸计算。
+72px / 68px 包含旋转、缩放和边缘弹性造成的视觉余量，实际边缘仍保留约 64px 的
+可抓取区域，因此卡片不会因为宽容器而完全滑出 clipping 区域。
+
 结构：
 
     DraggableCardContainer
@@ -419,6 +424,11 @@ Motion：
 - sm+ 且高度充足 → 不传 constraintsRef，保留原来的 window-based fallback
 
 这样 FNDS 可以修正边界，同时避免无意改变其他潜在调用方。
+
+当布局模式在 Mobile 与 Desktop 之间切换时，FNDS 会重新挂载卡片以清除旧布局的
+Framer Motion transform；这样桌面端已经拖到视口外的卡片切回手机后不会落在新的
+不可抓取区域。普通手机横竖屏切换仍保留卡片 transform，因为实测其新约束区域会
+保留抓取区，不需要额外的方向状态系统。
 
 ### 9.3 Drag momentum
 
@@ -759,7 +769,7 @@ Framer Motion 已经满足当前需要。
 - 底层文案显式 z-0
 - 卡片显式位于文案之上
 - Mobile 文案中心与照片堆中心对齐
-- Mobile 使用扩展的 FNDS 约束区域作为 drag constraints，允许卡片部分出界但保留抓取区
+- Mobile 使用按卡片尺寸扩展的 FNDS 约束区域作为 drag constraints：约束边界按“卡片宽/高减去带视觉变换余量的抓取尺寸”向外扩展，普通 Mobile 使用 72px 约束抓取尺寸、短屏/横屏使用 68px，实测边缘仍保留约 64px 可抓取区域；不按容器百分比扩展，避免卡片完全消失
 - sm+ 且高度充足时保留原来的 window-based drag constraints fallback
 - 短屏横屏使用 compact card 样式
 - 无页面级横向 overflow

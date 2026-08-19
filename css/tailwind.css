@@ -322,8 +322,27 @@ html.dark.theme-transitioning [data-chat-surface] {
   pointer-events: none;
 }
 
+/*
+ * Expand the mobile drag area by the card size minus a small grab strip.
+ * Keeping the expansion tied to the card, rather than the container, prevents
+ * a card from being dragged completely beyond the clipped FNDS viewport.
+ */
+.fnds-mobile-constraints {
+  --fnds-mobile-card-width: min(80vw, 300px);
+  --fnds-mobile-card-height: calc(var(--fnds-mobile-card-width) + 36px);
+  --fnds-mobile-grab-size: 72px;
+  inset-inline: calc(var(--fnds-mobile-grab-size) - var(--fnds-mobile-card-width));
+  inset-block: calc(var(--fnds-mobile-grab-size) - var(--fnds-mobile-card-height));
+}
+
 /* Keep the FNDS deck usable in short mobile/landscape viewports. */
 @media (max-height: 520px) {
+  .fnds-mobile-constraints {
+    --fnds-mobile-card-width: min(56vw, 220px);
+    --fnds-mobile-card-height: calc(var(--fnds-mobile-card-width) + 22px);
+    --fnds-mobile-grab-size: 68px;
+  }
+
   .fnds-page [data-fnds-copy] {
     top: 50% !important;
     transform: translateY(-50%) !important;

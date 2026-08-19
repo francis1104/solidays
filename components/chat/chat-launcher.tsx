@@ -10,10 +10,10 @@ type ChatLauncherProps = {
   open: boolean
   onClick: () => void
   panelId: string
-  layoutId?: string
+  layoutId: string
 }
 
-export const chatLauncherLayoutClassName =
+const chatLauncherLayoutClassName =
   'fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] size-[52px] sm:right-6 sm:bottom-6 sm:size-14'
 
 export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(function ChatLauncher(

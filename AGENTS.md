@@ -190,3 +190,7 @@ shadcn 约定的 `cn()` 工具。
 10. 发布后验证：所有生产发布完成之后，都要用 Chrome DevTools 访问线上生产站点，
    对本次发布改动的功能实际测试；涉及 Turnstile 等防自动化的环节不做自动化提交
    测试，按文档替代方案验证。流程见 `docs/testing/post-deployment-verification.md`。
+11. 默认 DEV 交付：仓库改动完成并按相关文档验证通过后，默认直接提交并推送到
+   `cloudflare-worker-DEV`；如果用户明确要求仅本地提交或暂不推送，则遵守该要求。
+   推送前确认只包含本次改动，推送后核验远程分支 HEAD；未经用户明确要求，不推送或
+   合并 `cloudflare-worker` 生产分支。

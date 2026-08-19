@@ -250,7 +250,7 @@ export default function FloatingChat() {
 
   useEffect(() => {
     if (!panelOpen) completeSmoothScrollTransaction()
-  }, [completeSmoothScrollTransaction, panelOpen])
+  }, [completeSmoothScrollTransaction, panelOpen, smoothScrollPending])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor

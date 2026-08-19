@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
-import { ChatLauncher, chatLauncherLayoutClassName } from './chat-launcher'
+import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
@@ -157,10 +157,7 @@ export default function FloatingChat() {
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const [smoothScrollPending, setSmoothScrollPending] = useState(false)
   const [openedPathname, setOpenedPathname] = useState<string | null>(null)
-  const [routeClosing, setRouteClosing] = useState(false)
-  const [layoutEpoch, setLayoutEpoch] = useState(0)
   const launcherRef = useRef<HTMLButtonElement>(null)
-  const routeCloseTargetRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
   const sendInFlightRef = useRef(false)
@@ -225,16 +222,9 @@ export default function FloatingChat() {
 
   const openChat = useCallback(() => {
     suppressLauncherFocusRef.current = false
-    setRouteClosing(false)
     setOpenedPathname(pathname)
     setOpen(true)
   }, [pathname])
-
-  const finishRouteClose = useCallback(() => {
-    setLayoutEpoch((epoch) => epoch + 1)
-    setRouteClosing(false)
-    setOpen(false)
-  }, [])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
@@ -248,18 +238,16 @@ export default function FloatingChat() {
     setSmoothScrollPending(false)
   }, [])
 
-  useEffect(() => {
-    if (!open || openedPathname === pathname || routeClosing) return
+  useLayoutEffect(() => {
+    if (!open || openedPathname === pathname) return
 
     suppressLauncherFocusRef.current = true
     textareaRef.current?.blur()
-    setRouteClosing(true)
-  }, [open, openedPathname, pathname, routeClosing])
+    setOpen(false)
+  }, [open, openedPathname, pathname])
 
-  const panelOpen = open && !routeClosing && openedPathname === pathname
-  const routeMismatch = open && openedPathname !== pathname
-  const routeClosingActive = open && (routeMismatch || routeClosing)
-  const sharedLayoutId = `floating-chat-surface-${layoutEpoch}`
+  const panelOpen = open && openedPathname === pathname
+  const sharedLayoutId = 'floating-chat-surface'
 
   useEffect(() => {
     if (!panelOpen) completeSmoothScrollTransaction()
@@ -763,15 +751,9 @@ export default function FloatingChat() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
-      <div
-        ref={routeCloseTargetRef}
-        aria-hidden="true"
-        tabIndex={-1}
-        className={`pointer-events-none invisible ${chatLauncherLayoutClassName}`}
-      />
       <LayoutGroup id="floating-chat">
         <AnimatePresence initial={false}>
-          {open ? (
+          {panelOpen ? (
             <ChatPanel
               key="chat-panel"
               messages={messages}
@@ -788,12 +770,9 @@ export default function FloatingChat() {
               error={error}
               reducedMotion={reducedMotion}
               sharedLayoutId={sharedLayoutId}
-              routeCloseTargetRef={routeCloseTargetRef}
               scrollToLatestRequest={scrollToLatestRequest}
               smoothScrollPending={smoothScrollPending}
               onSmoothScrollComplete={completeSmoothScrollTransaction}
-              routeClosing={routeClosingActive}
-              onRouteCloseComplete={finishRouteClose}
             />
           ) : (
             <ChatLauncher

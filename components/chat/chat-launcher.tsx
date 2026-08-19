@@ -13,6 +13,9 @@ type ChatLauncherProps = {
   layoutId?: string
 }
 
+export const chatLauncherLayoutClassName =
+  'fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] size-[52px] sm:right-6 sm:bottom-6 sm:size-14'
+
 export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(function ChatLauncher(
   { open, onClick, panelId, layoutId },
   ref
@@ -28,9 +31,11 @@ export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(fun
       data-testid="chat-launcher"
       data-chat-surface
       title="Open chat"
+      style={{ borderRadius: 9999 }}
       className={cn(
         chatSurfaceClassName,
-        'hover:shadow-primary-500/20 pointer-events-auto fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-[60] flex size-[52px] items-center justify-center rounded-full transition-[box-shadow] duration-300 outline-none hover:shadow-xl sm:right-6 sm:bottom-6 sm:size-14'
+        chatLauncherLayoutClassName,
+        'hover:shadow-primary-500/20 pointer-events-auto z-[60] flex items-center justify-center rounded-full transition-[box-shadow] duration-300 outline-none hover:shadow-xl'
       )}
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.96 }}

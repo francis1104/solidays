@@ -98,6 +98,9 @@ node .yarn/releases/yarn-3.6.1.cjs worker:dev
   该命令会在系统临时目录创建 persistence，给 Worker 和
   `wrangler d1 execute --local` 使用同一个目录，完成后关闭 Worker 并删除临时目录。
   8787 已被占用时会直接失败，不会连接未知的旧 Worker。
+  默认每次都会重新执行 `worker:build`，避免复用过期 `.open-next` 造成 false pass。
+  只有明确确认构建产物与当前源码一致时，才可用
+  `CHAT_LOCAL_REUSE_BUILD=true` 跳过构建；普通验证不要设置该变量。
 
 ## 5. 断点调试（必要时）
 

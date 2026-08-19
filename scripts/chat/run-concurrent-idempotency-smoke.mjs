@@ -10,6 +10,7 @@ const yarnPath = path.join(cwd, '.yarn/releases/yarn-3.6.1.cjs')
 const smokeScript = path.join(cwd, 'scripts/chat/concurrent-idempotency-smoke.mjs')
 const port = Number(process.env.CHAT_LOCAL_PORT ?? 8787)
 const origin = `http://localhost:${port}`
+const reuseExistingBuild = process.env.CHAT_LOCAL_REUSE_BUILD === 'true'
 const startupTimeoutMs = 30_000
 const childShutdownTimeoutMs = 5_000
 
@@ -29,20 +30,48 @@ function isRunning(child) {
 }
 
 function waitForExit(child, timeoutMs) {
-  if (!isRunning(child)) return Promise.resolve(true)
+  if (!child) return Promise.resolve(true)
 
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
+    let settled = false
+    let timeout = null
+
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
       child.removeListener('exit', onExit)
-      resolve(false)
-    }, timeoutMs)
+      resolve(result)
+    }
 
     function onExit() {
-      clearTimeout(timeout)
-      resolve(true)
+      finish(true)
     }
 
     child.once('exit', onExit)
+    if (!isRunning(child)) {
+      finish(true)
+      return
+    }
+
+    timeout = setTimeout(() => finish(false), timeoutMs)
+  })
+}
+
+function waitForChildExit(child, onExit) {
+  return new Promise((resolve, reject) => {
+    const handleError = (error) => {
+      child.removeListener('exit', handleExit)
+      reject(error)
+    }
+
+    const handleExit = (code, signal) => {
+      child.removeListener('error', handleError)
+      resolve(onExit ? onExit(code, signal) : (code ?? (signal ? 1 : 0)))
+    }
+
+    child.once('error', handleError)
+    child.once('exit', handleExit)
   })
 }
 
@@ -92,10 +121,12 @@ async function cleanup() {
   if (cleanupPromise) return cleanupPromise
 
   cleanupPromise = (async () => {
-    await terminateChild(smokeProcess, 'smoke test')
+    await terminateChild(smokeProcess, 'smoke test', true)
     const workerStopped = await terminateChild(workerProcess, 'local Worker', true)
     if (!workerStopped) console.warn('local Worker did not exit within the cleanup timeout')
-    await terminateChild(activeCommandProcess, 'Wrangler command')
+    const commandProcess = activeCommandProcess
+    await terminateChild(commandProcess, 'managed command', true)
+    if (activeCommandProcess === commandProcess) activeCommandProcess = null
 
     if (persistDir) {
       await rm(persistDir, { recursive: true, force: true })
@@ -149,30 +180,35 @@ async function assertPortAvailable() {
 }
 
 function runYarn(args, env = process.env) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [yarnPath, ...args], {
-      cwd,
-      env,
-      stdio: ['ignore', 'inherit', 'inherit'],
-    })
-    activeCommandProcess = child
-    child.once('error', reject)
-    child.once('exit', (code, signal) => {
-      if (activeCommandProcess === child) activeCommandProcess = null
-      resolve(code ?? (signal ? 1 : 0))
-    })
+  const child = spawn(process.execPath, [yarnPath, ...args], {
+    cwd,
+    env,
+    stdio: ['ignore', 'inherit', 'inherit'],
+    detached: process.platform !== 'win32',
+  })
+  activeCommandProcess = child
+  return waitForChildExit(child, (code, signal) => {
+    if (activeCommandProcess === child) activeCommandProcess = null
+    return code ?? (signal ? 1 : 0)
   })
 }
 
 async function ensureWorkerBuild() {
-  try {
-    await access(path.join(cwd, '.open-next/worker.js'))
-    await access(path.join(cwd, '.open-next/assets'))
-  } catch {
-    console.log('OpenNext output is missing; running one worker:build before starting Wrangler')
-    const code = await runYarn(['worker:build'])
-    if (code !== 0) throw new Error(`worker:build failed with exit code ${code}`)
+  if (reuseExistingBuild) {
+    try {
+      await access(path.join(cwd, '.open-next/worker.js'))
+      await access(path.join(cwd, '.open-next/assets'))
+      console.log('Reusing existing OpenNext output because CHAT_LOCAL_REUSE_BUILD=true')
+      return
+    } catch {
+      console.log('OpenNext output is missing; running one worker:build before starting Wrangler')
+    }
+  } else {
+    console.log('Building the current Worker before starting Wrangler')
   }
+
+  const code = await runYarn(['worker:build'])
+  if (code !== 0) throw new Error(`worker:build failed with exit code ${code}`)
 }
 
 async function applyLocalMigrations() {
@@ -259,12 +295,10 @@ function runSmoke() {
       CHAT_LOCAL_PERSIST_TO: persistDir,
     },
     stdio: 'inherit',
+    detached: process.platform !== 'win32',
   })
 
-  return new Promise((resolve, reject) => {
-    smokeProcess.once('error', reject)
-    smokeProcess.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)))
-  })
+  return waitForChildExit(smokeProcess)
 }
 
 async function handleSignal(signal) {

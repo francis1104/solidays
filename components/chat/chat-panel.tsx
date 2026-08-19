@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { useEffect, useRef } from 'react'
 import { ChatComposer } from './chat-composer'
 import { ChatHeader } from './chat-header'
 import { ChatMessages } from './chat-messages'
@@ -48,17 +49,35 @@ export function ChatPanel({
   routeClosing = false,
   onRouteCloseComplete,
 }: ChatPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!routeClosing) return
+
+    const panel = panelRef.current
+    const activeElement = document.activeElement
+    if (panel && activeElement instanceof HTMLElement && panel.contains(activeElement)) {
+      activeElement.blur()
+    }
+  }, [routeClosing])
+
   return (
     <motion.div
+      ref={panelRef}
       id={panelId}
       layoutId={routeClosing ? undefined : 'floating-chat-surface'}
       role="dialog"
       aria-modal="false"
       aria-labelledby="floating-chat-title"
       aria-hidden={routeClosing ? true : undefined}
+      inert={routeClosing || undefined}
       data-testid="chat-panel"
-      initial={routeClosing ? { opacity: 1, scale: 1, borderRadius: 24 } : false}
-      animate={routeClosing ? { opacity: 0, scale: 0.12, borderRadius: 999 } : undefined}
+      initial={false}
+      animate={
+        routeClosing
+          ? { opacity: 0, scale: 0.12, borderRadius: 999 }
+          : { opacity: 1, scale: 1, borderRadius: 24 }
+      }
       transition={
         routeClosing
           ? { duration: reducedMotion ? 0.08 : 0.24, ease: 'easeInOut' }

@@ -255,7 +255,7 @@ export default function FloatingChat() {
 
   const panelOpen = open && !routeClosing && openedPathname === pathname
   const routeMismatch = open && openedPathname !== pathname
-  const routeClosingActive = routeMismatch || routeClosing
+  const routeClosingActive = open && (routeMismatch || routeClosing)
 
   useEffect(() => {
     if (!panelOpen) completeSmoothScrollTransaction()
@@ -760,62 +760,40 @@ export default function FloatingChat() {
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
-        {routeClosingActive ? (
-          <ChatPanel
-            key="chat-route-closing"
-            messages={messages}
-            hasMoreHistory={hasMoreHistory}
-            isLoadingMoreHistory={isLoadingMoreHistory}
-            input={input}
-            panelId={PANEL_ID}
-            textareaRef={textareaRef}
-            onChange={setInput}
-            onClose={closeChat}
-            onLoadMoreHistory={loadMoreHistory}
-            onSubmit={sendMessage}
-            isSending={isSending}
-            error={error}
-            reducedMotion={reducedMotion}
-            scrollToLatestRequest={scrollToLatestRequest}
-            smoothScrollPending={smoothScrollPending}
-            onSmoothScrollComplete={completeSmoothScrollTransaction}
-            routeClosing
-            onRouteCloseComplete={finishRouteClose}
-          />
-        ) : (
-          <AnimatePresence initial={false}>
-            {panelOpen ? (
-              <ChatPanel
-                key="chat-panel"
-                messages={messages}
-                hasMoreHistory={hasMoreHistory}
-                isLoadingMoreHistory={isLoadingMoreHistory}
-                input={input}
-                panelId={PANEL_ID}
-                textareaRef={textareaRef}
-                onChange={setInput}
-                onClose={closeChat}
-                onLoadMoreHistory={loadMoreHistory}
-                onSubmit={sendMessage}
-                isSending={isSending}
-                error={error}
-                reducedMotion={reducedMotion}
-                scrollToLatestRequest={scrollToLatestRequest}
-                smoothScrollPending={smoothScrollPending}
-                onSmoothScrollComplete={completeSmoothScrollTransaction}
-              />
-            ) : (
-              <ChatLauncher
-                key="chat-launcher"
-                ref={launcherRef}
-                open={panelOpen}
-                layoutId="floating-chat-surface"
-                panelId={PANEL_ID}
-                onClick={openChat}
-              />
-            )}
-          </AnimatePresence>
-        )}
+        <AnimatePresence initial={false}>
+          {open ? (
+            <ChatPanel
+              key="chat-panel"
+              messages={messages}
+              hasMoreHistory={hasMoreHistory}
+              isLoadingMoreHistory={isLoadingMoreHistory}
+              input={input}
+              panelId={PANEL_ID}
+              textareaRef={textareaRef}
+              onChange={setInput}
+              onClose={closeChat}
+              onLoadMoreHistory={loadMoreHistory}
+              onSubmit={sendMessage}
+              isSending={isSending}
+              error={error}
+              reducedMotion={reducedMotion}
+              scrollToLatestRequest={scrollToLatestRequest}
+              smoothScrollPending={smoothScrollPending}
+              onSmoothScrollComplete={completeSmoothScrollTransaction}
+              routeClosing={routeClosingActive}
+              onRouteCloseComplete={finishRouteClose}
+            />
+          ) : (
+            <ChatLauncher
+              key="chat-launcher"
+              ref={launcherRef}
+              open={false}
+              layoutId="floating-chat-surface"
+              panelId={PANEL_ID}
+              onClick={openChat}
+            />
+          )}
+        </AnimatePresence>
       </LayoutGroup>
     </div>
   )

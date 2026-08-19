@@ -157,6 +157,7 @@ export default function FloatingChat() {
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const [smoothScrollPending, setSmoothScrollPending] = useState(false)
   const [openedPathname, setOpenedPathname] = useState<string | null>(null)
+  const [routeClosing, setRouteClosing] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -222,9 +223,15 @@ export default function FloatingChat() {
 
   const openChat = useCallback(() => {
     suppressLauncherFocusRef.current = false
+    setRouteClosing(false)
     setOpenedPathname(pathname)
     setOpen(true)
   }, [pathname])
+
+  const finishRouteClose = useCallback(() => {
+    setRouteClosing(false)
+    setOpen(false)
+  }, [])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
@@ -239,14 +246,16 @@ export default function FloatingChat() {
   }, [])
 
   useEffect(() => {
-    if (!open || openedPathname === pathname) return
+    if (!open || openedPathname === pathname || routeClosing) return
 
     suppressLauncherFocusRef.current = true
-    setOpen(false)
-  }, [open, openedPathname, pathname])
+    textareaRef.current?.blur()
+    setRouteClosing(true)
+  }, [open, openedPathname, pathname, routeClosing])
 
-  const panelOpen = open && openedPathname === pathname
+  const panelOpen = open && !routeClosing && openedPathname === pathname
   const routeMismatch = open && openedPathname !== pathname
+  const routeClosingActive = routeMismatch || routeClosing
 
   useEffect(() => {
     if (!panelOpen) completeSmoothScrollTransaction()
@@ -751,8 +760,28 @@ export default function FloatingChat() {
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
-        {routeMismatch ? (
-          <ChatLauncher ref={launcherRef} open={false} panelId={PANEL_ID} onClick={openChat} />
+        {routeClosingActive ? (
+          <ChatPanel
+            key="chat-route-closing"
+            messages={messages}
+            hasMoreHistory={hasMoreHistory}
+            isLoadingMoreHistory={isLoadingMoreHistory}
+            input={input}
+            panelId={PANEL_ID}
+            textareaRef={textareaRef}
+            onChange={setInput}
+            onClose={closeChat}
+            onLoadMoreHistory={loadMoreHistory}
+            onSubmit={sendMessage}
+            isSending={isSending}
+            error={error}
+            reducedMotion={reducedMotion}
+            scrollToLatestRequest={scrollToLatestRequest}
+            smoothScrollPending={smoothScrollPending}
+            onSmoothScrollComplete={completeSmoothScrollTransaction}
+            routeClosing
+            onRouteCloseComplete={finishRouteClose}
+          />
         ) : (
           <AnimatePresence initial={false}>
             {panelOpen ? (

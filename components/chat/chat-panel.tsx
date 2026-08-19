@@ -24,6 +24,8 @@ type ChatPanelProps = {
   scrollToLatestRequest: number
   smoothScrollPending: boolean
   onSmoothScrollComplete: () => void
+  routeClosing?: boolean
+  onRouteCloseComplete?: () => void
 }
 
 export function ChatPanel({
@@ -43,21 +45,29 @@ export function ChatPanel({
   scrollToLatestRequest,
   smoothScrollPending,
   onSmoothScrollComplete,
+  routeClosing = false,
+  onRouteCloseComplete,
 }: ChatPanelProps) {
   return (
     <motion.div
       id={panelId}
-      layoutId="floating-chat-surface"
+      layoutId={routeClosing ? undefined : 'floating-chat-surface'}
       role="dialog"
       aria-modal="false"
       aria-labelledby="floating-chat-title"
+      aria-hidden={routeClosing ? true : undefined}
       data-testid="chat-panel"
-      initial={false}
+      initial={routeClosing ? { opacity: 1, scale: 1, borderRadius: 24 } : false}
+      animate={routeClosing ? { opacity: 0, scale: 0.12, borderRadius: 999 } : undefined}
       transition={
-        reducedMotion
-          ? { duration: 0.18 }
-          : { type: 'spring', stiffness: 320, damping: 30, mass: 0.8 }
+        routeClosing
+          ? { duration: reducedMotion ? 0.08 : 0.24, ease: 'easeInOut' }
+          : reducedMotion
+            ? { duration: 0.18 }
+            : { type: 'spring', stiffness: 320, damping: 30, mass: 0.8 }
       }
+      onAnimationComplete={routeClosing ? onRouteCloseComplete : undefined}
+      style={{ pointerEvents: routeClosing ? 'none' : undefined, transformOrigin: 'bottom right' }}
       className="pointer-events-auto fixed right-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-[60] h-[min(72dvh,620px)] w-[calc(100vw-24px)] max-w-[420px] overflow-hidden rounded-[24px] outline-none sm:right-6 sm:bottom-6 sm:h-[560px] sm:w-[380px] sm:max-w-[380px]"
     >
       <ChatSurface className="flex h-full w-full flex-col rounded-[inherit]">

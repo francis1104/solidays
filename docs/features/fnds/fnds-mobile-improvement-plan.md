@@ -187,7 +187,7 @@ Mobile 不采用列表，而采用集中式 photo deck。
 
 第一阶段以 Tailwind sm 作为 FNDS 构图区分点。
 
-### Mobile < 640px
+### Mobile < 640px or short viewport
 
 使用专门 photo deck：
 
@@ -198,7 +198,10 @@ Mobile 不采用列表，而采用集中式 photo deck。
 - 纵向轻微错层
 - 底层文字放在 deck 几何中心附近
 
-### Desktop / Tablet >= 640px
+短屏（`max-height: 520px`，例如手机横屏）也进入这套移动布局判断，避免
+`sm` 宽度样式在高度不足时启用大卡片。
+
+### Desktop / Tablet >= 640px（且高度充足）
 
 继续使用当前散落布局：
 
@@ -382,12 +385,14 @@ sm+ 恢复：
 
 ### 9.2 推荐方案
 
-用真正的 FNDS 容器 ref 作为 Framer Motion constraints。
+移动端使用 FNDS 内部的扩展约束区域作为 Framer Motion constraints。这个区域不参与
+视觉渲染，且比可视容器向外扩展，因此卡片允许部分出界，但仍会保留可再次抓取的区域；
+不能把卡片强制完整限制在 `overflow-clip` 的可视框内，否则 375×667 无法清空文案中心。
 
 结构：
 
     DraggableCardContainer
-    └─ containerRef
+    ├─ expanded mobile constraints (invisible)
        ├─ background copy
        ├─ card
        ├─ card
@@ -410,8 +415,8 @@ Motion：
 
 如果共享组件还需要保留旧行为，则：
 
-- constraintsRef 存在 → 使用真实容器边界
-- constraintsRef 不存在 → 保留原 fallback
+- 移动端 → 使用扩展的 FNDS 约束区域
+- sm+ 且高度充足 → 不传 constraintsRef，保留原来的 window-based fallback
 
 这样 FNDS 可以修正边界，同时避免无意改变其他潜在调用方。
 
@@ -505,10 +510,11 @@ Desktop 继续保持现有效果。
 
 ## 13. 推荐文件改动
 
-第一阶段预计只修改：
+第一阶段预计修改：
 
     app/fnds/page.tsx
     components/magicui/draggable-card.tsx
+    css/tailwind.css
 
 文档：
 
@@ -753,7 +759,9 @@ Framer Motion 已经满足当前需要。
 - 底层文案显式 z-0
 - 卡片显式位于文案之上
 - Mobile 文案中心与照片堆中心对齐
-- 使用真实 FNDS container 作为 drag constraints
+- Mobile 使用扩展的 FNDS 约束区域作为 drag constraints，允许卡片部分出界但保留抓取区
+- sm+ 且高度充足时保留原来的 window-based drag constraints fallback
+- 短屏横屏使用 compact card 样式
 - 无页面级横向 overflow
 - 375 / 390 / 393 / 430 宽度通过
 - Desktop regression 通过

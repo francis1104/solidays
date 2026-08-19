@@ -321,3 +321,76 @@ html.dark.theme-transitioning [data-chat-surface] {
   text-align: center;
   pointer-events: none;
 }
+
+/* Keep the FNDS deck usable in short mobile/landscape viewports. */
+@media (max-height: 520px) {
+  .fnds-page [data-fnds-copy] {
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .fnds-page [data-fnds-copy-title] {
+    font-size: clamp(2.25rem, 10vw, 3rem) !important;
+    line-height: 0.9 !important;
+  }
+
+  .fnds-page [class*='fnds-card-'] {
+    width: min(56vw, 220px) !important;
+    max-width: 220px !important;
+    min-height: 0 !important;
+    padding: 0.5rem !important;
+  }
+
+  .fnds-page [class*='fnds-card-'] img {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .fnds-page [class*='fnds-card-'] h3 {
+    margin-top: 0.25rem !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .fnds-page .fnds-card-0 {
+    top: 8% !important;
+    right: auto !important;
+    left: 8% !important;
+  }
+
+  .fnds-page .fnds-card-1 {
+    top: 20% !important;
+    right: auto !important;
+    left: 14% !important;
+  }
+
+  .fnds-page .fnds-card-2 {
+    top: 12% !important;
+    right: auto !important;
+    left: 20% !important;
+  }
+
+  .fnds-page .fnds-card-3 {
+    top: 26% !important;
+    right: auto !important;
+    left: 12% !important;
+  }
+
+  .fnds-page .fnds-card-4 {
+    top: 17% !important;
+    right: auto !important;
+    left: 4% !important;
+  }
+
+  .fnds-page .fnds-card-5 {
+    top: 28% !important;
+    right: auto !important;
+    left: 18% !important;
+  }
+
+  .fnds-page .fnds-card-6 {
+    top: 10% !important;
+    right: auto !important;
+    left: 15% !important;
+  }
+}

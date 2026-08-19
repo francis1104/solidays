@@ -14,7 +14,7 @@ type ChatLauncherProps = {
 }
 
 export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(function ChatLauncher(
-  { open, onClick, panelId, layoutId = 'floating-chat-surface' },
+  { open, onClick, panelId, layoutId },
   ref
 ) {
   return (

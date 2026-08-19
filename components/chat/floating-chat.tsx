@@ -719,13 +719,7 @@ export default function FloatingChat() {
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
         {routeMismatch ? (
-          <ChatLauncher
-            ref={launcherRef}
-            open={false}
-            layoutId={undefined}
-            panelId={PANEL_ID}
-            onClick={openChat}
-          />
+          <ChatLauncher ref={launcherRef} open={false} panelId={PANEL_ID} onClick={openChat} />
         ) : (
           <AnimatePresence initial={false}>
             {panelOpen ? (
@@ -751,6 +745,7 @@ export default function FloatingChat() {
                 key="chat-launcher"
                 ref={launcherRef}
                 open={panelOpen}
+                layoutId="floating-chat-surface"
                 panelId={PANEL_ID}
                 onClick={openChat}
               />

@@ -123,7 +123,7 @@ export function ChatPanel({
               y: routeCloseGeometry.y,
               scaleX: routeCloseGeometry.scaleX,
               scaleY: routeCloseGeometry.scaleY,
-              opacity: 0,
+              opacity: 1,
               borderRadius: 9999,
             }
           : { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, borderRadius: 24 }
@@ -152,10 +152,11 @@ export function ChatPanel({
             initial={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
             animate={routeClosing ? { opacity: 0, y: 0 } : { opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
-            transition={{
-              duration: routeClosing ? (reducedMotion ? 0.04 : 0.1) : reducedMotion ? 0.12 : 0.2,
-              delay: reducedMotion ? 0 : 0.09,
-            }}
+            transition={
+              routeClosing
+                ? { duration: reducedMotion ? 0 : 0.08, delay: 0 }
+                : { duration: reducedMotion ? 0.12 : 0.2, delay: reducedMotion ? 0 : 0.09 }
+            }
             className="flex min-h-0 flex-1 flex-col"
           >
             <ChatHeader onClose={onClose} />

@@ -1,7 +1,7 @@
 const basePath = process.env.BASE_PATH || ''
 
 const siteMetadata = {
-  title: 'EF site',
+  title: 'Solidays',
   author: 'Francis',
   headerTitle: 'Solidays',
   description: 'money is fake, Eason is FOREVER!',

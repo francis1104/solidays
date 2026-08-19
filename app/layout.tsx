@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <link rel="icon" type="image/svg+xml" href="/static/favicons/favicon.svg" />
       <link rel="shortcut icon" href="/static/favicons/favicon.ico" />
       <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png" />
-      <meta name="apple-mobile-web-app-title" content="EF site" />
+      <meta name="apple-mobile-web-app-title" content="Solidays" />
       <link rel="manifest" href={`${basePath}/static/favicons/site.webmanifest`} />
       <link
         rel="mask-icon"

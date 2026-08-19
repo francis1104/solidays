@@ -41,11 +41,15 @@ export default function AboutPage() {
         </aside>
 
         <article className="prose dark:prose-invert mb-20 max-w-none pt-8 pb-8 md:mb-8 xl:col-span-2">
+          <h2>Behind Solidays</h2>
           <p>
-            一位后端开发者，熟悉 Java、SQL、Docker、MyBatis、Spring、Spring Boot 等常用后端技术，
-            使用过 MySQL、Oracle 和 GoldenDB 数据库，也了解 Vue、JavaScript、CSS 等前端基础。
+            这个站点是一个持续生长的个人空间，记录我正在做的事情，也记录我如何把它们做出来。它使用
+            Next.js、React、TypeScript、Tailwind CSS 和 Framer Motion 构建，运行在 Cloudflare
+            Workers 上，并通过 OpenNext 部署。媒体内容存放在 R2，匿名留言使用 D1 持久化，再由
+            Durable Objects 和 WebSocket
+            提供实时同步。页面中的卡片、拖拽、主题切换和各种动效，则是在 Magic UI、shadcn/ui
+            与自定义组件的基础上逐步调整完成的。它不只是一个页面集合，也是一个用来实践全栈开发、交互设计和产品想法的小型实验场。
           </p>
-          <p>这个站点使用 Next.js、Magic UI 和 Aceternity UI 构建。</p>
           <h2>“Fear And Dreams”世界巡回演唱会</h2>
           <p>
             以“Fear”（恐惧）和“Dreams”（梦想）为主题，分为两个艺术层面进行表演。“Fear”部分配合末世、

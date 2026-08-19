@@ -22,6 +22,8 @@ type ChatPanelProps = {
   error: string | null
   reducedMotion: boolean
   scrollToLatestRequest: number
+  smoothScrollPending: boolean
+  onSmoothScrollComplete: () => void
 }
 
 export function ChatPanel({
@@ -39,6 +41,8 @@ export function ChatPanel({
   error,
   reducedMotion,
   scrollToLatestRequest,
+  smoothScrollPending,
+  onSmoothScrollComplete,
 }: ChatPanelProps) {
   return (
     <motion.div
@@ -75,6 +79,9 @@ export function ChatPanel({
             isLoadingMore={isLoadingMoreHistory}
             onLoadMore={onLoadMoreHistory}
             scrollToLatestRequest={scrollToLatestRequest}
+            smoothScrollPending={smoothScrollPending}
+            reducedMotion={reducedMotion}
+            onSmoothScrollComplete={onSmoothScrollComplete}
           />
           <ChatComposer
             value={input}

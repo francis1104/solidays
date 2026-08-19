@@ -155,6 +155,7 @@ export default function FloatingChat() {
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
+  const [smoothScrollPending, setSmoothScrollPending] = useState(false)
   const [openedPathname, setOpenedPathname] = useState<string | null>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -229,6 +230,14 @@ export default function FloatingChat() {
     setScrollToLatestRequest((request) => request + 1)
   }, [])
 
+  const beginSmoothScrollTransaction = useCallback(() => {
+    setSmoothScrollPending(true)
+  }, [])
+
+  const completeSmoothScrollTransaction = useCallback(() => {
+    setSmoothScrollPending(false)
+  }, [])
+
   useEffect(() => {
     if (!open || openedPathname === pathname) return
 
@@ -238,6 +247,10 @@ export default function FloatingChat() {
 
   const panelOpen = open && openedPathname === pathname
   const routeMismatch = open && openedPathname !== pathname
+
+  useEffect(() => {
+    if (!panelOpen) completeSmoothScrollTransaction()
+  }, [completeSmoothScrollTransaction, panelOpen])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -370,6 +383,12 @@ export default function FloatingChat() {
                 requestScrollToLatest()
                 setError(null)
               }
+              if (
+                syncDecision.type !== 'synchronized' ||
+                !isRealtimeGenerationCurrent(retryGeneration, requestGenerationRef.current)
+              ) {
+                completeSmoothScrollTransaction()
+              }
             })
             .catch(() => {
               const retryScheduled = scheduleNext()
@@ -384,6 +403,7 @@ export default function FloatingChat() {
                     : '留言已提交，但状态同步失败，请重新打开聊天重试。'
                 )
               }
+              if (!retryScheduled) completeSmoothScrollTransaction()
             })
         }, delay)
         return true
@@ -391,7 +411,12 @@ export default function FloatingChat() {
 
       return scheduleNext()
     },
-    [reconcileRealtimeState, requestScrollToLatest, resetAuthoritativeReconciliationRetry]
+    [
+      completeSmoothScrollTransaction,
+      reconcileRealtimeState,
+      requestScrollToLatest,
+      resetAuthoritativeReconciliationRetry,
+    ]
   )
 
   useEffect(() => {
@@ -475,17 +500,21 @@ export default function FloatingChat() {
         setInput('')
       }
       if (successDecision.type === 'reconcile') {
+        beginSmoothScrollTransaction()
         const reconciliationGeneration = requestGenerationRef.current
         try {
           await reconcileRealtimeState()
           const syncDecision = decideRealtimeCommandSync(successDecision, 'succeeded')
           resetAuthoritativeReconciliationRetry()
-          if (
-            syncDecision.type === 'synchronized' &&
-            isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
-          ) {
-            requestScrollToLatest()
-            setError(null)
+          if (syncDecision.type === 'synchronized') {
+            if (
+              isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
+            ) {
+              requestScrollToLatest()
+              setError(null)
+            } else {
+              completeSmoothScrollTransaction()
+            }
           }
         } catch {
           const retryScheduled = scheduleAuthoritativeReconciliationRetry(successDecision)
@@ -500,6 +529,7 @@ export default function FloatingChat() {
                 : '留言已提交，但状态同步失败，请重新打开聊天重试。'
             )
           }
+          if (!retryScheduled) completeSmoothScrollTransaction()
         }
         return
       }
@@ -513,6 +543,8 @@ export default function FloatingChat() {
       setConversationId(nextConversationId)
       setRealtimeEnabled(body.realtimeEnabled === true)
       const submittedMessage = mapApiMessage(body.message)
+      beginSmoothScrollTransaction()
+      requestScrollToLatest()
       if (nextConversationId !== currentConversationId) {
         setMessages(
           mergeRealtimeMessages([initialMessages[0]], [submittedMessage], initialMessages[0].id)
@@ -524,7 +556,6 @@ export default function FloatingChat() {
           mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
         )
       }
-      requestScrollToLatest()
     } catch (submissionError) {
       if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       setError(
@@ -539,6 +570,8 @@ export default function FloatingChat() {
     }
   }, [
     input,
+    beginSmoothScrollTransaction,
+    completeSmoothScrollTransaction,
     reconcileRealtimeState,
     resetAuthoritativeReconciliationRetry,
     requestScrollToLatest,
@@ -739,6 +772,8 @@ export default function FloatingChat() {
                 error={error}
                 reducedMotion={reducedMotion}
                 scrollToLatestRequest={scrollToLatestRequest}
+                smoothScrollPending={smoothScrollPending}
+                onSmoothScrollComplete={completeSmoothScrollTransaction}
               />
             ) : (
               <ChatLauncher

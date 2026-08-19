@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Message, MessageContent } from '@/components/ui/message'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import {
@@ -19,6 +19,14 @@ type ChatMessagesProps = {
   isLoadingMore: boolean
   onLoadMore: () => void
   scrollToLatestRequest: number
+  smoothScrollPending: boolean
+  reducedMotion: boolean
+  onSmoothScrollComplete: () => void
+}
+
+type ChatMessagesContentProps = ChatMessagesProps & {
+  scrollRequestPending: boolean
+  onScrollRequestSettled: (request: number) => void
 }
 
 function ChatMessagesContent({
@@ -27,20 +35,77 @@ function ChatMessagesContent({
   isLoadingMore,
   onLoadMore,
   scrollToLatestRequest,
-}: ChatMessagesProps) {
+  reducedMotion,
+  onSmoothScrollComplete,
+  smoothScrollPending,
+  scrollRequestPending,
+  onScrollRequestSettled,
+}: ChatMessagesContentProps) {
   const { scrollToEnd } = useMessageScroller()
-  const lastHandledScrollRequestRef = useRef(scrollToLatestRequest)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const restoreFollowRef = useRef(false)
 
-  useEffect(() => {
-    if (lastHandledScrollRequestRef.current === scrollToLatestRequest) return
+  useLayoutEffect(() => {
+    if (!scrollRequestPending) return
 
-    lastHandledScrollRequestRef.current = scrollToLatestRequest
-    scrollToEnd({ behavior: 'smooth' })
-  }, [scrollToEnd, scrollToLatestRequest])
+    const request = scrollToLatestRequest
+    const viewport = viewportRef.current
+    let completed = false
+
+    const isAtEnd = () => {
+      if (!viewport) return true
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      return maxScrollTop - viewport.scrollTop <= 1
+    }
+
+    const complete = () => {
+      if (completed) return
+      completed = true
+      viewport?.removeEventListener('scroll', handleScroll)
+      viewport?.removeEventListener('scrollend', complete)
+      restoreFollowRef.current = true
+      onScrollRequestSettled(request)
+      onSmoothScrollComplete()
+    }
+
+    const handleScroll = () => {
+      if (isAtEnd()) complete()
+    }
+
+    if (!viewport) {
+      complete()
+      return
+    }
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+    viewport.addEventListener('scrollend', complete)
+    const didScroll = scrollToEnd({ behavior: reducedMotion ? 'auto' : 'smooth' })
+
+    if (!didScroll || isAtEnd()) complete()
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      viewport.removeEventListener('scrollend', complete)
+    }
+  }, [
+    onSmoothScrollComplete,
+    onScrollRequestSettled,
+    reducedMotion,
+    scrollRequestPending,
+    scrollToEnd,
+    scrollToLatestRequest,
+  ])
+
+  useLayoutEffect(() => {
+    if (smoothScrollPending || scrollRequestPending || !restoreFollowRef.current) return
+
+    restoreFollowRef.current = false
+    scrollToEnd({ behavior: 'auto' })
+  }, [scrollRequestPending, scrollToEnd, smoothScrollPending])
 
   return (
     <MessageScroller className="h-full">
-      <MessageScrollerViewport aria-label="Messages">
+      <MessageScrollerViewport ref={viewportRef} aria-label="Messages">
         <MessageScrollerContent className="px-4 py-4">
           {hasMore ? (
             <div className="flex justify-center pb-3">
@@ -84,10 +149,20 @@ function ChatMessagesContent({
 }
 
 export function ChatMessages(props: ChatMessagesProps) {
+  const [settledScrollRequest, setSettledScrollRequest] = useState(props.scrollToLatestRequest)
+  const scrollRequestPending = settledScrollRequest !== props.scrollToLatestRequest
+  const onScrollRequestSettled = useCallback((request: number) => {
+    setSettledScrollRequest(request)
+  }, [])
+
   return (
     <div className="relative min-h-0 flex-1">
-      <MessageScrollerProvider autoScroll>
-        <ChatMessagesContent {...props} />
+      <MessageScrollerProvider autoScroll={!props.smoothScrollPending && !scrollRequestPending}>
+        <ChatMessagesContent
+          {...props}
+          scrollRequestPending={scrollRequestPending}
+          onScrollRequestSettled={onScrollRequestSettled}
+        />
       </MessageScrollerProvider>
       <div
         aria-hidden="true"

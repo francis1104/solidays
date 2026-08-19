@@ -155,7 +155,9 @@ export default function FloatingChat() {
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
+  const [smoothScrollPending, setSmoothScrollPending] = useState(false)
   const [openedPathname, setOpenedPathname] = useState<string | null>(null)
+  const [routeClosing, setRouteClosing] = useState(false)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -221,23 +223,43 @@ export default function FloatingChat() {
 
   const openChat = useCallback(() => {
     suppressLauncherFocusRef.current = false
+    setRouteClosing(false)
     setOpenedPathname(pathname)
     setOpen(true)
   }, [pathname])
+
+  const finishRouteClose = useCallback(() => {
+    setRouteClosing(false)
+    setOpen(false)
+  }, [])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
   }, [])
 
+  const beginSmoothScrollTransaction = useCallback(() => {
+    setSmoothScrollPending(true)
+  }, [])
+
+  const completeSmoothScrollTransaction = useCallback(() => {
+    setSmoothScrollPending(false)
+  }, [])
+
   useEffect(() => {
-    if (!open || openedPathname === pathname) return
+    if (!open || openedPathname === pathname || routeClosing) return
 
     suppressLauncherFocusRef.current = true
-    setOpen(false)
-  }, [open, openedPathname, pathname])
+    textareaRef.current?.blur()
+    setRouteClosing(true)
+  }, [open, openedPathname, pathname, routeClosing])
 
-  const panelOpen = open && openedPathname === pathname
+  const panelOpen = open && !routeClosing && openedPathname === pathname
   const routeMismatch = open && openedPathname !== pathname
+  const routeClosingActive = open && (routeMismatch || routeClosing)
+
+  useEffect(() => {
+    if (!panelOpen) completeSmoothScrollTransaction()
+  }, [completeSmoothScrollTransaction, panelOpen, smoothScrollPending])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -370,6 +392,12 @@ export default function FloatingChat() {
                 requestScrollToLatest()
                 setError(null)
               }
+              if (
+                syncDecision.type !== 'synchronized' ||
+                !isRealtimeGenerationCurrent(retryGeneration, requestGenerationRef.current)
+              ) {
+                completeSmoothScrollTransaction()
+              }
             })
             .catch(() => {
               const retryScheduled = scheduleNext()
@@ -384,6 +412,7 @@ export default function FloatingChat() {
                     : '留言已提交，但状态同步失败，请重新打开聊天重试。'
                 )
               }
+              if (!retryScheduled) completeSmoothScrollTransaction()
             })
         }, delay)
         return true
@@ -391,7 +420,12 @@ export default function FloatingChat() {
 
       return scheduleNext()
     },
-    [reconcileRealtimeState, requestScrollToLatest, resetAuthoritativeReconciliationRetry]
+    [
+      completeSmoothScrollTransaction,
+      reconcileRealtimeState,
+      requestScrollToLatest,
+      resetAuthoritativeReconciliationRetry,
+    ]
   )
 
   useEffect(() => {
@@ -475,17 +509,21 @@ export default function FloatingChat() {
         setInput('')
       }
       if (successDecision.type === 'reconcile') {
+        beginSmoothScrollTransaction()
         const reconciliationGeneration = requestGenerationRef.current
         try {
           await reconcileRealtimeState()
           const syncDecision = decideRealtimeCommandSync(successDecision, 'succeeded')
           resetAuthoritativeReconciliationRetry()
-          if (
-            syncDecision.type === 'synchronized' &&
-            isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
-          ) {
-            requestScrollToLatest()
-            setError(null)
+          if (syncDecision.type === 'synchronized') {
+            if (
+              isRealtimeGenerationCurrent(reconciliationGeneration, requestGenerationRef.current)
+            ) {
+              requestScrollToLatest()
+              setError(null)
+            } else {
+              completeSmoothScrollTransaction()
+            }
           }
         } catch {
           const retryScheduled = scheduleAuthoritativeReconciliationRetry(successDecision)
@@ -500,6 +538,7 @@ export default function FloatingChat() {
                 : '留言已提交，但状态同步失败，请重新打开聊天重试。'
             )
           }
+          if (!retryScheduled) completeSmoothScrollTransaction()
         }
         return
       }
@@ -513,6 +552,8 @@ export default function FloatingChat() {
       setConversationId(nextConversationId)
       setRealtimeEnabled(body.realtimeEnabled === true)
       const submittedMessage = mapApiMessage(body.message)
+      beginSmoothScrollTransaction()
+      requestScrollToLatest()
       if (nextConversationId !== currentConversationId) {
         setMessages(
           mergeRealtimeMessages([initialMessages[0]], [submittedMessage], initialMessages[0].id)
@@ -524,7 +565,6 @@ export default function FloatingChat() {
           mergeRealtimeMessages(current, [submittedMessage], initialMessages[0].id)
         )
       }
-      requestScrollToLatest()
     } catch (submissionError) {
       if (!isRealtimeGenerationCurrent(generation, requestGenerationRef.current)) return
       setError(
@@ -539,6 +579,8 @@ export default function FloatingChat() {
     }
   }, [
     input,
+    beginSmoothScrollTransaction,
+    completeSmoothScrollTransaction,
     reconcileRealtimeState,
     resetAuthoritativeReconciliationRetry,
     requestScrollToLatest,
@@ -718,40 +760,40 @@ export default function FloatingChat() {
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
-        {routeMismatch ? (
-          <ChatLauncher ref={launcherRef} open={false} panelId={PANEL_ID} onClick={openChat} />
-        ) : (
-          <AnimatePresence initial={false}>
-            {panelOpen ? (
-              <ChatPanel
-                key="chat-panel"
-                messages={messages}
-                hasMoreHistory={hasMoreHistory}
-                isLoadingMoreHistory={isLoadingMoreHistory}
-                input={input}
-                panelId={PANEL_ID}
-                textareaRef={textareaRef}
-                onChange={setInput}
-                onClose={closeChat}
-                onLoadMoreHistory={loadMoreHistory}
-                onSubmit={sendMessage}
-                isSending={isSending}
-                error={error}
-                reducedMotion={reducedMotion}
-                scrollToLatestRequest={scrollToLatestRequest}
-              />
-            ) : (
-              <ChatLauncher
-                key="chat-launcher"
-                ref={launcherRef}
-                open={panelOpen}
-                layoutId="floating-chat-surface"
-                panelId={PANEL_ID}
-                onClick={openChat}
-              />
-            )}
-          </AnimatePresence>
-        )}
+        <AnimatePresence initial={false}>
+          {open ? (
+            <ChatPanel
+              key="chat-panel"
+              messages={messages}
+              hasMoreHistory={hasMoreHistory}
+              isLoadingMoreHistory={isLoadingMoreHistory}
+              input={input}
+              panelId={PANEL_ID}
+              textareaRef={textareaRef}
+              onChange={setInput}
+              onClose={closeChat}
+              onLoadMoreHistory={loadMoreHistory}
+              onSubmit={sendMessage}
+              isSending={isSending}
+              error={error}
+              reducedMotion={reducedMotion}
+              scrollToLatestRequest={scrollToLatestRequest}
+              smoothScrollPending={smoothScrollPending}
+              onSmoothScrollComplete={completeSmoothScrollTransaction}
+              routeClosing={routeClosingActive}
+              onRouteCloseComplete={finishRouteClose}
+            />
+          ) : (
+            <ChatLauncher
+              key="chat-launcher"
+              ref={launcherRef}
+              open={false}
+              layoutId="floating-chat-surface"
+              panelId={PANEL_ID}
+              onClick={openChat}
+            />
+          )}
+        </AnimatePresence>
       </LayoutGroup>
     </div>
   )

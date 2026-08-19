@@ -14,9 +14,11 @@ import {
 export const DraggableCardBody = ({
   className,
   children,
+  constraintsRef,
 }: {
   className?: string
   children?: React.ReactNode
+  constraintsRef?: React.RefObject<HTMLElement | null>
 }) => {
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
@@ -47,6 +49,8 @@ export const DraggableCardBody = ({
   const glareOpacity = useSpring(useTransform(mouseX, [-300, 0, 300], [0.2, 0, 0.2]), springConfig)
 
   useEffect(() => {
+    if (constraintsRef) return
+
     // Update constraints when component mounts or window resizes
     const updateConstraints = () => {
       if (typeof window !== 'undefined') {
@@ -68,7 +72,7 @@ export const DraggableCardBody = ({
     return () => {
       window.removeEventListener('resize', updateConstraints)
     }
-  }, [])
+  }, [constraintsRef])
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const { clientX, clientY } = e
@@ -95,7 +99,7 @@ export const DraggableCardBody = ({
     <motion.div
       ref={cardRef}
       drag
-      dragConstraints={constraints}
+      dragConstraints={constraintsRef ?? constraints}
       onDragStart={() => {
         document.body.style.cursor = 'grabbing'
       }}
@@ -164,12 +168,18 @@ export const DraggableCardBody = ({
   )
 }
 
-export const DraggableCardContainer = ({
-  className,
-  children,
-}: {
-  className?: string
-  children?: React.ReactNode
-}) => {
-  return <div className={cn('[perspective:3000px]', className)}>{children}</div>
-}
+export const DraggableCardContainer = React.forwardRef<
+  HTMLDivElement,
+  {
+    className?: string
+    children?: React.ReactNode
+  }
+>(({ className, children }, ref) => {
+  return (
+    <div ref={ref} className={cn('[perspective:3000px]', className)}>
+      {children}
+    </div>
+  )
+})
+
+DraggableCardContainer.displayName = 'DraggableCardContainer'

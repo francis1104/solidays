@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion'
-import { usePathname } from 'next/navigation'
 import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
@@ -156,7 +155,6 @@ export default function FloatingChat() {
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const [smoothScrollPending, setSmoothScrollPending] = useState(false)
-  const [openedPathname, setOpenedPathname] = useState<string | null>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const turnstileRef = useRef<ChatTurnstileHandle>(null)
@@ -170,8 +168,6 @@ export default function FloatingChat() {
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
   const requestGenerationRef = useRef(0)
-  const pathname = usePathname()
-  const suppressLauncherFocusRef = useRef(false)
   const reconciliationPromiseRef = useRef<Promise<void> | null>(null)
   const authoritativeRetryRef = useRef<{ attempt: number; timer: number | null }>({
     attempt: 0,
@@ -216,15 +212,12 @@ export default function FloatingChat() {
   )
 
   const closeChat = useCallback(() => {
-    suppressLauncherFocusRef.current = false
     setOpen(false)
   }, [])
 
   const openChat = useCallback(() => {
-    suppressLauncherFocusRef.current = false
-    setOpenedPathname(pathname)
     setOpen(true)
-  }, [pathname])
+  }, [])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
@@ -238,20 +231,9 @@ export default function FloatingChat() {
     setSmoothScrollPending(false)
   }, [])
 
-  useLayoutEffect(() => {
-    if (!open || openedPathname === pathname) return
-
-    suppressLauncherFocusRef.current = true
-    textareaRef.current?.blur()
-    setOpen(false)
-  }, [open, openedPathname, pathname])
-
-  const panelOpen = open && openedPathname === pathname
-  const sharedLayoutId = 'floating-chat-surface'
-
   useEffect(() => {
-    if (!panelOpen) completeSmoothScrollTransaction()
-  }, [completeSmoothScrollTransaction, panelOpen, smoothScrollPending])
+    if (!open) completeSmoothScrollTransaction()
+  }, [completeSmoothScrollTransaction, open, smoothScrollPending])
 
   const loadMoreHistory = useCallback(async () => {
     const cursor = historyCursor
@@ -708,7 +690,7 @@ export default function FloatingChat() {
   }, [conversationId, open, realtimeEnabled, reconcileRealtimeState])
 
   useEffect(() => {
-    if (!panelOpen) return
+    if (!open) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeChat()
@@ -728,15 +710,10 @@ export default function FloatingChat() {
       window.removeEventListener('keydown', handleKeyDown)
       window.clearTimeout(focusTimer)
     }
-  }, [closeChat, panelOpen, reducedMotion])
+  }, [closeChat, open, reducedMotion])
 
   useEffect(() => {
     if (open) return
-
-    if (suppressLauncherFocusRef.current) {
-      suppressLauncherFocusRef.current = false
-      return
-    }
 
     const focusTimer = window.setTimeout(
       () => {
@@ -753,7 +730,7 @@ export default function FloatingChat() {
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
       <LayoutGroup id="floating-chat">
         <AnimatePresence initial={false}>
-          {panelOpen ? (
+          {open ? (
             <ChatPanel
               key="chat-panel"
               messages={messages}
@@ -769,7 +746,6 @@ export default function FloatingChat() {
               isSending={isSending}
               error={error}
               reducedMotion={reducedMotion}
-              sharedLayoutId={sharedLayoutId}
               scrollToLatestRequest={scrollToLatestRequest}
               smoothScrollPending={smoothScrollPending}
               onSmoothScrollComplete={completeSmoothScrollTransaction}
@@ -778,8 +754,7 @@ export default function FloatingChat() {
             <ChatLauncher
               key="chat-launcher"
               ref={launcherRef}
-              open={false}
-              layoutId={sharedLayoutId}
+              open={open}
               panelId={PANEL_ID}
               onClick={openChat}
             />

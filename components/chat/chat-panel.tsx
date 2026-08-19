@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChatComposer } from './chat-composer'
 import { ChatHeader } from './chat-header'
 import { ChatMessages } from './chat-messages'
@@ -14,6 +14,8 @@ type ChatPanelProps = {
   isLoadingMoreHistory: boolean
   input: string
   panelId: string
+  sharedLayoutId: string
+  routeCloseTargetRef: React.RefObject<HTMLElement | null>
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onChange: (value: string) => void
   onClose: () => void
@@ -35,6 +37,8 @@ export function ChatPanel({
   isLoadingMoreHistory,
   input,
   panelId,
+  sharedLayoutId,
+  routeCloseTargetRef,
   textareaRef,
   onChange,
   onClose,
@@ -50,6 +54,13 @@ export function ChatPanel({
   onRouteCloseComplete,
 }: ChatPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const routeCloseMeasuredRef = useRef(false)
+  const [routeCloseGeometry, setRouteCloseGeometry] = useState<{
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+  } | null>(null)
 
   useEffect(() => {
     if (!routeClosing) return
@@ -61,11 +72,43 @@ export function ChatPanel({
     }
   }, [routeClosing])
 
+  useLayoutEffect(() => {
+    if (!routeClosing || routeCloseMeasuredRef.current) return
+
+    const panel = panelRef.current
+    const target = routeCloseTargetRef.current
+    if (!panel || !target) {
+      onRouteCloseComplete?.()
+      return
+    }
+
+    const panelRect = panel.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    if (
+      panelRect.width <= 0 ||
+      panelRect.height <= 0 ||
+      targetRect.width <= 0 ||
+      targetRect.height <= 0
+    ) {
+      onRouteCloseComplete?.()
+      return
+    }
+
+    routeCloseMeasuredRef.current = true
+    setRouteCloseGeometry({
+      x: targetRect.left - panelRect.left,
+      y: targetRect.top - panelRect.top,
+      scaleX: targetRect.width / panelRect.width,
+      scaleY: targetRect.height / panelRect.height,
+    })
+  }, [onRouteCloseComplete, routeCloseTargetRef, routeClosing])
+
+  const routeCloseAnimating = routeClosing && routeCloseGeometry !== null
+
   return (
     <motion.div
       ref={panelRef}
       id={panelId}
-      layoutId={routeClosing ? undefined : 'floating-chat-surface'}
       role="dialog"
       aria-modal="false"
       aria-labelledby="floating-chat-title"
@@ -74,54 +117,70 @@ export function ChatPanel({
       data-testid="chat-panel"
       initial={false}
       animate={
-        routeClosing
-          ? { opacity: 0, scale: 0.12, borderRadius: 999 }
-          : { opacity: 1, scale: 1, borderRadius: 24 }
+        routeCloseAnimating
+          ? {
+              x: routeCloseGeometry.x,
+              y: routeCloseGeometry.y,
+              scaleX: routeCloseGeometry.scaleX,
+              scaleY: routeCloseGeometry.scaleY,
+              opacity: 1,
+              borderRadius: 9999,
+            }
+          : { x: 0, y: 0, scaleX: 1, scaleY: 1, opacity: 1, borderRadius: 24 }
       }
       transition={
-        routeClosing
+        routeCloseAnimating
           ? { duration: reducedMotion ? 0.08 : 0.24, ease: 'easeInOut' }
           : reducedMotion
             ? { duration: 0.18 }
             : { type: 'spring', stiffness: 320, damping: 30, mass: 0.8 }
       }
-      onAnimationComplete={routeClosing ? onRouteCloseComplete : undefined}
-      style={{ pointerEvents: routeClosing ? 'none' : undefined, transformOrigin: 'bottom right' }}
+      onAnimationComplete={routeCloseAnimating ? onRouteCloseComplete : undefined}
+      style={{
+        pointerEvents: routeClosing ? 'none' : undefined,
+        transformOrigin: 'top left',
+      }}
       className="pointer-events-auto fixed right-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-[60] h-[min(72dvh,620px)] w-[calc(100vw-24px)] max-w-[420px] overflow-hidden rounded-[24px] outline-none sm:right-6 sm:bottom-6 sm:h-[560px] sm:w-[380px] sm:max-w-[380px]"
     >
-      <ChatSurface className="flex h-full w-full flex-col rounded-[inherit]">
-        <motion.div
-          key="chat-content"
-          initial={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
-          transition={{
-            duration: reducedMotion ? 0.12 : 0.2,
-            delay: reducedMotion ? 0 : 0.09,
-          }}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <ChatHeader onClose={onClose} />
-          <ChatMessages
-            messages={messages}
-            hasMore={hasMoreHistory}
-            isLoadingMore={isLoadingMoreHistory}
-            onLoadMore={onLoadMoreHistory}
-            scrollToLatestRequest={scrollToLatestRequest}
-            smoothScrollPending={smoothScrollPending}
-            reducedMotion={reducedMotion}
-            onSmoothScrollComplete={onSmoothScrollComplete}
-          />
-          <ChatComposer
-            value={input}
-            onChange={onChange}
-            onSubmit={onSubmit}
-            textareaRef={textareaRef}
-            disabled={isSending}
-            error={error}
-          />
-        </motion.div>
-      </ChatSurface>
+      <motion.div
+        layoutId={routeClosing ? undefined : sharedLayoutId}
+        className="absolute inset-0 overflow-hidden rounded-[inherit]"
+      >
+        <ChatSurface className="flex h-full w-full flex-col rounded-[inherit]">
+          <motion.div
+            key="chat-content"
+            initial={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
+            animate={routeClosing ? { opacity: 0, y: 0 } : { opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
+            transition={
+              routeClosing
+                ? { duration: reducedMotion ? 0 : 0.08, delay: 0 }
+                : { duration: reducedMotion ? 0.12 : 0.2, delay: reducedMotion ? 0 : 0.09 }
+            }
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <ChatHeader onClose={onClose} />
+            <ChatMessages
+              messages={messages}
+              hasMore={hasMoreHistory}
+              isLoadingMore={isLoadingMoreHistory}
+              onLoadMore={onLoadMoreHistory}
+              scrollToLatestRequest={scrollToLatestRequest}
+              smoothScrollPending={smoothScrollPending}
+              reducedMotion={reducedMotion}
+              onSmoothScrollComplete={onSmoothScrollComplete}
+            />
+            <ChatComposer
+              value={input}
+              onChange={onChange}
+              onSubmit={onSubmit}
+              textareaRef={textareaRef}
+              disabled={isSending}
+              error={error}
+            />
+          </motion.div>
+        </ChatSurface>
+      </motion.div>
     </motion.div>
   )
 }

@@ -41,7 +41,8 @@ Turnstile。生产环境使用 `solidays.win`，`workers.dev` 默认地址已关
 - `NEXT_PUBLIC_R2_PUBLIC_URL`：R2 公共域名；设置后 `/fnds` 使用 R2 对象 key
 - `NEXT_PUBLIC_API_URL`：可选的外部卡片 API，不设置时使用本 Worker 的 `/api/cards`
 - `NEXT_PUBLIC_MUSIC_API_URL`：可选的歌曲信息 API，不设置时隐藏音乐 Dock，避免调用失效接口
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`：匿名留言 Widget 的公开 Site Key；生产值保存在未提交的 `.env.local`
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`：匿名留言 Widget 的公开 Site Key；生产值位于版本化的
+  `.env.production`，本地开发使用 `.env.local` 中的官方 dummy key
 
 `TURNSTILE_SECRET_KEY` 是服务端 Secret：本地开发放在未提交的 `.dev.vars`，生产通过
 `wrangler secret put TURNSTILE_SECRET_KEY` 写入 Worker，不要写入 Git。

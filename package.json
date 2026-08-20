@@ -14,10 +14,10 @@
     "test:gallery-pipeline": "python3 -m unittest scripts/gallery/test_phase2_manifest.py",
     "gallery:phase2-assets": "python3 scripts/gallery/generate-phase2-assets.py",
     "gallery:phase2-upload": "python3 scripts/gallery/upload-phase2-wrangler.py",
-    "worker:build": "opennextjs-cloudflare build",
-    "worker:dev": "opennextjs-cloudflare build && wrangler dev --var CHAT_LOCAL_DEV:true --var CHAT_REALTIME_ENABLED:true",
+    "worker:build": "node scripts/build-worker.mjs",
+    "worker:dev": "cross-env NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000BB opennextjs-cloudflare build && wrangler dev --var CHAT_LOCAL_DEV:true --var CHAT_REALTIME_ENABLED:true",
     "worker:migrate:remote": "wrangler d1 migrations apply solidays-chat --remote --config wrangler.jsonc",
-    "worker:deploy": "opennextjs-cloudflare build && yarn worker:migrate:remote && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
+    "worker:deploy": "yarn worker:build && yarn worker:migrate:remote && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
     "worker:deploy:ci": "yarn worker:migrate:remote && cross-env OPEN_NEXT_DEPLOY=true wrangler deploy --config wrangler.jsonc",
     "worker:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },

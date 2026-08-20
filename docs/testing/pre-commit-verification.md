@@ -102,7 +102,31 @@ node .yarn/releases/yarn-3.6.1.cjs worker:dev
   只有明确确认构建产物与当前源码一致时，才可用
   `CHAT_LOCAL_REUSE_BUILD=true` 跳过构建；普通验证不要设置该变量。
 
-## 5. 断点调试（必要时）
+## 5. 生产配置可合并检查
+
+本地行为测试通过后、`git commit` 之前，必须重新生成一次生产 Worker 产物并检查生产配置。
+这一步是 DEV 提交的合并门禁：它确保当前 DEV commit 不会因为本地环境变量或过期构建产物而在生产失效。
+
+```bash
+node .yarn/releases/yarn-3.6.1.cjs worker:build
+node .yarn/releases/yarn-3.6.1.cjs worker:check:production
+WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs exec wrangler deploy --dry-run --config wrangler.jsonc
+```
+
+`worker:check:production` 只检查仓库配置和本地产物，不打印任何 Secret；它会确认：
+
+- `.env.production` 有生产 URL、媒体 URL 和非测试 Turnstile Site Key；
+- `wrangler.jsonc` 的 Worker 名称、生产域名、`CHAT_LOCAL_DEV=false`、
+  `CHAT_REALTIME_ENABLED=true`、D1、Durable Object 和 required secret 声明没有漂移；
+- 当前 `.open-next` 包含生产 Site Key，且不包含已知的 Turnstile dummy key。
+
+`wrangler deploy --dry-run` 用于校验 Wrangler 配置和构建资产，不会部署、不应用远程迁移。
+Worker Secret 的值不会被 Git 或本地检查读取；发布前至少用只读的
+`wrangler secret list --name solidays-worker` 确认 required secret 名称存在，禁止把 Secret 值写入日志。
+
+此步骤必须在本地 `worker:dev` 停止后执行，因为 `worker:build` 会重写 `.next/` 和 `.open-next/`。
+
+## 6. 断点调试（必要时）
 
 - 首选 `evaluate_script`：直接在页面上下文检查运行时状态（组件挂载后的
   DOM、`window` 上的对象、包装 `fetch`/`console` 打点观察调用链）。
@@ -110,7 +134,7 @@ node .yarn/releases/yarn-3.6.1.cjs worker:dev
   `worker:dev` 复现；**提交前必须移除所有临时调试代码**。
 - 复杂交互可配合 `wait_for` 等待异步状态，再抓快照或执行脚本。
 
-## 6. 通过标准与收尾
+## 7. 通过标准与收尾
 
 - 改动部分按预期工作，应用自身请求无失败，控制台无本站代码产生的
   Error/Warning（第三方噪音除外，见第 3 节）。

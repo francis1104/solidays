@@ -59,8 +59,14 @@ git push origin cloudflare-worker-DEV
    node .yarn/releases/yarn-3.6.1.cjs lint
    node .yarn/releases/yarn-3.6.1.cjs worker:types
    node .yarn/releases/yarn-3.6.1.cjs worker:build
+   node .yarn/releases/yarn-3.6.1.cjs worker:check:production
    WRANGLER_WRITE_LOGS=false node .yarn/releases/yarn-3.6.1.cjs worker:deploy:ci --dry-run
    ```
+
+   `worker:check:production` 是 DEV commit 的生产配置门禁，必须在本地行为测试结束后、
+   提交前通过。它检查 `.env.production`、`wrangler.jsonc` 和当前 Worker bundle，防止
+   `.env.local`、测试 key 或过期 `.open-next` 产物进入可合并版本。具体检查项见
+   `docs/testing/pre-commit-verification.md`。
 
 4. 在 DEV 分支提交并推送：
 

@@ -56,6 +56,10 @@ node .yarn/releases/yarn-3.6.1.cjs test:chat-local-concurrent
 - 真实密钥只用于生产：公开的 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 位于版本化的
   `.env.production`，Worker Secret 已通过全局 Wrangler 的 macOS 钥匙串 OAuth
   登录写入。
+- Next.js 的 `.env.local` 优先级高于 `.env.production`。因此 `worker:build` 会显式从
+  `.env.production` 注入生产 Site Key，避免本地 dummy key 被打进生产客户端 bundle；
+  `worker:dev` 则显式注入官方 dummy Site Key。生产构建请使用项目 Yarn 命令，不要直接
+  调用 `opennextjs-cloudflare build`。
 - 不要把 `TURNSTILE_SECRET_KEY` 或其他 Secret 写入仓库。
 - `worker:dev` 只在本地注入 `CHAT_LOCAL_DEV=true`，用于处理 Wrangler 把本地请求
   映射到 `http://solidays.win` 的行为；生产配置固定为 `false`，不会放宽 HTTPS

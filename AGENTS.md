@@ -186,7 +186,9 @@ shadcn 约定的 `cn()` 工具。
 8. 保留用户已有改动，先看 `git status --short --branch` 再操作，不使用破坏性重置命令。
 9. 提交前验证：每次代码改动提交之前，都要启动本地 Worker（`worker:dev`），通过
    Chrome DevTools 访问 `http://localhost:8787` 并对改动部分实际测试，必要时断点
-   调试；测试通过才允许 commit。完整流程见 `docs/testing/pre-commit-verification.md`。
+   调试；本地行为测试结束后还必须通过生产配置门禁（`worker:build`、
+   `worker:check:production`、Wrangler `deploy --dry-run`），确认当前 DEV commit
+   可以合并生产后才允许 commit。完整流程见 `docs/testing/pre-commit-verification.md`。
 10. 发布后验证：所有生产发布完成之后，都要用 Chrome DevTools 访问线上生产站点，
    对本次发布改动的功能实际测试；涉及 Turnstile 等防自动化的环节不做自动化提交
    测试，按文档替代方案验证。流程见 `docs/testing/post-deployment-verification.md`。

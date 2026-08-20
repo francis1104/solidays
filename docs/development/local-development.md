@@ -14,6 +14,7 @@ node .yarn/releases/yarn-3.6.1.cjs dev --hostname 127.0.0.1 --port 3001
 node .yarn/releases/yarn-3.6.1.cjs lint
 node .yarn/releases/yarn-3.6.1.cjs build
 node .yarn/releases/yarn-3.6.1.cjs worker:build
+node .yarn/releases/yarn-3.6.1.cjs worker:check:production
 node .yarn/releases/yarn-3.6.1.cjs worker:types
 node .yarn/releases/yarn-3.6.1.cjs wrangler d1 migrations apply solidays-chat --local
 node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime

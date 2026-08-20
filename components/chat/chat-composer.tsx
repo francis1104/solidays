@@ -65,7 +65,7 @@ export function ChatComposer({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           aria-label="匿名留言"
-          className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2.5 py-2 text-sm leading-5 text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100 dark:placeholder:text-gray-500"
+          className="max-h-[120px] min-h-10 flex-1 resize-none bg-transparent px-2.5 py-2 text-base leading-5 text-gray-900 outline-none placeholder:text-gray-400 sm:text-sm dark:text-gray-100 dark:placeholder:text-gray-500"
         />
         <button
           type="submit"

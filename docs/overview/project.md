@@ -10,25 +10,26 @@
 - 当前维护分支：`cloudflare-worker-DEV`；生产分支：`cloudflare-worker`
   （分支与发布规则见 `docs/deployment/release-process.md`）。
 - 当前展示页：`/`、`/gallery`、`/fnds`、`/about`；卡片接口是 `/api/cards`。
-- 首页当前固定使用 `data/cards.ts` 中的一条默认卡片；首页不再请求 `/api/cards`，
-  但该接口暂时保留作为以后接入 D1 的数据边界。
-- 首页 CardStack 保留 3 层静态堆叠视觉：1 张真实卡片和 2 个空白后层框，不自动
-  轮播、不做数据切换。
+- 首页使用 `data/cards.ts` 硬编码歌词卡：用户手势循环正面卡，点 Play 才出声。
+  禁止 auto-rotate，禁止客户端 fetch `/api/cards`。该接口暂时保留作为以后接入
+  D1 的数据边界。首页下方是 Gallery / FNDS 入口预览（poster / 静帧，不加载视频）。
 - 当前生产域名：`https://solidays.win`；`https://www.solidays.win` 会跳转到主域名。
 - `workers.dev` 默认地址已经关闭，不要把它当作生产入口。
 
 ## 主要目录与当前约定
 
-- `app/`：页面、API 路由和 App Router 入口；`fnds`、`about` 的图片/头像通过 R2
+- `app/`：页面、API 路由和 App Router 入口；`fnds`、`about` 的图片/头像以及首页音乐通过 R2
   object key 访问，`app/media/[...key]/route.ts` 负责私有媒体读取。
 - `components/`：按来源与职责分组——`site/`（项目自己的页面组件）、`gallery/`（Gallery
   页面）、`chat/`（聊天前端）、`ui/`（shadcn 来源）、`magicui/`（Magic UI 来源）、
   `lib/`（shadcn 约定的 `cn()` 工具）。`contexts/`：主题和交互状态；`lib/media.ts`
   负责私有媒体 URL；`lib/gallery.ts` 负责公开 Gallery 基址。
-- `data/cards.ts`：当前唯一的默认卡片数据。`app/page.tsx` 直接使用它，不要恢复
-  客户端 fetch、本地镜像状态或自动轮播。
-- `components/magicui/CardStack.tsx`：3 层静态堆叠（1 张真实卡片 + 2 个空白后层框），
-  当前不做数据切换；`SongContext` 仍使用同一份默认卡片供 `MusicDock` 查找歌曲。
+- `data/cards.ts`：首页四张歌词卡与私有 R2 `audioKey` 数据源。`app/page.tsx` 经
+  `HomeLyricStack` 使用它，不要恢复客户端 fetch `/api/cards` 或自动轮播。用户手势
+  循环是允许的。
+- `components/magicui/CardStack.tsx`：3 层堆叠 primitive（正面歌词区循环，Play
+  独立按钮，后层 `pointer-events-none`）。`lib/music.ts` 的共享 `audioCache`
+  给卡片 Play 和 MusicDock 预解析使用。
 - `app/api/cards/route.ts`：当前不是首页运行时依赖，作为未来 D1 数据边界保留；
   修改前确认没有外部调用方。
 - `components/chat/`：Floating Glass Chat；全局挂载于 `app/layout.tsx`，前端展示为

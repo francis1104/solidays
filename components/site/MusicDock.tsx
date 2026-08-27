@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Dock, DockIcon } from '@/components/magicui/dock'
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { Play, Pause, SkipBack, SkipForward, X } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/components/lib/utils'
@@ -10,6 +11,8 @@ import { useSongContext } from '@/contexts/SongContext'
 import { hasAnyPlayableSource, resolveCardAudioCached, type Song } from '@/lib/music'
 
 const MusicDock = () => {
+  const reducedMotion = useReducedMotion() ?? false
+  const [isDockOpen, setIsDockOpen] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -18,8 +21,8 @@ const MusicDock = () => {
   const audioRef = useRef<HTMLAudioElement>(null)
   const nextSongRef = useRef<() => Promise<void>>(async () => {})
   const savePlayerStateRef = useRef<() => void>(() => {})
-  const { cards, songQueue, currentSong: playingSong, activeCardId } = useSongContext()
-  const currentSong = playingSong ?? playlist[currentSongIndex]
+  const { cards, songQueue, currentSong: playingSong } = useSongContext()
+  const currentSong = playlist[currentSongIndex] ?? playingSong
 
   // 从localStorage加载播放状态
   useEffect(() => {
@@ -160,7 +163,10 @@ const MusicDock = () => {
     const audio = audioRef.current
     if (!audio) return
 
-    const handlePlay = () => setIsPlaying(true)
+    const handlePlay = () => {
+      setIsDockOpen(true)
+      setIsPlaying(true)
+    }
     const handlePause = () => setIsPlaying(false)
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
     const handleEnded = () => {
@@ -202,10 +208,17 @@ const MusicDock = () => {
     }
   }, [playlist.length, currentSongIndex])
   useEffect(() => {
-    const card = cards.find((item) => item.id === activeCardId)
-    if (!card) return
-    void resolveCardAudioCached(card)
-  }, [activeCardId, cards])
+    let cancelled = false
+
+    void Promise.all(cards.map((card) => resolveCardAudioCached(card))).then((songs) => {
+      if (cancelled) return
+      setPlaylist(songs.filter((song): song is Song => Boolean(song)))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cards])
 
   useEffect(() => {
     if (!playingSong) return
@@ -218,10 +231,9 @@ const MusicDock = () => {
   useEffect(() => {
     if (!playingSong) return
     const existing = playlist.findIndex((song) => song.id === playingSong.id)
-    if (existing >= 0 && existing !== currentSongIndex) {
-      setCurrentSongIndex(existing)
-    }
-  }, [playingSong, playlist, currentSongIndex])
+    if (existing < 0) return
+    setCurrentSongIndex((current) => (current === existing ? current : existing))
+  }, [playingSong, playlist])
 
   // 定期同步全局音频状态，确保组件重新挂载时状态正确
   useEffect(() => {
@@ -454,123 +466,167 @@ const MusicDock = () => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
+  const closeDock = () => {
+    audioRef.current?.pause()
+    setIsPlaying(false)
+    setIsDockOpen(false)
+  }
+
   if (!hasAnyPlayableSource(cards) && !playingSong && playlist.length === 0) return null
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">
-      {/* 音乐信息显示 - 改进显示逻辑，支持全局音频状态 */}
-      {(currentSong || (audioRef.current && audioRef.current.src)) &&
-        (isPlaying || currentTime > 0 || (audioRef.current && !audioRef.current.paused)) && (
-          <div className="mb-1 flex w-full justify-center">
-            <div className="flex h-12 max-w-[280px] min-w-[140px] scale-75 flex-col items-center justify-center rounded-2xl border border-gray-200/50 bg-white/80 px-3 py-2 text-xs text-gray-600 backdrop-blur-md dark:border-gray-700/50 dark:bg-gray-900/80 dark:text-gray-300">
-              <div className="w-full truncate text-center font-medium">
-                {currentSong ? `${currentSong.title} - ${currentSong.artist}` : '正在播放音乐...'}
-              </div>
-              <div className="text-xs opacity-75">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-            </div>
-          </div>
-        )}
-
-      <div className="flex w-full justify-center">
-        <TooltipProvider>
-          <Dock
-            direction="middle"
-            className="scale-75 border border-gray-200/50 bg-white/80 backdrop-blur-md dark:border-gray-700/50 dark:bg-gray-900/80"
+    <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">
+      <AnimatePresence initial={false}>
+        {isDockOpen && (
+          <motion.div
+            key="music-dock"
+            initial={reducedMotion ? false : { opacity: 0, y: 10, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.94 }}
+            transition={{ duration: reducedMotion ? 0 : 0.18, ease: 'easeOut' }}
+            className="pointer-events-auto origin-bottom"
           >
-            {/* Previous Song */}
-            <DockIcon>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    onClick={previousSong}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="上一曲"
-                    className={cn(
-                      'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                    )}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        previousSong()
-                      }
-                    }}
-                  >
-                    <SkipBack className="size-3" />
+            <TooltipProvider>
+              <Dock
+                direction="middle"
+                className="scale-75 border border-gray-200/50 bg-white/80 backdrop-blur-md dark:border-gray-700/50 dark:bg-gray-900/80"
+              >
+                {currentSong && (
+                  <div className="flex w-36 shrink-0 flex-col justify-center px-2 text-gray-600 dark:text-gray-300">
+                    <div className="truncate text-xs font-medium">
+                      {currentSong.title} - {currentSong.artist}
+                    </div>
+                    <div className="text-[10px] leading-4 opacity-75">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </div>
                   </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>上一曲</p>
-                </TooltipContent>
-              </Tooltip>
-            </DockIcon>
+                )}
 
-            <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                {currentSong && (
+                  <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                )}
 
-            {/* Play/Pause */}
-            <DockIcon>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    onClick={togglePlay}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
-                    className={cn(
-                      'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                    )}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        togglePlay()
-                      }
-                    }}
-                  >
-                    {isPlaying ? <Pause className="size-3" /> : <Play className="size-3" />}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isPlaying ? '暂停' : '播放'}</p>
-                </TooltipContent>
-              </Tooltip>
-            </DockIcon>
+                {/* Previous Song */}
+                <DockIcon>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        onClick={previousSong}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="上一曲"
+                        className={cn(
+                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+                        )}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            previousSong()
+                          }
+                        }}
+                      >
+                        <SkipBack className="size-3" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>上一曲</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </DockIcon>
 
-            <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
 
-            {/* Next Song */}
-            <DockIcon>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    onClick={nextSong}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="下一曲"
-                    className={cn(
-                      'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                    )}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        nextSong()
-                      }
-                    }}
-                  >
-                    <SkipForward className="size-3" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>下一曲</p>
-                </TooltipContent>
-              </Tooltip>
-            </DockIcon>
-          </Dock>
-        </TooltipProvider>
-      </div>
+                {/* Play/Pause */}
+                <DockIcon>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        onClick={togglePlay}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
+                        className={cn(
+                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+                        )}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            togglePlay()
+                          }
+                        }}
+                      >
+                        {isPlaying ? <Pause className="size-3" /> : <Play className="size-3" />}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isPlaying ? '暂停' : '播放'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </DockIcon>
 
-      {/* 全局音频实例已在useEffect中处理，这里不需要渲染audio元素 */}
+                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+
+                {/* Next Song */}
+                <DockIcon>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        onClick={nextSong}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="下一曲"
+                        className={cn(
+                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+                        )}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            nextSong()
+                          }
+                        }}
+                      >
+                        <SkipForward className="size-3" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>下一曲</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </DockIcon>
+
+                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+
+                <DockIcon>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        onClick={closeDock}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="关闭播放器"
+                        className={cn(
+                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
+                        )}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            closeDock()
+                          }
+                        }}
+                      >
+                        <X className="size-3" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>关闭播放器</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </DockIcon>
+              </Dock>
+            </TooltipProvider>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

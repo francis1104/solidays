@@ -53,6 +53,7 @@ export function ChatPanel({
       aria-labelledby="floating-chat-title"
       data-testid="chat-panel"
       initial={false}
+      style={{ borderRadius: 24 }}
       transition={
         reducedMotion
           ? { duration: 0.18 }

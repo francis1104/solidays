@@ -315,6 +315,13 @@ input:-webkit-autofill:focus {
   .floating-control-focus:focus-visible {
     @apply outline-2 outline-offset-2 outline-primary-500;
   }
+
+  /* Keep the mobile chat launcher above the expanded dock without moving the dock. */
+  @media (max-width: 639px) {
+    body:has([data-music-dock-open='true']) [data-testid='chat-launcher'] {
+      bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+    }
+  }
 }
 
 ::view-transition-old(root), ::view-transition-new(root) {

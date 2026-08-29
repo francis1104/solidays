@@ -468,7 +468,10 @@ const MusicDock = () => {
   if (!hasAnyPlayableSource(cards) && !playingSong && playlist.length === 0) return null
 
   return (
-    <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">
+    <div
+      data-music-dock-open={isDockOpen ? 'true' : 'false'}
+      className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform"
+    >
       <AnimatePresence initial={false}>
         {isDockOpen && (
           <motion.div

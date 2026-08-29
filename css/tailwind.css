@@ -289,6 +289,34 @@ input:-webkit-autofill:focus {
   }
 }
 
+@layer components {
+  /* Shared floating-glass treatment for the Music Dock and chat launcher. */
+  .floating-control-surface {
+    @apply border border-gray-200/70 bg-white/70 text-gray-900 shadow-xl shadow-black/10 backdrop-blur-xl;
+    --tw-backdrop-blur: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    transition:
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .floating-control-surface:hover {
+    @apply bg-white/80 shadow-primary-500/10;
+  }
+
+  .dark .floating-control-surface {
+    @apply border-white/10 bg-gray-950/70 text-gray-100 shadow-black/35;
+  }
+
+  .dark .floating-control-surface:hover {
+    @apply bg-gray-950/80 shadow-primary-500/20;
+  }
+
+  .floating-control-focus:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500;
+  }
+}
+
 ::view-transition-old(root), ::view-transition-new(root) {
     animation: none;
     mix-blend-mode: normal;

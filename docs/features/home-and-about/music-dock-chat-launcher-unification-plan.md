@@ -1,6 +1,6 @@
 # Music Dock 与聊天按钮视觉统一改造方案
 
-- 状态：Draft
+- 状态：已在 `cloudflare-worker-DEV` 实施
 - 目标分支：`cloudflare-worker-DEV`
 - 范围：全局 Music Dock 与 Floating Chat Launcher 的视觉层
 - 不包含：聊天面板内容、Realtime、Turnstile、D1、音频播放逻辑与路由行为

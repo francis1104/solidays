@@ -6,7 +6,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Play, Pause, SkipBack, SkipForward, X } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/components/lib/utils'
 import { useSongContext } from '@/contexts/SongContext'
 import {
   finiteMediaTime,
@@ -483,10 +482,10 @@ const MusicDock = () => {
             <TooltipProvider>
               <Dock
                 direction="middle"
-                className="scale-75 border border-gray-200/50 bg-white/80 backdrop-blur-md dark:border-gray-700/50 dark:bg-gray-900/80"
+                className="floating-control-surface h-11 rounded-full px-1.5 py-1.5 sm:h-12 sm:px-2 sm:py-2"
               >
                 {currentSong && (
-                  <div className="flex w-36 shrink-0 flex-col justify-center px-2 text-gray-600 dark:text-gray-300">
+                  <div className="flex w-32 shrink-0 flex-col justify-center px-2 text-gray-700 sm:w-36 dark:text-gray-200">
                     <div className="truncate text-xs font-medium">
                       {currentSong.title} - {currentSong.artist}
                     </div>
@@ -497,7 +496,7 @@ const MusicDock = () => {
                 )}
 
                 {currentSong && (
-                  <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                  <Separator orientation="vertical" className="mx-1 h-6 opacity-50 sm:h-7" />
                 )}
 
                 {/* Previous Song */}
@@ -509,9 +508,7 @@ const MusicDock = () => {
                         role="button"
                         tabIndex={0}
                         aria-label="上一曲"
-                        className={cn(
-                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                        )}
+                        className="floating-control-focus flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 sm:size-9 dark:hover:bg-gray-800"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
@@ -528,7 +525,7 @@ const MusicDock = () => {
                   </Tooltip>
                 </DockIcon>
 
-                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                <Separator orientation="vertical" className="mx-1 h-6 opacity-50 sm:h-7" />
 
                 {/* Play/Pause */}
                 <DockIcon>
@@ -539,9 +536,7 @@ const MusicDock = () => {
                         role="button"
                         tabIndex={0}
                         aria-label={isPlaying ? '暂停音乐' : '播放音乐'}
-                        className={cn(
-                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                        )}
+                        className="floating-control-focus flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 sm:size-9 dark:hover:bg-gray-800"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
@@ -558,7 +553,7 @@ const MusicDock = () => {
                   </Tooltip>
                 </DockIcon>
 
-                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                <Separator orientation="vertical" className="mx-1 h-6 opacity-50 sm:h-7" />
 
                 {/* Next Song */}
                 <DockIcon>
@@ -569,9 +564,7 @@ const MusicDock = () => {
                         role="button"
                         tabIndex={0}
                         aria-label="下一曲"
-                        className={cn(
-                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                        )}
+                        className="floating-control-focus flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 sm:size-9 dark:hover:bg-gray-800"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
@@ -588,7 +581,7 @@ const MusicDock = () => {
                   </Tooltip>
                 </DockIcon>
 
-                <Separator orientation="vertical" className="mx-1 h-8 opacity-50" />
+                <Separator orientation="vertical" className="mx-1 h-6 opacity-50 sm:h-7" />
 
                 <DockIcon>
                   <Tooltip>
@@ -598,9 +591,7 @@ const MusicDock = () => {
                         role="button"
                         tabIndex={0}
                         aria-label="关闭播放器"
-                        className={cn(
-                          'flex size-10 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800'
-                        )}
+                        className="floating-control-focus flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-gray-100 sm:size-9 dark:hover:bg-gray-800"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()

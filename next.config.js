@@ -52,6 +52,7 @@ const nextConfig = {
   reactStrictMode: true,
   trailingSlash: false,
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  transpilePackages: ['three'],
   experimental: {
     optimizePackageImports: ['@headlessui/react'],
   },

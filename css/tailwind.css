@@ -132,6 +132,53 @@
   @apply no-underline;
 }
 
+@layer components {
+  .desk-glass-panel {
+    @apply rounded-2xl border border-white/15 bg-[#111722]/75 text-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  }
+
+  .desk-glass-button {
+    @apply rounded-full border border-white/15 bg-black/20 px-3 py-2 text-white/70 shadow-lg backdrop-blur-md transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-[#f03e91];
+  }
+
+  .desk-control-button {
+    @apply flex size-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white/70 transition-colors hover:border-white/30 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-[#f03e91] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .desk-solid-button {
+    @apply inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-[#080b10] transition-colors hover:bg-[#f4d35e] focus-visible:outline-2 focus-visible:outline-[#f03e91];
+  }
+}
+
+/* Keep focused Desk controls inside the viewport on short landscape screens. */
+@media (max-height: 520px) {
+  [data-desk-mode][data-desk-phase='focused'] .desk-back-control {
+    display: none;
+  }
+
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls {
+    display: none;
+  }
+
+  [data-desk-mode] .desk-computer-overlay {
+    top: 2rem;
+    width: min(88vw, calc((100vh - 130px) * 16 / 9));
+  }
+
+  [data-desk-mode] .desk-computer-overlay > a {
+    display: none;
+  }
+
+  [data-desk-mode] .desk-frame-overlay {
+    top: 2rem;
+    width: min(72vw, calc((100vh - 180px) * 0.8));
+  }
+
+  [data-desk-mode] .desk-frame-overlay > a {
+    display: none;
+  }
+}
+
 .csl-entry {
   @apply my-5;
 }

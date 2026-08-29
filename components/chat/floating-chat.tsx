@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
@@ -26,6 +27,9 @@ import {
 import { useChatRealtime, type RealtimeBootstrapResult } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
+const DESK_CHAT_OPEN_EVENT = 'solidays:desk-chat-open'
+const DESK_CHAT_CLOSE_EVENT = 'solidays:desk-chat-close'
+const DESK_CHAT_CLOSED_EVENT = 'solidays:desk-chat-closed'
 
 const initialMessages: ChatMessage[] = [
   {
@@ -143,6 +147,8 @@ async function fetchMessagesUntilOverlap(
 }
 
 export default function FloatingChat() {
+  const pathname = usePathname()
+  const isDeskRoute = pathname === '/desk'
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
@@ -175,6 +181,7 @@ export default function FloatingChat() {
   })
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
+  const deskChatOpenRef = useRef(false)
 
   const applyConversationHistory = useCallback(
     (
@@ -213,11 +220,37 @@ export default function FloatingChat() {
 
   const closeChat = useCallback(() => {
     setOpen(false)
+    deskChatOpenRef.current = false
+    window.dispatchEvent(new Event(DESK_CHAT_CLOSED_EVENT))
   }, [])
 
   const openChat = useCallback(() => {
     setOpen(true)
   }, [])
+
+  useEffect(() => {
+    const handleDeskChatOpen = () => {
+      deskChatOpenRef.current = true
+      openChat()
+    }
+    const handleDeskChatClose = () => {
+      deskChatOpenRef.current = false
+      closeChat()
+    }
+
+    window.addEventListener(DESK_CHAT_OPEN_EVENT, handleDeskChatOpen)
+    window.addEventListener(DESK_CHAT_CLOSE_EVENT, handleDeskChatClose)
+    return () => {
+      window.removeEventListener(DESK_CHAT_OPEN_EVENT, handleDeskChatOpen)
+      window.removeEventListener(DESK_CHAT_CLOSE_EVENT, handleDeskChatClose)
+    }
+  }, [closeChat, openChat])
+
+  useEffect(() => {
+    if (isDeskRoute || !deskChatOpenRef.current) return
+    deskChatOpenRef.current = false
+    setOpen(false)
+  }, [isDeskRoute])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
@@ -750,7 +783,7 @@ export default function FloatingChat() {
               smoothScrollPending={smoothScrollPending}
               onSmoothScrollComplete={completeSmoothScrollTransaction}
             />
-          ) : (
+          ) : isDeskRoute ? null : (
             <ChatLauncher
               key="chat-launcher"
               ref={launcherRef}

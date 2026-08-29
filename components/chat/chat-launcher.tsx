@@ -4,6 +4,7 @@ import { forwardRef } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/components/lib/utils'
+import { chatSurfaceClassName } from './chat-surface'
 
 type ChatLauncherProps = {
   open: boolean
@@ -27,9 +28,9 @@ export const ChatLauncher = forwardRef<HTMLButtonElement, ChatLauncherProps>(fun
       data-chat-surface
       title="Open chat"
       className={cn(
-        'floating-control-surface floating-control-focus pointer-events-auto fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-[60] flex size-11 items-center justify-center rounded-full sm:right-6 sm:bottom-6 sm:size-12'
+        chatSurfaceClassName,
+        'hover:shadow-primary-500/20 pointer-events-auto fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-[60] flex size-11 items-center justify-center rounded-full transition-[box-shadow] duration-300 outline-none hover:shadow-xl sm:right-6 sm:bottom-6 sm:size-12'
       )}
-      style={{ borderRadius: 9999 }}
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.96 }}
       transition={{ type: 'spring', stiffness: 350, damping: 25 }}

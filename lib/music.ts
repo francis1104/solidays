@@ -10,6 +10,22 @@ export type Song = {
   source: 'r2' | 'api'
 }
 
+/**
+ * An HTMLMediaElement can report NaN or Infinity while metadata is unavailable
+ * or the source has no known end. Keep those sentinel values out of UI state.
+ */
+export function finiteMediaTime(value: number): number | null {
+  return Number.isFinite(value) && value >= 0 ? value : null
+}
+
+export function formatMediaTime(time: number | null): string {
+  if (time === null || !Number.isFinite(time) || time < 0) return '--:--'
+
+  const minutes = Math.floor(time / 60)
+  const seconds = Math.floor(time % 60)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 declare global {
   interface Window {
     globalAudioPlayer?: HTMLAudioElement

@@ -8,14 +8,20 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/components/lib/utils'
 import { useSongContext } from '@/contexts/SongContext'
-import { hasAnyPlayableSource, resolveCardAudioCached, type Song } from '@/lib/music'
+import {
+  finiteMediaTime,
+  formatMediaTime,
+  hasAnyPlayableSource,
+  resolveCardAudioCached,
+  type Song,
+} from '@/lib/music'
 
 const MusicDock = () => {
   const reducedMotion = useReducedMotion() ?? false
   const [isDockOpen, setIsDockOpen] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
+  const [duration, setDuration] = useState<number | null>(null)
   const [currentSongIndex, setCurrentSongIndex] = useState(0)
   const [playlist, setPlaylist] = useState<Song[]>([])
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -47,8 +53,8 @@ const MusicDock = () => {
                 ) {
                   audio.currentTime = parsedState.currentTime
                 }
-                setCurrentTime(audio.currentTime || 0)
-                setDuration(audio.duration || 0)
+                setCurrentTime(finiteMediaTime(audio.currentTime) ?? 0)
+                setDuration(finiteMediaTime(audio.duration))
               }
             }, 100)
           }
@@ -120,8 +126,8 @@ const MusicDock = () => {
       if (audio) {
         const isCurrentlyPlaying = !audio.paused && !audio.ended
         setIsPlaying(isCurrentlyPlaying)
-        setCurrentTime(audio.currentTime || 0)
-        setDuration(audio.duration || 0)
+        setCurrentTime(finiteMediaTime(audio.currentTime) ?? 0)
+        setDuration(finiteMediaTime(audio.duration))
 
         if (audio.src) {
           setTimeout(() => {
@@ -168,7 +174,7 @@ const MusicDock = () => {
       setIsPlaying(true)
     }
     const handlePause = () => setIsPlaying(false)
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
+    const handleTimeUpdate = () => setCurrentTime(finiteMediaTime(audio.currentTime) ?? 0)
     const handleEnded = () => {
       setIsPlaying(false)
       // 使用setTimeout确保状态更新完成
@@ -176,11 +182,7 @@ const MusicDock = () => {
         void nextSongRef.current()
       }, 0)
     }
-    const handleLoadedData = () => {
-      if (!isNaN(audio.duration)) {
-        setDuration(audio.duration)
-      }
-    }
+    const handleLoadedData = () => setDuration(finiteMediaTime(audio.duration))
     const handleError = () => {
       setTimeout(() => {
         void nextSongRef.current()
@@ -242,10 +244,8 @@ const MusicDock = () => {
       if (audio && audio.src) {
         const isCurrentlyPlaying = !audio.paused && !audio.ended
         setIsPlaying(isCurrentlyPlaying)
-        setCurrentTime(audio.currentTime || 0)
-        if (!isNaN(audio.duration)) {
-          setDuration(audio.duration || 0)
-        }
+        setCurrentTime(finiteMediaTime(audio.currentTime) ?? 0)
+        setDuration(finiteMediaTime(audio.duration))
 
         // 如果音频有src但当前没有歌曲信息，尝试从音频重建歌曲信息
         if ((!currentSong || !playlist.length) && audio.src) {
@@ -350,7 +350,7 @@ const MusicDock = () => {
         setCurrentSongIndex(0)
         setIsPlaying(false)
         setCurrentTime(0)
-        setDuration(0)
+        setDuration(null)
 
         setTimeout(async () => {
           const audio = audioRef.current
@@ -374,7 +374,7 @@ const MusicDock = () => {
     setCurrentSongIndex(prevIndex)
     setIsPlaying(false)
     setCurrentTime(0)
-    setDuration(0)
+    setDuration(null)
 
     // 切歌后自动播放。next/prev 仍用短 delay（已知债）；必须先设 src。
     setTimeout(async () => {
@@ -401,7 +401,7 @@ const MusicDock = () => {
         setCurrentSongIndex(0)
         setIsPlaying(false)
         setCurrentTime(0)
-        setDuration(0)
+        setDuration(null)
 
         setTimeout(async () => {
           const audio = audioRef.current
@@ -441,7 +441,7 @@ const MusicDock = () => {
     setCurrentSongIndex(nextIndex)
     setIsPlaying(false)
     setCurrentTime(0)
-    setDuration(0)
+    setDuration(null)
 
     const nextTrack = playlist[nextIndex] ?? songQueue[songQueue.length - 1]
     setTimeout(async () => {
@@ -459,12 +459,6 @@ const MusicDock = () => {
   }
 
   nextSongRef.current = nextSong
-
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60)
-    const seconds = Math.floor(time % 60)
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
 
   const closeDock = () => {
     audioRef.current?.pause()
@@ -497,7 +491,7 @@ const MusicDock = () => {
                       {currentSong.title} - {currentSong.artist}
                     </div>
                     <div className="text-[10px] leading-4 opacity-75">
-                      {formatTime(currentTime)} / {formatTime(duration)}
+                      {formatMediaTime(currentTime)} / {formatMediaTime(duration)}
                     </div>
                   </div>
                 )}

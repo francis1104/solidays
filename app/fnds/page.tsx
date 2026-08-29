@@ -124,9 +124,6 @@ export default function FndsPage() {
             loading={index >= items.length - 2 ? undefined : 'lazy'}
             quality={75}
           />
-          <h3 className="mt-2 text-center text-lg font-bold text-neutral-700 sm:mt-4 sm:text-2xl dark:text-neutral-300">
-            {item.title}
-          </h3>
         </DraggableCardBody>
       ))}
     </DraggableCardContainer>

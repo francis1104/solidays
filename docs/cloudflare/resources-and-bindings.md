@@ -49,11 +49,14 @@ Wrangler OAuth 凭据保存在 macOS 钥匙串。
 - Worker 的 AI、R2 和未来 D1 绑定属于同一个部署单元，不需要把生产图片或结构化
   数据继续放进 Git 仓库。
 - `/fnds` 使用的 7 个图片对象已上传到 `solidays-media/fnds/`；About 页头像已上传到
-  `solidays-media/profile/avatar.jpg`。
+  `solidays-media/profile/avatar.jpg`；首页四首歌曲上传到
+  `solidays-media/music/`，通过 `/media/music/` 读取。
 - 已创建独立 D1 `solidays-chat`，只承载匿名留言 V1；没有把卡片数据混入留言库。
 - `/fnds` 的图片优先使用 `NEXT_PUBLIC_R2_PUBLIC_URL`；当前本地配置和生产 Worker 都
   通过 `/media/<key>` 读取 R2。
 - `/api/cards` 当前返回 `data/cards.ts` 中的最小默认数据，是将来接入 D1 的明确入口。
+- 首页 `data/cards.ts` 中的 `audioKey` 是私有 R2 object key；歌曲播放走 Worker 的
+  `/media/music/<key>`，支持音频 Range，不把 MP3 二进制提交到 Git。
 - Gallery 公开桶 `solidays-gallery` 已创建，`media.solidays.win` 只绑这个桶；
   不要给 `solidays-media` 接公开域名。Worker **不**绑定 Gallery 桶。详见
   `docs/features/gallery/metadata-processing.md`。

@@ -2,9 +2,10 @@
 
 这是 Solidays 的最小展示站点，当前保留：
 
-- `/`：卡片式首页和歌曲数据入口
+- `/`：可循环歌词卡、Music Dock 入口，以及 Gallery / FNDS 预览
+- `/gallery`：游戏片段 Archive
 - `/fnds`：Fear and Dreams 图片卡片页
-- `/about`：个人介绍页
+- `/about`：这个站为什么存在
 - 全局主题切换、流星背景和可选音乐 Dock
 
 项目使用 Next.js App Router、Tailwind CSS 和 Framer Motion。`cloudflare-worker` 分支通过
@@ -39,8 +40,8 @@ Turnstile。生产环境使用 `solidays.win`，`workers.dev` 默认地址已关
 
 - `NEXT_PUBLIC_SITE_URL`：站点 URL
 - `NEXT_PUBLIC_R2_PUBLIC_URL`：R2 公共域名；设置后 `/fnds` 使用 R2 对象 key
-- `NEXT_PUBLIC_API_URL`：可选的外部卡片 API，不设置时使用本 Worker 的 `/api/cards`
-- `NEXT_PUBLIC_MUSIC_API_URL`：可选的歌曲信息 API，不设置时隐藏音乐 Dock，避免调用失效接口
+- `NEXT_PUBLIC_API_URL`：**未使用**（只出现在 `.env.example` / README；app 代码不读。首页歌词走 `data/cards.ts`，`/api/cards` 仍是未来 D1 边界）
+- `NEXT_PUBLIC_MUSIC_API_URL`：过渡期歌曲解析；卡片若有 `audioKey` 则优先走私有 `/media`。未设置且没有 `audioKey` 时隐藏 Music Dock，卡片 Play 显示「暂无音频」
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`：匿名留言 Widget 的公开 Site Key；生产值位于版本化的
   `.env.production`，本地开发使用 `.env.local` 中的官方 dummy key
 

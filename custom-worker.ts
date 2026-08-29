@@ -11,12 +11,15 @@ const MAX_PURGE_BATCHES_PER_RUN = 10
 function isExplicitlyCacheable(request: Request, response: Response) {
   const url = new URL(request.url)
   const contentType = response.headers.get('content-type') ?? ''
+  const isImage = contentType.toLowerCase().startsWith('image/')
+  const isMusic =
+    url.pathname.startsWith('/media/music/') && contentType.toLowerCase().startsWith('audio/')
 
   return (
     (request.method === 'GET' || request.method === 'HEAD') &&
     url.pathname.startsWith('/media/') &&
     response.status === 200 &&
-    contentType.toLowerCase().startsWith('image/') &&
+    (isImage || isMusic) &&
     !response.headers.has('set-cookie')
   )
 }

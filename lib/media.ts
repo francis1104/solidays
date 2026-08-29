@@ -1,5 +1,10 @@
 const r2PublicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL?.replace(/\/$/, '')
 
+export function privateMediaUrl(key: string) {
+  const normalizedKey = key.replace(/^\//, '')
+  return `/media/${normalizedKey}`
+}
+
 export function mediaUrl(key: string) {
   const normalizedKey = key.replace(/^\//, '')
 
@@ -8,5 +13,5 @@ export function mediaUrl(key: string) {
   }
 
   // The Worker serves private R2 media through /media.
-  return `/media/${normalizedKey}`
+  return privateMediaUrl(normalizedKey)
 }

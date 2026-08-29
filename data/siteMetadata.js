@@ -11,7 +11,7 @@ const siteMetadata = {
   siteLogo: `${basePath}/static/favicons/favicon.svg`,
   socialBanner: `${basePath}/static/favicons/web-app-manifest-512x512.png`,
   email: '1104179197@qq.com',
-  github: 'https://github.com/francis1104/tailwind-nextjs-starter-blog',
+  github: 'https://github.com/francis1104/solidays',
   stickyNav: false,
 }
 

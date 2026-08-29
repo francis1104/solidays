@@ -40,7 +40,7 @@ git push origin cloudflare-worker-DEV
 ## 发布生产
 
 当前生产主流程是 GitHub → Cloudflare Workers Builds，目标仓库是
-`francis1104/tailwind-nextjs-starter-blog`，生产分支是 `cloudflare-worker`；只有生产
+`francis1104/solidays`，生产分支是 `cloudflare-worker`；只有生产
 分支推送才触发线上发布。Workers Builds 中的命令已经配置为：
 
 ```text

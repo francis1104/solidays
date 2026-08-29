@@ -23,10 +23,12 @@ Token、Worker Secret 或其他凭据。
 ```text
 solidays.win/
 │
-├── / ······················ 首页：CardStack 静态卡片堆叠
+├── / ······················ 首页：可循环歌词卡 + Gallery/FNDS 入口预览
 │     app/page.tsx
-│     ├── components/magicui/CardStack.tsx   # 3 层堆叠（1 真卡 + 2 空白后层）
-│     └── data/cards.ts                      # 默认卡片数据（首页唯一数据源）
+│     ├── components/site/HomeLyricStack.tsx     # 歌词堆：手势循环，禁止 auto-rotate
+│     ├── components/magicui/CardStack.tsx       # 3 层堆叠 primitive（正面可点）
+│     ├── components/site/HomeEntryPreviews.tsx  # Magic Card 入口；poster 不加载视频
+│     └── data/cards.ts                          # 硬编码歌词（首页不 fetch /api/cards）
 │
 ├── /gallery ··············· 游戏片段 Archive：Hero + Grid/Index + Lightbox
 │     app/gallery/page.tsx
@@ -40,8 +42,8 @@ solidays.win/
 │     ├── components/magicui/squiggly-text.tsx
 │     └── lib/media.ts + lib/media-image-loader.ts   # R2 key → /media URL
 │
-├── /about ················· 个人介绍页（头像走 /media/profile/）
-│     app/about/page.tsx → lib/media.ts
+├── /about ················· 这个站为什么存在（头像走 /media/profile/）
+│     app/about/page.tsx → lib/media.ts · siteMetadata
 │
 ├── /admin ················· Admin 留言后台：锁屏 → 会话列表/详情/回复
 │     app/admin/page.tsx（layout.tsx 设 noindex）
@@ -69,11 +71,11 @@ solidays.win/
 │         └── [id]/messages GET 详情 / POST owner 回复
 │     app/api/admin/**/route.ts → lib/admin/
 │
-├── /media/<key> ··········· 私有 R2 媒体（fnds/ · profile/ 前缀白名单）
+├── /media/<key> ··········· 私有 R2 媒体（fnds/ · profile/ · music/ 前缀白名单）
 │     │                        ?variant=card&width=320|480|640 → Images 变体
 │     app/media/[...key]/route.ts
 │     ├── R2  solidays-media（MEDIA_BUCKET 绑定）
-│     └── lib/media.ts                       # key 校验 + 宽度契约
+│     └── lib/media.ts                       # URL 拼接；白名单在本 route
 │
 ├── middleware.ts ·········· www.solidays.win → solidays.win 308 跳转
 │
@@ -102,14 +104,16 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │
 ├── components/
 │   ├── site/                         # 自研页面组件：Header·MobileNav·Link·
-│   │                                 #   MusicDock·SectionContainer
+│   │                                 #   MusicDock·SectionContainer·
+│   │                                 #   HomeLyricStack·HomeEntryPreview(s)
 │   ├── gallery/                      # Gallery 前端：Hero·Archive·Index·Lightbox
 │   ├── chat/                         # 自研聊天前端（floating-chat 等 9 个）
 │   ├── admin/                        # Admin 后台前端（lock-screen·list·detail）
 │   ├── ui/                           # shadcn 来源：button·tooltip·separator·
 │   │                                 #   bubble·message·message-scroller
-│   ├── magicui/                      # Magic UI 来源：CardStack·draggable-card·
-│   │                                 #   squiggly-text·dock·meteors·theme-toggler
+│   ├── magicui/                      # Magic UI 来源：CardStack·magic-card·
+│   │                                 #   draggable-card·squiggly-text·dock·
+│   │                                 #   meteors·theme-toggler
 │   └── lib/utils.ts                  # cn() 类名合并（14 处引用）
 │
 ├── contexts/SongContext.tsx          # 卡片歌曲状态 → MusicDock；Gallery 播放时 pause
@@ -122,7 +126,9 @@ tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
 │   │                                 #   security(Origin/IP)·turnstile·rate-limit·
 │   │                                 #   session(Cookie)·http·limits·types
 │   ├── admin/                        # Admin 后端：auth(签名会话)·repository·types
-│   ├── media.ts · media-image-loader.ts   # 媒体 URL 与变体宽度契约
+│   ├── media.ts · media-image-loader.ts   # 媒体 URL 拼接；key 白名单在
+│   │                                      #   app/media/[...key]/route.ts
+│   ├── music.ts                           # 共享 audioCache · resolveCardAudio · playSongNow
 │   ├── gallery.ts · gallery-filters.ts · gallery-format.ts
 │   │                                      # 公开基址、筛选、日期/时长格式
 │   └── scanner-path.ts                  # 扫描器早 404 路径（性能层，不是安全边界）
@@ -151,6 +157,7 @@ shadcn 约定的 `cn()` 工具。
 | 文档 | 内容 |
 | --- | --- |
 | `docs/overview/project.md` | 项目概况、页面、域名、主要目录与约定 |
+| `docs/features/home-and-about/remodel-plan.md` | 首页入口枢纽与 About 重写方案 |
 | `docs/cloudflare/resources-and-bindings.md` | wrangler.jsonc 资源与绑定、D1 存储规划 |
 | `docs/cloudflare/media-storage.md` | R2 媒体前缀、/media 路由、变体与上传流程 |
 | `docs/development/local-development.md` | 本地开发命令、环境变量、检查与常见坑 |

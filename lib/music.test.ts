@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { canPlayCard, isEason, songFromR2 } from './music.ts'
+import {
+  canPlayCard,
+  finiteMediaTime,
+  formatMediaTime,
+  isEason,
+  songFromR2,
+} from './music.ts'
 import type { Card } from '../data/cards.ts'
 
 const sample: Card = {
@@ -43,5 +49,19 @@ describe('canPlayCard', () => {
   it('is false when there is no audioKey and no music API', () => {
     const silent = { ...sample, audioKey: undefined, coverKey: undefined }
     assert.equal(canPlayCard(0, [silent]), false)
+  })
+})
+
+describe('media time formatting', () => {
+  it('rejects unknown and infinite media durations', () => {
+    assert.equal(finiteMediaTime(Number.NaN), null)
+    assert.equal(finiteMediaTime(Number.POSITIVE_INFINITY), null)
+    assert.equal(formatMediaTime(null), '--:--')
+    assert.equal(formatMediaTime(Number.POSITIVE_INFINITY), '--:--')
+  })
+
+  it('formats finite media durations', () => {
+    assert.equal(finiteMediaTime(342), 342)
+    assert.equal(formatMediaTime(342), '5:42')
   })
 })

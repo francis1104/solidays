@@ -105,6 +105,7 @@ export async function GET(request: Request, { params }: MediaRouteContext) {
 
     if (isMusic) {
       headers.set('accept-ranges', 'bytes')
+      headers.set('content-length', String(object.size))
 
       if (rangeHeader) {
         const range = getRangeBounds(rangeHeader, object.size)

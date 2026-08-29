@@ -7,6 +7,47 @@ import { handleRealtimeRequest } from './lib/chat/realtime-http'
 import { isScannerPath } from './lib/scanner-path'
 
 const MAX_PURGE_BATCHES_PER_RUN = 10
+const MUSIC_MEDIA_PATH = /^\/media\/music\/[A-Za-z0-9._/-]+$/
+
+function createFixedLengthBody(body: ReadableStream<Uint8Array>, size: number) {
+  const fixedLength = new FixedLengthStream(size)
+  void body.pipeTo(fixedLength.writable).catch((error) => {
+    void fixedLength.writable.abort(error)
+  })
+  return fixedLength.readable
+}
+
+async function preserveMusicContentLength(
+  request: Request,
+  env: CloudflareEnv,
+  response: Response
+) {
+  const pathname = new URL(request.url).pathname
+
+  if (
+    request.method !== 'GET' ||
+    response.status !== 200 ||
+    !MUSIC_MEDIA_PATH.test(pathname) ||
+    response.headers.has('content-length') ||
+    !response.body
+  ) {
+    return response
+  }
+
+  const key = pathname.slice('/media/'.length)
+  const object = await env.MEDIA_BUCKET.head(key)
+  if (!object) return response
+
+  const headers = new Headers(response.headers)
+  headers.set('content-length', String(object.size))
+  headers.set('accept-ranges', 'bytes')
+
+  return new Response(createFixedLengthBody(response.body, object.size), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
 
 function isExplicitlyCacheable(request: Request, response: Response) {
   const url = new URL(request.url)
@@ -14,12 +55,14 @@ function isExplicitlyCacheable(request: Request, response: Response) {
   const isImage = contentType.toLowerCase().startsWith('image/')
   const isMusic =
     url.pathname.startsWith('/media/music/') && contentType.toLowerCase().startsWith('audio/')
+  const hasMusicContentLength = !isMusic || response.headers.has('content-length')
 
   return (
     (request.method === 'GET' || request.method === 'HEAD') &&
     url.pathname.startsWith('/media/') &&
     response.status === 200 &&
     (isImage || isMusic) &&
+    hasMusicContentLength &&
     !response.headers.has('set-cookie')
   )
 }
@@ -46,25 +89,37 @@ export default {
 
     const response = await openNextHandler.fetch(request, env, ctx)
 
+    let normalizedResponse = response
+    if (
+      response.status === 200 &&
+      response.headers.get('content-type')?.toLowerCase().startsWith('audio/')
+    ) {
+      try {
+        normalizedResponse = await preserveMusicContentLength(request, env, response)
+      } catch {
+        // The audio response is still usable without cache range metadata.
+      }
+    }
+
     // A WebSocket upgrade response must keep its platform WebSocket handle.
     // Re-wrapping it below would turn the 101 into a normal Response and drop
     // the connection before it reaches the browser.
-    if (response.webSocket) {
-      return response
+    if (normalizedResponse.webSocket) {
+      return normalizedResponse
     }
 
-    if (isExplicitlyCacheable(request, response)) {
-      return response
+    if (isExplicitlyCacheable(request, normalizedResponse)) {
+      return normalizedResponse
     }
 
-    const headers = new Headers(response.headers)
+    const headers = new Headers(normalizedResponse.headers)
     headers.set('Cache-Control', 'private, no-store, max-age=0')
     headers.set('CDN-Cache-Control', 'no-store')
     headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
 
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
+    return new Response(normalizedResponse.body, {
+      status: normalizedResponse.status,
+      statusText: normalizedResponse.statusText,
       headers,
     })
   },

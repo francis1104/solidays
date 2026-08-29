@@ -12,32 +12,6 @@ function isAllowedMediaKey(key: string) {
   return /^(?:fnds|profile|music)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')
 }
 
-function getRangeBounds(rangeHeader: string, size: number) {
-  if (size <= 0) return null
-
-  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
-  if (!match) return null
-
-  const [, startValue, endValue] = match
-  let offset: number
-  let end: number
-
-  if (!startValue) {
-    const suffixLength = Number(endValue)
-    if (!Number.isFinite(suffixLength) || suffixLength <= 0) return null
-    offset = Math.max(size - suffixLength, 0)
-    end = size - 1
-  } else {
-    offset = Number(startValue)
-    if (!Number.isFinite(offset) || offset < 0 || offset >= size) return null
-    end = endValue ? Number(endValue) : size - 1
-    if (!Number.isFinite(end) || end < offset) return null
-    end = Math.min(end, size - 1)
-  }
-
-  return { offset, length: end - offset + 1, end }
-}
-
 function getCardTransform(request: Request) {
   const url = new URL(request.url)
 
@@ -62,11 +36,7 @@ export async function GET(request: Request, { params }: MediaRouteContext) {
   try {
     const { env } = getCloudflareContext()
     const isMusic = key.startsWith('music/')
-    const rangeHeader = isMusic ? request.headers.get('range') : null
-    const object = await env.MEDIA_BUCKET.get(
-      key,
-      rangeHeader ? { range: request.headers } : undefined
-    )
+    const object = await env.MEDIA_BUCKET.get(key)
 
     if (!object) {
       return new Response('Not found', { status: 404 })
@@ -105,18 +75,6 @@ export async function GET(request: Request, { params }: MediaRouteContext) {
 
     if (isMusic) {
       headers.set('accept-ranges', 'bytes')
-      headers.set('content-length', String(object.size))
-
-      if (rangeHeader) {
-        const range = getRangeBounds(rangeHeader, object.size)
-
-        if (range) {
-          headers.set('content-range', `bytes ${range.offset}-${range.end}/${object.size}`)
-          headers.set('content-length', String(range.length))
-
-          return new Response(object.body, { status: 206, headers })
-        }
-      }
     }
 
     return new Response(object.body, { headers })

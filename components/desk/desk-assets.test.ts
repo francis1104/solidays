@@ -97,6 +97,32 @@ test('processed keyboard retains source Corona colors and curved display geometr
   assert.ok(model.meshes.some((mesh) => mesh.name === 'Mesh.009' && mesh.primitives.length === 2))
 })
 
+test('monitor rear foot rests inside the desk while the keyboard keeps its placement', async () => {
+  const bytes = readFileSync('public/desk/models/pc-mingtu.glb')
+  const { scene } = await new GLTFLoader().parseAsync(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    ''
+  )
+  scene.position.set(0, 1.62, -4.5)
+  scene.updateMatrixWorld(true)
+  const bounds = (name: string) => {
+    const part = scene.getObjectByName(name)
+    assert.ok(part, `Missing computer part: ${name}`)
+    return new THREE.Box3().setFromObject(part)
+  }
+  const table = glb('public/desk/models/desk-web.glb')
+  const tabletop = table.meshes.find((mesh) => mesh.name === 'Desk.001')
+  const rearEdge = table.accessors[tabletop.primitives[0].attributes.POSITION].min[2] * 5.4 - 4
+  assert.ok(bounds('Cube005').min.z > rearEdge + 0.2, 'Rear foot must leave a desk-edge margin')
+  assert.ok(bounds('Cube004').max.z < bounds('base001').min.z - 0.2, 'Stand must not hit keyboard')
+  // Keyboard's original world-space depth; monitor placement must not move it.
+  assert.ok(Math.abs(bounds('base001').min.z - -3.839) < 0.001)
+  assert.ok(Math.abs(bounds('base001').max.z - -3.013) < 0.001)
+  const screenCenter = bounds('Mesh009_1').getCenter(new THREE.Vector3())
+  assert.ok(Math.abs(screenCenter.z - -4.8172) < 0.001)
+  disposeDeskModel(scene)
+})
+
 test('web table texture payload is bounded; environment variants have intended resolution', () => {
   const bytes = readFileSync('public/desk/models/desk-web.glb')
   assert.ok(bytes.length < 2 * 1024 * 1024)

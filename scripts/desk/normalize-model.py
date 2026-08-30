@@ -42,6 +42,14 @@ def parse_args() -> argparse.Namespace:
         default=(0.0, 0.0, 0.0),
         help="Additional XYZ rotation in degrees before normalization",
     )
+    parser.add_argument(
+        "--part-offset",
+        nargs=4,
+        action="append",
+        default=[],
+        metavar=("NAME", "X", "Y", "Z"),
+        help="Offset a named normalized mesh in glTF coordinates; keep other parts anchored",
+    )
     return parser.parse_args(cli_args)
 
 
@@ -176,6 +184,18 @@ def make_paths_absolute() -> list[str]:
     return sorted(set(missing))
 
 
+def offset_parts(objects: list[bpy.types.Object], offsets: list[list[str]]) -> None:
+    by_name = {obj.name: obj for obj in objects}
+    for name, x, y, z in offsets:
+        if name not in by_name:
+            raise SystemExit(f"Unknown normalized mesh for --part-offset: {name}")
+        # glTF is Y-up; Blender is Z-up. Do not recenter after placement edits:
+        # untouched parts (e.g. the keyboard) must keep their exact coordinates.
+        translation = Matrix.Translation(Vector((float(x), -float(z), float(y))))
+        by_name[name].data.transform(translation)
+    bpy.context.view_layer.update()
+
+
 def export_glb(output_path: Path, objects: list[bpy.types.Object]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
@@ -212,7 +232,9 @@ def main() -> None:
 
     missing_textures = make_paths_absolute()
     baked_objects = bake_mesh_objects(mesh_objects, args.scale, tuple(args.rotation))
-    minimum, maximum = place_origin_at_bottom_center(baked_objects)
+    place_origin_at_bottom_center(baked_objects)
+    offset_parts(baked_objects, args.part_offset)
+    minimum, maximum = world_bounds(baked_objects)
     dimensions = maximum - minimum
     export_glb(output_path, baked_objects)
 
@@ -230,7 +252,8 @@ def main() -> None:
                     "max": [round(value, 6) for value in maximum],
                 },
                 "dimensions": [round(value, 6) for value in dimensions],
-                "origin": "bottom-center",
+                "origin": "normalized-bottom-center-anchor" if args.part_offset else "bottom-center",
+                "partOffsets": args.part_offset,
                 "missingTextures": missing_textures,
             },
             ensure_ascii=False,

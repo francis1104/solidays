@@ -26,9 +26,9 @@ const DESK_COLORS = {
 
 const DESK_POSE: Record<DeskTarget, Pose> = {
   computer: {
-    position: [0, 3.45, 0.8],
+    position: [0, 3.45, 1.2],
     // Curved display bounds, including the computer's placement on the desk.
-    lookAt: [0, 3.08, -5.22],
+    lookAt: [0, 3.08, -4.82],
   },
   radio: {
     position: [-3.15, 2.7, 0.7],

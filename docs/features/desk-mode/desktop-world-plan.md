@@ -13,8 +13,18 @@
 ```bash
 node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
   --source assets/3d/2026-08-30/models/PC+MODEL+MINGTU.fbx \
-  --output public/desk/models/pc-mingtu.glb
+  --output public/desk/models/pc-mingtu.glb \
+  --part-offset Cube.003 0 0 0.4 \
+  --part-offset Cube.004 0 0 0.4 \
+  --part-offset Cube.005 0 0 0.4 \
+  --part-offset Plane.001 0 0 0.4
 ```
+
+当前 MINGTU 的显示器、支架及后支脚通过上述四项在 Blender 中前移 0.4 场景单位，
+修复后支脚超出桌面后沿的问题；键盘坐标不变。`--part-offset NAME X Y Z` 可重复，
+使用标准化后的网格名和 glTF 坐标（+Z 朝桌前），在归一化后执行且不再次居中，
+因此不会连带移动其他部件。原始 FBX 不变；浏览器不再按 mesh 名补偿摆放。
+电脑聚焦相机与屏幕目标点同向平移 0.4，保留原本的居中构图和观看距离。
 
 处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
 并导出内嵌材质的 GLB。FBX 中直接连接到 diffuse 的 CoronaColor 常量会转换为

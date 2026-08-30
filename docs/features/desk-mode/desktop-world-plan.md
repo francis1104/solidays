@@ -17,7 +17,8 @@ node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
   --part-offset Cube.003 0 0 0.4 \
   --part-offset Cube.004 0 0 0.4 \
   --part-offset Cube.005 0 0 0.4 \
-  --part-offset Plane.001 0 0 0.4
+  --part-offset Plane.001 0 0 0.4 \
+  --screen-uv Plane.001 Material.003
 ```
 
 当前 MINGTU 的显示器、支架及后支脚通过上述四项在 Blender 中前移 0.4 场景单位，
@@ -25,6 +26,13 @@ node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
 使用标准化后的网格名和 glTF 坐标（+Z 朝桌前），在归一化后执行且不再次居中，
 因此不会连带移动其他部件。原始 FBX 不变；浏览器不再按 mesh 名补偿摆放。
 电脑聚焦相机与屏幕目标点同向平移 0.4，保留原本的居中构图和观看距离。
+
+MINGTU 原内屏 UV 在右边缘折叠，同一物理高度会采样视频的不同行，造成画面卷曲。
+`--screen-uv MESH MATERIAL` 在 Blender 归一化后，仅对指定材质的面重建正面投影 UV：
+横向按 glTF X、纵向按 glTF Y 归一化，导出器转换 V 方向。曲面几何、外框 UV、
+支架和键盘不变，poster 与 VideoTexture 共用修正后的 UV。该参数只适用于已摆正、
+正面沿 glTF X/Y 展开的显示面，不能无差别用于其他模型；找不到网格/材质或投影退化时失败。
+新增屏幕资源时应以棋盘格检查边缘采样，不只检查图片是否能显示。
 
 处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
 并导出内嵌材质的 GLB。FBX 中直接连接到 diffuse 的 CoronaColor 常量会转换为
@@ -673,7 +681,7 @@ Desk Radio 是独立实例，但第一次播放前必须暂停 `window.globalAud
 
 ### 视频纹理的资源生命周期
 
-屏幕直接使用模型内屏 UV，不额外测量 DOM overlay。VideoTexture 必须独立释放；
+屏幕直接使用 Blender 处理后的内屏 UV，不额外测量 DOM overlay。VideoTexture 必须独立释放；
 poster 只保留当前一张，下一张加载完成后释放旧纹理。不能在每次视频切换时累计 frame callback。
 
 ### 模型替换破坏热点

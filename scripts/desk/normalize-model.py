@@ -50,6 +50,14 @@ def parse_args() -> argparse.Namespace:
         metavar=("NAME", "X", "Y", "Z"),
         help="Offset a named normalized mesh in glTF coordinates; keep other parts anchored",
     )
+    parser.add_argument(
+        "--screen-uv",
+        nargs=2,
+        action="append",
+        default=[],
+        metavar=("MESH", "MATERIAL"),
+        help="Reproject only the selected display faces onto normalized glTF X/Y UVs",
+    )
     return parser.parse_args(cli_args)
 
 
@@ -196,6 +204,40 @@ def offset_parts(objects: list[bpy.types.Object], offsets: list[list[str]]) -> N
     bpy.context.view_layer.update()
 
 
+def reproject_screen_uvs(objects: list[bpy.types.Object], screens: list[list[str]]) -> None:
+    """Map rectangular media across an upright screen, preserving its curved mesh.
+
+    Imported unwraps may fold/compress border triangles. Project from normalized
+    front coordinates instead; do not alter the bezel or any vertex positions.
+    Blender Z is glTF Y, and the exporter converts Blender's bottom-up UV V.
+    """
+    by_name = {obj.name: obj for obj in objects}
+    for name, material_name in screens:
+        if name not in by_name:
+            raise SystemExit(f"Unknown normalized mesh for --screen-uv: {name}")
+        mesh = by_name[name].data
+        slots = {
+            index for index, material in enumerate(mesh.materials)
+            if material and material.name == material_name
+        }
+        faces = [face for face in mesh.polygons if face.material_index in slots]
+        if not faces:
+            raise SystemExit(f"No display faces for --screen-uv: {name} / {material_name}")
+        points = [mesh.vertices[index].co for face in faces for index in face.vertices]
+        min_x, max_x = min(p.x for p in points), max(p.x for p in points)
+        min_z, max_z = min(p.z for p in points), max(p.z for p in points)
+        if max_x - min_x <= 1e-6 or max_z - min_z <= 1e-6:
+            raise SystemExit(f"--screen-uv requires a nondegenerate upright X/Y display: {name}")
+        uv = mesh.uv_layers.active or mesh.uv_layers.new(name="UVMap")
+        for face in faces:
+            for index in face.loop_indices:
+                point = mesh.vertices[mesh.loops[index].vertex_index].co
+                uv.data[index].uv = (
+                    (point.x - min_x) / (max_x - min_x),
+                    (point.z - min_z) / (max_z - min_z),
+                )
+
+
 def export_glb(output_path: Path, objects: list[bpy.types.Object]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
@@ -234,6 +276,7 @@ def main() -> None:
     baked_objects = bake_mesh_objects(mesh_objects, args.scale, tuple(args.rotation))
     place_origin_at_bottom_center(baked_objects)
     offset_parts(baked_objects, args.part_offset)
+    reproject_screen_uvs(baked_objects, args.screen_uv)
     minimum, maximum = world_bounds(baked_objects)
     dimensions = maximum - minimum
     export_glb(output_path, baked_objects)
@@ -254,6 +297,7 @@ def main() -> None:
                 "dimensions": [round(value, 6) for value in dimensions],
                 "origin": "normalized-bottom-center-anchor" if args.part_offset else "bottom-center",
                 "partOffsets": args.part_offset,
+                "screenUVs": args.screen_uv,
                 "missingTextures": missing_textures,
             },
             ensure_ascii=False,

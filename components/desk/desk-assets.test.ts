@@ -123,6 +123,47 @@ test('monitor rear foot rests inside the desk while the keyboard keeps its place
   disposeDeskModel(scene)
 })
 
+test('curved display UVs form a regular front projection, including the right-edge triangles', async () => {
+  const bytes = readFileSync('public/desk/models/pc-mingtu.glb')
+  const { scene } = await new GLTFLoader().parseAsync(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    ''
+  )
+  try {
+    const screen = scene.getObjectByName('Mesh009_1') as THREE.Mesh
+    assert.ok(screen?.isMesh, 'Missing display surface')
+    const geometry = screen.geometry
+    geometry.computeBoundingBox()
+    const { min, max } = geometry.boundingBox!
+    assert.ok(max.z - min.z > 0.17, 'Keep the physical screen curvature')
+    const position = geometry.getAttribute('position')
+    const uv = geometry.getAttribute('uv')
+    for (let i = 0; i < position.count; i++) {
+      const u = (position.getX(i) - min.x) / (max.x - min.x)
+      // glTF V runs top to bottom; both poster and VideoTexture use flipY=false.
+      const v = 1 - (position.getY(i) - min.y) / (max.y - min.y)
+      assert.ok(Math.abs(uv.getX(i) - u) < 1e-5, `Uneven horizontal mapping at vertex ${i}`)
+      assert.ok(Math.abs(uv.getY(i) - v) < 1e-5, `Bent video row at vertex ${i}`)
+    }
+    // Sample actual triangle interpolation, not just vertex bounds: the old
+    // unwrap folded a horizontal video row upward near x=1.85 on the right.
+    ;(screen.material as THREE.Material).side = THREE.DoubleSide
+    scene.updateMatrixWorld(true)
+    const ray = new THREE.Raycaster()
+    for (const y of [0.8, 1.45, 2.1]) {
+      for (const x of [-1.85, -1, 0, 1, 1.7, 1.8, 1.85, 1.88]) {
+        ray.set(new THREE.Vector3(x, y, 10), new THREE.Vector3(0, 0, -1))
+        const hit = ray.intersectObject(screen, false)[0]
+        assert.ok(hit?.uv, `Screen must cover (${x}, ${y})`)
+        assert.ok(Math.abs(hit.uv.x - (x - min.x) / (max.x - min.x)) < 1e-5)
+        assert.ok(Math.abs(hit.uv.y - (1 - (y - min.y) / (max.y - min.y))) < 1e-5)
+      }
+    }
+  } finally {
+    disposeDeskModel(scene)
+  }
+})
+
 test('web table texture payload is bounded; environment variants have intended resolution', () => {
   const bytes = readFileSync('public/desk/models/desk-web.glb')
   assert.ok(bytes.length < 2 * 1024 * 1024)

@@ -282,6 +282,7 @@ function clickTarget(onSelect: (target: DeskTarget) => void, target: DeskTarget)
 const DESK_MODEL_URL = '/desk/desk-only.glb'
 const DESK_PC_MODEL_URL = '/desk/models/pc-mingtu.glb'
 const DESK_ENVIRONMENT_URL = '/desk/kloofendal-overcast-4k.hdr'
+const DESK_PC_SCREEN_MESH_NAME = 'Mesh009_1'
 const DESK_ENVIRONMENT_BACKGROUND_INTENSITY = 2.5
 const DESK_ENVIRONMENT_INTENSITY = 1.2
 const DESK_TABLE_POSITION: [number, number, number] = [0, -2.8, -4]
@@ -389,20 +390,58 @@ function DeskTableFallback() {
   )
 }
 
-function DeskComputer({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
+function DeskComputer({
+  onSelect,
+  videoElement,
+  videoReady,
+}: {
+  onSelect: (target: DeskTarget) => void
+  videoElement: HTMLVideoElement | null
+  videoReady: boolean
+}) {
   const { scene } = useGLTF(DESK_PC_MODEL_URL, false, false, configureDeskTextureLoader)
+  const videoTexture = useMemo(() => {
+    if (!videoElement || !videoReady) return null
+
+    const texture = new THREE.VideoTexture(videoElement)
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.flipY = false
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.generateMipmaps = false
+    return texture
+  }, [videoElement, videoReady])
+  const screenMaterial = useMemo(() => {
+    if (!videoTexture) return null
+
+    return new THREE.MeshBasicMaterial({
+      map: videoTexture,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    })
+  }, [videoTexture])
+
+  useEffect(() => {
+    return () => screenMaterial?.dispose()
+  }, [screenMaterial])
+
   const model = useMemo(() => {
     const clone = scene.clone(true)
 
     clone.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.castShadow = true
-        object.receiveShadow = true
+      if (!(object instanceof THREE.Mesh)) return
+
+      object.castShadow = true
+      object.receiveShadow = true
+
+      // GLTFLoader splits Plane.001 into Mesh009 (bezel) and Mesh009_1 (screen).
+      if (screenMaterial && object.name === DESK_PC_SCREEN_MESH_NAME) {
+        object.material = screenMaterial
       }
     })
 
     return clone
-  }, [scene])
+  }, [scene, screenMaterial])
 
   const handleClick = clickTarget(onSelect, 'computer')
 
@@ -552,6 +591,8 @@ function DeskScene({
   phase,
   target,
   reducedMotion,
+  videoElement,
+  videoReady,
   onSelect,
   onSettled,
   onContextLost,
@@ -559,6 +600,8 @@ function DeskScene({
   phase: DeskPhase
   target: DeskTarget | null
   reducedMotion: boolean
+  videoElement: HTMLVideoElement | null
+  videoReady: boolean
   onSelect: (target: DeskTarget) => void
   onSettled: () => void
   onContextLost: () => void
@@ -584,7 +627,7 @@ function DeskScene({
         <DeskTableModel />
       </Suspense>
       <DeskDetails />
-      <DeskComputer onSelect={onSelect} />
+      <DeskComputer onSelect={onSelect} videoElement={videoElement} videoReady={videoReady} />
       <DeskRadio onSelect={onSelect} />
       <DeskFrame onSelect={onSelect} />
       <DeskNote onSelect={onSelect} />
@@ -596,6 +639,9 @@ export default function DeskCanvas({
   phase,
   target,
   reducedMotion,
+  videoElement,
+  videoReady,
+  videoPlaying,
   onSelect,
   onSettled,
   onReady,
@@ -604,6 +650,9 @@ export default function DeskCanvas({
   phase: DeskPhase
   target: DeskTarget | null
   reducedMotion: boolean
+  videoElement: HTMLVideoElement | null
+  videoReady: boolean
+  videoPlaying: boolean
   onSelect: (target: DeskTarget) => void
   onSettled: () => void
   onReady: () => void
@@ -612,7 +661,7 @@ export default function DeskCanvas({
   return (
     <Canvas
       className="h-full w-full"
-      frameloop="demand"
+      frameloop={videoPlaying ? 'always' : 'demand'}
       dpr={[1, 1.5]}
       camera={{ position: [0, 5.2, 11.5], fov: 42, near: 0.1, far: 100 }}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
@@ -626,6 +675,8 @@ export default function DeskCanvas({
         phase={phase}
         target={target}
         reducedMotion={reducedMotion}
+        videoElement={videoElement}
+        videoReady={videoReady}
         onSelect={onSelect}
         onSettled={onSettled}
         onContextLost={onContextLost}

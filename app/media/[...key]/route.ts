@@ -7,9 +7,30 @@ type MediaRouteContext = {
 }
 
 const CARD_WIDTHS = [320, 480, 640] as const
+const GALLERY_MEDIA_BASE_URL = 'https://media.solidays.win'
 
 function isAllowedMediaKey(key: string) {
-  return /^(?:fnds|profile|music)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes('..')
+  return (
+    /^(?:fnds|profile|music|gaming|gallery-phase2)\/[A-Za-z0-9._/-]+$/.test(key) &&
+    !key.includes('..')
+  )
+}
+
+function isGalleryMediaKey(key: string) {
+  return key.startsWith('gaming/') || key.startsWith('gallery-phase2/')
+}
+
+async function proxyGalleryMedia(request: Request, key: string) {
+  const headers = new Headers()
+
+  for (const name of ['range', 'if-range', 'if-none-match', 'if-modified-since']) {
+    const value = request.headers.get(name)
+    if (value) headers.set(name, value)
+  }
+
+  return fetch(`${GALLERY_MEDIA_BASE_URL}/${key}`, {
+    headers,
+  })
 }
 
 function getCardTransform(request: Request) {
@@ -34,6 +55,23 @@ export async function GET(request: Request, { params }: MediaRouteContext) {
   }
 
   try {
+    if (isGalleryMediaKey(key)) {
+      const response = await proxyGalleryMedia(request, key)
+      const headers = new Headers(response.headers)
+      const contentLength = response.headers.get('content-length')
+
+      if (contentLength) headers.set('content-length', contentLength)
+      headers.set('accept-ranges', 'bytes')
+      headers.set('cache-control', 'public, max-age=31536000, immutable')
+      headers.set('x-content-type-options', 'nosniff')
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      })
+    }
+
     const { env } = getCloudflareContext()
     const isMusic = key.startsWith('music/')
     const object = await env.MEDIA_BUCKET.get(key)

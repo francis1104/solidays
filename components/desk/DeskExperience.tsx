@@ -24,8 +24,7 @@ import {
   type DeskPhase,
   type DeskTarget,
 } from '@/lib/desk'
-import { galleryUrl } from '@/lib/gallery'
-import { mediaUrl } from '@/lib/media'
+import { mediaUrl, privateMediaUrl } from '@/lib/media'
 
 const DeskCanvas = dynamic(() => import('./desk-canvas'), {
   ssr: false,
@@ -152,6 +151,7 @@ export default function DeskExperience() {
   const [activeClip, setActiveClip] = useState<GalleryItem | undefined>()
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [videoDuration, setVideoDuration] = useState<number | null>(null)
   const [radioTrackIndex, setRadioTrackIndex] = useState(0)
@@ -166,8 +166,14 @@ export default function DeskExperience() {
   const galleryCursorRef = useRef(0)
   const lastGalleryIdRef = useRef<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const radioRef = useRef<HTMLAudioElement>(null)
   const radioShouldPlayRef = useRef(false)
+
+  const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element
+    setVideoElement((current) => (current === element ? current : element))
+  }, [])
 
   phaseRef.current = phase
   targetRef.current = target
@@ -224,6 +230,9 @@ export default function DeskExperience() {
       pauseGlobalMusic()
       pauseRadio()
       try {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          setVideoReady(true)
+        }
         await video.play()
         setVideoError(false)
       } catch {
@@ -247,13 +256,14 @@ export default function DeskExperience() {
     const shouldPlay = Boolean(video && !video.paused && !video.ended)
     setActiveClip(next)
     setVideoError(false)
+    setVideoReady(false)
     setVideoTime(0)
     setVideoDuration(null)
 
     if (!video) return
     video.pause()
-    video.src = galleryUrl(next.video)
-    video.poster = galleryUrl(next.poster)
+    video.src = privateMediaUrl(next.video)
+    video.poster = privateMediaUrl(next.poster)
     video.load()
 
     if (shouldPlay) {
@@ -358,10 +368,11 @@ export default function DeskExperience() {
     const video = videoRef.current
     if (!video) return
     video.pause()
-    video.removeAttribute('src')
-    video.removeAttribute('poster')
-    video.load()
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      video.currentTime = 0
+    }
     setVideoPlaying(false)
+    setVideoReady(false)
     setVideoTime(0)
     setVideoDuration(null)
   }, [])
@@ -471,8 +482,8 @@ export default function DeskExperience() {
   const activeRadio = defaultCards[radioTrackIndex]
   const activeFrame = fndsItems[frameIndex]
   const nextFrame = fndsItems[(frameIndex + 1) % fndsItems.length]
-  const currentVideoSource = activeClip ? galleryUrl(activeClip.video) : undefined
-  const currentPosterSource = activeClip ? galleryUrl(activeClip.poster) : undefined
+  const currentVideoSource = activeClip ? privateMediaUrl(activeClip.video) : undefined
+  const currentPosterSource = activeClip ? privateMediaUrl(activeClip.poster) : undefined
   const isFocused = phase === 'focused'
   const isMoving = phase === 'entering' || phase === 'leaving'
 
@@ -492,6 +503,9 @@ export default function DeskExperience() {
             phase={phase}
             target={target}
             reducedMotion={reducedMotion}
+            videoElement={videoElement}
+            videoReady={videoReady}
+            videoPlaying={videoPlaying}
             onSelect={focusObject}
             onSettled={handleCameraSettled}
             onReady={() => setSceneReady(true)}
@@ -524,6 +538,41 @@ export default function DeskExperience() {
         aria-hidden="true"
       />
 
+      {/* The video is rendered as a Three.js texture on the computer screen. */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video
+        ref={setVideoRef}
+        src={currentVideoSource}
+        poster={currentPosterSource}
+        preload="metadata"
+        playsInline
+        tabIndex={-1}
+        onPlay={() => {
+          pauseGlobalMusic()
+          pauseRadio()
+          setVideoPlaying(true)
+          setVideoError(false)
+        }}
+        onPause={() => setVideoPlaying(false)}
+        onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
+        onLoadStart={() => setVideoReady(false)}
+        onLoadedData={() => setVideoReady(true)}
+        onLoadedMetadata={(event) => {
+          const duration = event.currentTarget.duration
+          setVideoDuration(Number.isFinite(duration) ? duration : null)
+        }}
+        onDurationChange={(event) => {
+          const duration = event.currentTarget.duration
+          setVideoDuration(Number.isFinite(duration) ? duration : null)
+        }}
+        onError={() => {
+          setVideoReady(false)
+          setVideoError(true)
+        }}
+        className="pointer-events-none fixed -left-[9999px] h-px w-px opacity-0"
+        aria-hidden="true"
+      />
+
       <div
         className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-500 ${sceneReady || simpleMode ? 'opacity-100' : 'opacity-0'}`}
       >
@@ -547,84 +596,24 @@ export default function DeskExperience() {
         </div>
 
         {isFocused && target === 'computer' ? (
-          <div className="desk-computer-overlay pointer-events-auto absolute top-[13%] left-1/2 w-[min(88vw,820px)] -translate-x-1/2 sm:top-[12%]">
-            <div className="overflow-hidden rounded-2xl border border-white/20 bg-black/55 shadow-[0_24px_100px_rgba(0,0,0,0.55)] backdrop-blur-md">
-              <div className="relative aspect-video bg-[#111a27]">
-                {/* Gameplay clips do not have a supplied caption track in the Gallery catalog. */}
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video
-                  ref={videoRef}
-                  src={currentVideoSource}
-                  poster={currentPosterSource}
-                  preload="metadata"
-                  playsInline
-                  onPlay={() => {
-                    pauseGlobalMusic()
-                    pauseRadio()
-                    setVideoPlaying(true)
-                    setVideoError(false)
-                  }}
-                  onPause={() => setVideoPlaying(false)}
-                  onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
-                  onLoadedMetadata={(event) => {
-                    const duration = event.currentTarget.duration
-                    setVideoDuration(Number.isFinite(duration) ? duration : null)
-                  }}
-                  onDurationChange={(event) => {
-                    const duration = event.currentTarget.duration
-                    setVideoDuration(Number.isFinite(duration) ? duration : null)
-                  }}
-                  onError={() => setVideoError(true)}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  aria-label={
-                    activeClip ? `${activeClip.game ?? activeClip.title} video` : 'Gallery video'
-                  }
-                />
-                {!videoPlaying ? (
-                  <button
-                    type="button"
-                    onClick={playVideo}
-                    className="absolute inset-0 flex items-center justify-center bg-black/20"
-                    aria-label="Play video"
-                  >
-                    <span className="flex size-14 items-center justify-center rounded-full border border-white/45 bg-black/30 backdrop-blur-sm transition-transform hover:scale-105">
-                      <Play className="ml-1 size-5 fill-white" />
-                    </span>
-                  </button>
-                ) : null}
+          <div className="pointer-events-auto absolute right-0 bottom-[4.75rem] left-0 flex justify-center px-4 sm:bottom-20">
+            <div className="desk-glass-panel flex max-w-full items-center gap-2 rounded-full px-2 py-1.5">
+              <div className="max-w-[9rem] min-w-0 px-2 sm:max-w-[13rem]">
+                <p className="truncate text-xs font-medium">
+                  {activeClip?.game ?? activeClip?.title}
+                </p>
+                <p className="mt-0.5 truncate text-[0.6rem] tracking-[0.12em] text-white/50 uppercase">
+                  {formatDeskTime(videoTime)} / {formatDeskTime(videoDuration)}
+                  {videoError ? ' · unavailable' : ''}
+                </p>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {activeClip?.game ?? activeClip?.title}
-                  </p>
-                  <p className="mt-1 text-[0.65rem] tracking-[0.18em] text-white/50 uppercase">
-                    {formatDeskTime(videoTime)} / {formatDeskTime(videoDuration)}
-                    {videoError ? ' · play unavailable' : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <DeskButton
-                    label={videoPlaying ? 'Pause video' : 'Play video'}
-                    onClick={playVideo}
-                  >
-                    {videoPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
-                  </DeskButton>
-                  <DeskButton label="Random next video" onClick={nextGalleryClip}>
-                    <Shuffle className="size-4" />
-                  </DeskButton>
-                  <DeskButton label="Exit computer" onClick={exitFocus}>
-                    <X className="size-4" />
-                  </DeskButton>
-                </div>
-              </div>
+              <DeskButton label={videoPlaying ? 'Pause video' : 'Play video'} onClick={playVideo}>
+                {videoPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
+              </DeskButton>
+              <DeskButton label="Random next video" onClick={nextGalleryClip}>
+                <Shuffle className="size-4" />
+              </DeskButton>
             </div>
-            <a
-              href={activeClip ? `/gallery?clip=${activeClip.id}` : '/gallery'}
-              className="mt-3 inline-flex items-center gap-1 text-[0.65rem] tracking-[0.18em] text-white/45 uppercase transition-colors hover:text-white"
-            >
-              Open Gallery <ExternalLink className="size-3" />
-            </a>
           </div>
         ) : null}
 

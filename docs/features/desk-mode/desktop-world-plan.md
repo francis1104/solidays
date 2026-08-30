@@ -192,7 +192,7 @@ Canvas 不是唯一入口。页面同时提供一个可访问的 Desk 控制条�
 使用全部 `galleryItems`，但采用 shuffle bag，避免连续随机造成重复：
 
 1. 进入 Desk 时对全部 Gallery ID 执行 Fisher–Yates shuffle；
-2. 第一条作为电脑 Overview poster；
+2. 第一条作为电脑的默认视频片段；
 3. 每次“随机下一个”从袋中取下一条；
 4. 一轮内不重复；
 5. 全部播放完后重新洗牌；
@@ -201,20 +201,23 @@ Canvas 不是唯一入口。页面同时提供一个可访问的 Desk 控制条�
 
 ### 5.3 视频实现
 
-首版不把 `<video>` 作为 Three.js `VideoTexture`，也不使用带透视变换的 Drei `Html` 视频控件。
+视频不再以独立播放框覆盖在 3D 场景上，而是直接作为 Three.js `VideoTexture`
+贴到电脑模型的曲面屏内屏 Mesh 上；不使用带透视变换的 Drei `Html` 视频控件。
 
 实现边界：
 
-- 3D 屏幕在 Overview 和镜头移动期间显示 poster texture；
-- 到达固定电脑景位后，使用一个普通 DOM `<video playsInline>` 精确覆盖显示器区域；
-- `<video>` 可提前以 `preload="metadata"` 挂载，但只允许一个实例；
-- 视频控件使用 Desk 自己的最小 HTML UI：播放/暂停、随机下一个、退出；
-- 切换下一条由点击手势设置新 src 并尝试播放；
+- 只挂载一个隐藏的 DOM `<video playsInline>` 作为解码源；
+- 视频取得可用帧后替换电脑模型的内屏材质，保留显示器外框和曲面几何；
+- `Canvas` 仅在视频播放时使用持续渲染，暂停时恢复按需渲染；
+- 视频控件使用 Desk 自己的最小 HTML UI：播放/暂停、随机下一个；退出仍由底部 Desk 导航完成；
+- 切换下一条由点击手势设置新 src，并在切换前正在播放时自动继续播放；
 - 当前视频播放时暂停 Desk Radio 和全局 MusicDock 音频；
-- 退出或离开 `/desk` 时暂停、清空 src 并释放媒体资源；
+- 退出电脑时暂停并把播放位置重置到开头，但保留当前 source，重新进入时可直接恢复；
+- `/media/gaming/` 和 `/media/gallery-phase2/` 的视频由 Worker 同源代理到公开 Gallery
+  媒体域名，保留 HTTP Range 与 `Content-Length`，以便浏览器和 WebGL 稳定解码；
 - 可提供普通链接进入 `/gallery?clip=<id>`，但不是首版主要路径。
 
-Gallery 文件继续使用 `data/gallery.ts`、`galleryUrl()` 和公开 `media.solidays.win`，不复制到私有媒体桶。
+Gallery 文件继续使用 `data/gallery.ts` 和公开 `media.solidays.win`，不复制到私有媒体桶。
 
 ## 6. 收音机：Desk 独立音乐播放器
 

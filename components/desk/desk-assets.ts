@@ -5,6 +5,9 @@ export type DeskAssets = {
   table: THREE.Group
   computer: THREE.Group
   cup: THREE.Group
+  radio: THREE.Group
+  notePad: THREE.Group
+  notePaper: THREE.Group
   environment: THREE.DataTexture
 }
 
@@ -38,7 +41,7 @@ export function disposeDeskModel(model: THREE.Object3D) {
 export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) => void) {
   let disposed = false
   const owned: Array<() => void> = []
-  const progress = [0, 0, 0, 0]
+  const progress = [0, 0, 0, 0, 0, 0, 0]
   const report = (index: number, value: number) => {
     progress[index] = Math.max(progress[index], value)
     if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / progress.length)
@@ -78,18 +81,35 @@ export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) =
     track(loader.loadAsync('/desk/models/mcdonalds-cup.glb', downloading(2)), 2, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
+    track(loader.loadAsync('/desk/models/vintage-radio.glb', downloading(3)), 3, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/note-pad.glb', downloading(4)), 4, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/note-paper.glb', downloading(5)), 5, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
     track(
       new RGBELoader(manager).loadAsync(
         `/desk/kloofendal-overcast-${mobile ? '1k' : '2k'}.hdr`,
-        downloading(3)
+        downloading(6)
       ),
-      3,
+      6,
       (texture) => texture.dispose()
     ),
   ])
-    .then(([table, computer, cup, environment]) => {
+    .then(([table, computer, cup, radio, notePad, notePaper, environment]) => {
       environment.mapping = THREE.EquirectangularReflectionMapping
-      return { table: table.scene, computer: computer.scene, cup: cup.scene, environment }
+      return {
+        table: table.scene,
+        computer: computer.scene,
+        cup: cup.scene,
+        radio: radio.scene,
+        notePad: notePad.scene,
+        notePaper: notePaper.scene,
+        environment,
+      }
     })
     .catch((error: unknown) => {
       dispose()

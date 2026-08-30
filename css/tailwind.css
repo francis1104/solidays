@@ -495,3 +495,188 @@ html.dark.theme-transitioning [data-chat-surface] {
     left: 15% !important;
   }
 }
+
+/* Desk-only ink overlays: transparent DOM attached to the actual model planes.
+   No glass surface, fixed viewport panel, or styles leaking to Floating Chat. */
+.desk-note-ink,
+.desk-note-host {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  color: #40351e;
+  color-scheme: light;
+}
+.desk-note-label {
+  position: absolute;
+  inset: 28px 12px;
+  font-family: Georgia, serif;
+  font-size: 30px;
+}
+.desk-note-label span {
+  display: block;
+  margin-top: 12px;
+  font-size: 18px;
+}
+.desk-note-chat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  color: #40351e;
+}
+.desk-note-chat header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid #64502840;
+  flex-shrink: 0;
+}
+.desk-note-chat h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.desk-note-chat header p {
+  font-size: 14px;
+  margin-top: 4px;
+}
+.desk-note-chat header button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+.desk-note-chat button:focus-visible {
+  outline: 2px solid #40351e;
+  outline-offset: 2px;
+}
+.desk-note-chat [data-slot='bubble-content'] {
+  border: 0;
+  border-radius: 0;
+  color: #40351e;
+  background: transparent;
+  padding: 6px 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.desk-note-chat [data-align='end'] > [data-slot='bubble-content'] {
+  border-bottom: 1px dashed #64502870;
+}
+.desk-note-history > div > div[aria-hidden='true'] {
+  background: none;
+}
+.desk-note-chat form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 4px 8px;
+  background: none;
+  border: 0;
+}
+.desk-note-chat form > div {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(transparent 0 29px, #64502825 29px 30px);
+  box-shadow: none;
+  padding: 0;
+  align-items: flex-end;
+}
+.desk-note-chat form textarea {
+  color: #40351e;
+  font-size: 20px;
+  line-height: 30px;
+  padding: 0 4px;
+  align-self: flex-start;
+  min-width: 0;
+  width: 0;
+}
+.desk-note-chat form button {
+  background: #544429;
+  color: #fff5cb;
+  width: 42px;
+  height: 42px;
+}
+.desk-note-chat form p {
+  color: #655535;
+  font-size: 12px;
+}
+.desk-note-chat form [role='alert'] {
+  color: #9f3022;
+}
+/* Override Drei's inline overflow:hidden: focus must not scroll its perspective root. */
+.desk-model-html {
+  overflow: clip !important;
+}
+.desk-radio-face {
+  position: relative;
+  width: 400px;
+  height: 180px;
+  color: #efe2b7;
+  color-scheme: dark;
+}
+.desk-radio-display {
+  position: absolute;
+  left: 105px;
+  top: 50px;
+  width: 190px;
+  height: 60px;
+  background: #25251bee;
+  border: 1px solid #d5bd8066;
+  padding: 5px 8px;
+  text-align: center;
+}
+.desk-radio-display p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+.desk-radio-display span {
+  font-family: monospace;
+  font-size: 13px;
+}
+.desk-radio-face button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: #16181238;
+  color: #f4e2ac;
+}
+.desk-radio-face button svg {
+  width: 22px;
+  height: 22px;
+}
+.desk-radio-face button:hover,
+.desk-radio-face button:focus-visible {
+  outline: 2px solid #ead194;
+  background: #332f20aa;
+}
+.desk-radio-power {
+  left: 58px;
+  top: 74px;
+}
+.desk-radio-mute {
+  right: 58px;
+  top: 74px;
+}
+.desk-radio-face .desk-radio-previous,
+.desk-radio-face .desk-radio-next {
+  top: 116px;
+  height: 34px;
+  border-radius: 3px;
+  background: #c1bba588;
+  color: #312b20;
+}
+.desk-radio-previous {
+  left: 134px;
+}
+.desk-radio-next {
+  right: 134px;
+}

@@ -7,7 +7,7 @@ import { ChatMessages } from './chat-messages'
 import { ChatSurface } from './chat-surface'
 import type { ChatMessage } from './chat-types'
 
-type ChatPanelProps = {
+export type ChatPanelProps = {
   messages: ChatMessage[]
   hasMoreHistory: boolean
   isLoadingMoreHistory: boolean

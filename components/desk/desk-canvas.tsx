@@ -1,10 +1,13 @@
 'use client'
 
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Html } from '@react-three/drei/web/Html'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { DeskPhase, DeskTarget } from '@/lib/desk'
 import { createDeskVideoTexture, loadDeskAssets, type DeskAssets } from './desk-assets'
+import { registerDeskNoteHost, type DeskNoteKind } from '@/lib/desk-chat'
+import { DeskRadioControls, type DeskRadioControlsProps } from './desk-radio-controls'
 
 type Pose = {
   position: [number, number, number]
@@ -138,6 +141,17 @@ function getPose(
       : { position: [3.6, 6.4, 12.4], lookAt: [0, 0.65, -2.8] }
   }
 
+  if (target === 'note') {
+    const portrait = aspect < 1
+    return portrait
+      ? { position: [3.65, 6.35, -1.45], lookAt: [3.65, 1.82, -2.6] }
+      : { position: [3.6, 5.55, -1.5], lookAt: [3.6, 1.82, -2.6] }
+  }
+  if (target === 'radio') {
+    const halfFov = THREE.MathUtils.degToRad((compact ? 44 : narrow ? 48 : 42) / 2)
+    const distance = Math.max(3.4, 2.24 / (2 * Math.tan(halfFov) * aspect * 0.85))
+    return { position: [-3.05, 2.85, -4.1 + distance], lookAt: [-3.65, 2.2, -4.1] }
+  }
   if (!narrow) return DESK_POSE[target]
 
   const pose = DESK_POSE[target]
@@ -422,39 +436,34 @@ function DeskComputer({
   )
 }
 
-function DeskRadio({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
+function DeskRadio({
+  scene,
+  interactive,
+  controls,
+  onSelect,
+}: {
+  scene: THREE.Group
+  interactive: boolean
+  controls: DeskRadioControlsProps
+  onSelect: (target: DeskTarget) => void
+}) {
   const handleClick = clickTarget(onSelect, 'radio')
 
   return (
-    <group position={[-3.65, DESK_SURFACE_Y + 0.675, DESK_SURFACE_Z - 1.15]} onClick={handleClick}>
-      <mesh>
-        <boxGeometry args={[2.25, 1.35, 1.45]} />
-        <meshStandardMaterial color="#090b0f" roughness={0.55} metalness={0.3} />
-      </mesh>
-      <mesh position={[0, 0.1, 0.74]}>
-        <boxGeometry args={[1.78, 0.72, 0.06]} />
-        <meshStandardMaterial color="#151b20" roughness={0.7} />
-      </mesh>
-      <mesh position={[-0.48, 0.12, 0.79]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.21, 0.21, 0.08, 24]} />
-        <meshStandardMaterial color="#313941" roughness={0.4} metalness={0.5} />
-      </mesh>
-      <mesh position={[0.12, 0.1, 0.79]}>
-        <planeGeometry args={[0.6, 0.18]} />
-        <meshBasicMaterial color={DESK_COLORS.green} transparent opacity={0.82} />
-      </mesh>
-      <mesh position={[0.42, 0.12, 0.79]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.16, 0.16, 0.09, 20]} />
-        <meshStandardMaterial color="#56606a" roughness={0.45} metalness={0.45} />
-      </mesh>
-      <mesh position={[0.6, 0.12, 0.79]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.11, 0.11, 0.1, 20]} />
-        <meshStandardMaterial color="#56606a" roughness={0.45} metalness={0.45} />
-      </mesh>
-      <mesh position={[0.86, 0.82, 0.2]} rotation={[0, 0, -0.2]}>
-        <cylinderGeometry args={[0.025, 0.025, 1.3, 8]} />
-        <meshStandardMaterial color="#58606a" roughness={0.5} metalness={0.4} />
-      </mesh>
+    <group position={[-3.65, DESK_SURFACE_Y, DESK_SURFACE_Z - 1.15]} onClick={handleClick}>
+      <primitive object={scene} dispose={null} />
+      <Html
+        transform
+        wrapperClass="desk-model-html"
+        position={[0, 0.39, 0.55]}
+        distanceFactor={2.05}
+        zIndexRange={[5, 1]}
+        pointerEvents={interactive ? 'auto' : 'none'}
+      >
+        <div inert={!interactive} style={{ visibility: interactive ? 'visible' : 'hidden' }}>
+          <DeskRadioControls {...controls} />
+        </div>
+      </Html>
     </group>
   )
 }
@@ -492,37 +501,97 @@ function DeskFrame({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
   )
 }
 
-function DeskNote({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
-  const handleClick = clickTarget(onSelect, 'note')
-
+function DeskPaper({
+  scene,
+  kind,
+  position,
+  rotation,
+  surfaceHeight,
+  interactive,
+  showLabel,
+  onSelect,
+}: {
+  scene: THREE.Group
+  kind: DeskNoteKind
+  position: [number, number, number]
+  rotation: number
+  surfaceHeight: number
+  interactive: boolean
+  showLabel: boolean
+  onSelect: (target: DeskTarget) => void
+}) {
+  const registerHost = useCallback(
+    (element: HTMLDivElement | null) => registerDeskNoteHost(kind, element),
+    [kind]
+  )
   return (
-    <group
-      position={[4.25, DESK_SURFACE_Y + 0.04, DESK_SURFACE_Z + 0.45]}
-      scale={0.75}
-      rotation={[-Math.PI / 2, 0.08, -0.08]}
-      onClick={handleClick}
-    >
-      <mesh>
-        <boxGeometry args={[2.15, 1.55, 0.08]} />
-        <meshStandardMaterial color={DESK_COLORS.paper} roughness={0.92} />
-      </mesh>
-      <mesh position={[0, 0, 0.055]}>
-        <planeGeometry args={[1.75, 1.18]} />
-        <meshBasicMaterial color="#d5c49c" transparent opacity={0.46} />
-      </mesh>
-      <mesh position={[-0.66, 0.48, 0.11]}>
-        <sphereGeometry args={[0.1, 16, 12]} />
-        <meshStandardMaterial color={DESK_COLORS.pink} roughness={0.45} metalness={0.1} />
-      </mesh>
-      <mesh position={[0, 0.15, 0.11]}>
-        <boxGeometry args={[1.1, 0.04, 0.02]} />
-        <meshBasicMaterial color="#6c6252" transparent opacity={0.62} />
-      </mesh>
-      <mesh position={[0, -0.05, 0.11]}>
-        <boxGeometry args={[0.9, 0.04, 0.02]} />
-        <meshBasicMaterial color="#6c6252" transparent opacity={0.62} />
-      </mesh>
+    <group position={position} rotation={[0, rotation, 0]} onClick={clickTarget(onSelect, 'note')}>
+      <primitive object={scene} dispose={null} />
+      <Html
+        transform
+        wrapperClass="desk-model-html"
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, surfaceHeight, 0]}
+        distanceFactor={1.575}
+        zIndexRange={[5, 1]}
+        pointerEvents={interactive ? 'auto' : 'none'}
+      >
+        <div className="desk-note-ink" inert={!interactive}>
+          <div
+            ref={registerHost}
+            className="desk-note-host"
+            style={{ visibility: interactive ? 'visible' : 'hidden' }}
+          />
+          {showLabel ? (
+            <div className="desk-note-label" aria-hidden="true">
+              <p>{kind === 'history' ? 'From Francis' : 'Leave a note'}</p>
+              <span>{kind === 'history' ? '留言與回覆' : '寫點什麼吧'}</span>
+            </div>
+          ) : null}
+        </div>
+      </Html>
     </group>
+  )
+}
+
+function DeskNotes({
+  assets,
+  phase,
+  target,
+  onSelect,
+}: {
+  assets: DeskAssets
+  phase: DeskPhase
+  target: DeskTarget | null
+  onSelect: (target: DeskTarget) => void
+}) {
+  const { size } = useThree()
+  const portrait = size.width < size.height
+  const interactive = phase === 'focused' && target === 'note'
+  const showLabel = phase === 'overview' || (target === 'note' && !interactive)
+  return (
+    <>
+      <DeskPaper
+        scene={assets.notePad}
+        kind="history"
+        position={portrait ? [3.65, DESK_SURFACE_Y, -3.4] : [2.8, DESK_SURFACE_Y, -2.75]}
+        rotation={0.035}
+        surfaceHeight={0.426}
+        interactive={interactive}
+        showLabel={showLabel}
+        onSelect={onSelect}
+      />
+      <DeskPaper
+        scene={assets.notePaper}
+        kind="compose"
+        position={portrait ? [3.65, DESK_SURFACE_Y, -1.8] : [4.4, DESK_SURFACE_Y, -2.45]}
+        rotation={-0.045}
+        surfaceHeight={0.014}
+        interactive={interactive}
+        showLabel={showLabel}
+        onSelect={onSelect}
+      />
+    </>
   )
 }
 
@@ -544,6 +613,7 @@ function DeskScene({
   reducedMotion,
   videoElement,
   videoReady,
+  radioControls,
   onSelect,
   onSettled,
   onContextLost,
@@ -556,6 +626,7 @@ function DeskScene({
   reducedMotion: boolean
   videoElement: HTMLVideoElement | null
   videoReady: boolean
+  radioControls: DeskRadioControlsProps
   onSelect: (target: DeskTarget) => void
   onSettled: () => void
   onContextLost: () => void
@@ -585,9 +656,14 @@ function DeskScene({
         videoElement={videoElement}
         videoReady={videoReady}
       />
-      <DeskRadio onSelect={onSelect} />
+      <DeskRadio
+        scene={assets.radio}
+        interactive={phase === 'focused' && target === 'radio'}
+        controls={radioControls}
+        onSelect={onSelect}
+      />
       <DeskFrame onSelect={onSelect} />
-      <DeskNote onSelect={onSelect} />
+      <DeskNotes assets={assets} phase={phase} target={target} onSelect={onSelect} />
       <SceneReady onReady={onReady} onError={onContextLost} />
     </>
   )
@@ -634,6 +710,7 @@ export default function DeskCanvas({
   videoElement,
   videoReady,
   videoPlaying,
+  radioControls,
   onSelect,
   onSettled,
   onReady,
@@ -647,6 +724,7 @@ export default function DeskCanvas({
   videoElement: HTMLVideoElement | null
   videoReady: boolean
   videoPlaying: boolean
+  radioControls: DeskRadioControlsProps
   onSelect: (target: DeskTarget) => void
   onSettled: () => void
   onReady: () => void
@@ -706,6 +784,7 @@ export default function DeskCanvas({
   return (
     <Canvas
       className="h-full w-full"
+      style={{ overflow: 'clip' }}
       frameloop={videoPlaying ? 'always' : 'demand'}
       dpr={mobile ? 1 : [1, 1.5]}
       camera={{ position: [0, 5.2, 11.5], fov: 42, near: 0.1, far: 100 }}
@@ -723,6 +802,7 @@ export default function DeskCanvas({
         reducedMotion={reducedMotion}
         videoElement={videoElement}
         videoReady={videoReady}
+        radioControls={radioControls}
         onSelect={onSelect}
         onSettled={onSettled}
         onContextLost={onContextLost}

@@ -8,7 +8,7 @@
 
 ### 资产处理约定
 
-素材按桌子、电脑、杯子、环境分类，原件与历史导出放在本地 `assets/3d/`，
+素材按桌子、电脑、杯子、收音机、便签、相框、台灯、环境分类，原件与历史导出放在本地 `assets/3d/`，
 网页只发布当前使用的处理产物。完整目录、候选模型与重复副本见
 [3D 素材目录](./asset-catalog.md)。
 
@@ -51,6 +51,25 @@ node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
 `[-4.5, 1.62, -2.8]`，不在浏览器中临时校正单位。保留源 base-color/normal 贴图，
 约 8,960 三角形，纹理为 1K/512px。杯子和桌子/电脑/HDR 一起参与 readiness，
 进入场景前等待解析完成；退出统一释放网格、材质和纹理。
+
+2026-08-30 追加收音机与两款便签：
+
+```bash
+node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
+  --source assets/3d/models/radios/vintage-radio/source/vintage_radio.glb \
+  --output public/desk/models/vintage-radio.glb --scale 1.12 --max-texture-size 1024
+node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
+  --source assets/3d/models/notes/sticky-notes/source/unpacked/post_it.fbx \
+  --output public/desk/models/note-pad.glb --only-mesh SINGLE --scale 0.72 --max-texture-size 512
+node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
+  --source assets/3d/models/notes/sticky-notes/source/unpacked/post_it.fbx \
+  --output public/desk/models/note-paper.glb --only-mesh single --scale 0.72 --max-texture-size 512
+```
+
+`--only-mesh` 可重复，按源 mesh 精确选择；选不到必须失败，不导出整套模型冒充单件。
+`--max-texture-size` 按长边等比降采样并内嵌，不写回原件。Blender 使用
+`--disable-autoexec --python-exit-code 1`，脚本错误不能被旧产物掩盖。
+新增三份 GLB 同样参与加载进度、首帧等待与退出资源释放。
 
 处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
 并导出内嵌材质的 GLB。FBX 中直接连接到 diffuse 的 CoronaColor 常量会转换为
@@ -285,10 +304,18 @@ Desk Radio 复用音乐资源和元数据，不复用 MusicDock 的 UI 状态与
 
 - 播放/暂停；
 - 上一首/下一首；
+- 静音/取消静音；
 - 当前歌曲名称；
 - 当前进度与总时长；
 - 加载与错误状态；
 - 退出到 Overview。
+
+2026-08-30：改用 Loïc 的 Vintage radio 模型。聚焦后控制与文字通过 Drei `Html transform`
+贴在机身正面的旋钮、调谐窗和琴键处，不再弹出单独的播放器面板。
+原生 button 保留触控和键盘行为；透视容器使用 `overflow: clip`，防止 focus/scrollIntoView
+滚动 Drei 的 `overflow: hidden` wrapper，导致 Html 控件离开模型表面。
+只有 2D fallback 保留独立控制条，音乐仍由 `DeskExperience` 中同一个 audio 管理。
+模型归属和许可见[素材目录](./asset-catalog.md)。
 
 媒体互斥：
 
@@ -337,17 +364,17 @@ Computer 视频开始播放
 - 可提供进入 `/fnds` 的普通链接；
 - 离开 Desk 后不需要持久化相框索引。
 
-## 8. 便签纸：Floating Chat 入口
+## 8. 两张便签：模型内留言
 
 ### 8.1 产品行为
 
 在 `/desk` 中，右下角圆形 Chat Launcher 被桌面上的便签纸取代：
 
-1. Overview 中可以看到黄色或米白色便签；
-2. 便签上显示简短的 `Leave a message`；
-3. 点击后镜头推进到便签；
-4. 镜头到位后打开现有 ChatPanel；
-5. 关闭 ChatPanel 后镜头退出并回到 Overview。
+1. 从下载的四款便签中只取两款：平放便签本 `SINGLE` 与单张平纸 `single`；
+2. 两张都放在桌面上，分别用于留言记录与输入；横屏并排，竖屏前后摆放；
+3. 点击任一便签或 Message，镜头推进到两张纸；
+4. 镜头到位后直接在纸面显示历史和输入框，不弹出玻璃 ChatPanel；
+5. 关闭纸面留言或 Exit 后镜头回到 Overview。
 
 移动端同时在 HTML 辅助控制条中提供 `Message`，与 3D 便签调用同一 command。
 
@@ -355,13 +382,15 @@ Computer 视频开始播放
 
 - 继续使用现有 Floating Chat 单一实例；
 - 不复制 conversation、messages、input、Turnstile、realtime 或滚动逻辑；
-- `/desk` 只替换 launcher，不复制 ChatPanel；
+- 纸面仅更换展示层：FloatingChat 通过 React portal 将现有 ChatMessages / ChatComposer
+  放到模型 Html host；不创建第二个聊天 controller；
 - Desk 通过一个很小的显式 open/close command 边界控制现有 FloatingChat；
-- 首版 ChatPanel 仍保持现有玻璃视觉，不改成纸张面板；
+- 常规页面与 2D fallback 仍使用原玻璃 ChatPanel；纸面样式全部限定在 `.desk-note-chat`；
 - 便签焦点与 ChatPanel 关闭事件需要双向同步；
 - 路由离开时沿用现有聊天清理和状态保留语义。
 
-后续若要把展开面板也改为纸张皮肤，应作为独立视觉改造，不与 Desk 首版绑定。
+这是用户在模型替换任务中确认的追加范围，替代首版“便签仅为弹窗入口”的表现。
+纸面 host 只传 DOM 展示位置，不传/复制 API 请求和业务状态；退出场景解除 host 引用。
 
 ## 9. 视觉方向与模型替换
 
@@ -371,7 +400,7 @@ Computer 视频开始播放
 - 木质、黑色或深灰桌面；
 - 电脑屏幕光和单一台灯作为主要光源；
 - 黄色、粉色作为 Solidays 指示灯和热点强调色；
-- 收音机使用黑色小型桌面收音机造型；
+- 收音机使用木质复古模型（替换原黑色灰模）；
 - 桌面应像被真实使用过，而不是电商产品展示；
 - 首版不让台灯切换全站主题；
 - 同一套夜间场景用于站点 light/dark theme，不制作双主题 3D 资产。
@@ -432,7 +461,7 @@ R2 使用 immutable cache；发布新模型或纹理时使用 `v2` 或内容版�
 
 这样直接访问 `/desk` 也能立即看到有效画面，不出现空 Canvas。入口过渡使用 Framer Motion DOM 层，不使用 `document.startViewTransition()`，避免再次触发 Safari 玻璃合成问题。
 
-进度是四类资源的阶段加权值，不是整页总字节百分比：模型/HDR 下载与解析占 75%，
+进度是资源的阶段加权值，不是整页总字节百分比：六份模型/HDR 下载与解析占 75%，
 首张 poster 占 25%，合计映射到 0–95%；剩余阶段等待 shader/首帧，完成才为 100%。
 加载中不可操作隐藏的场景控件，但提供返回站点的按钮；资源失败进入 2D fallback。
 
@@ -560,16 +589,16 @@ Next 配置按 R3F 官方要求加入 `three` 的 `transpilePackages`。`ssr: fa
 
 ## 15. 首版性能预算
 
-| 项目 | 首版预算 |
-| --- | ---: |
-| Desk 专属 JavaScript gzip | ≤ 300 KB |
-| Preview 图片 | ≤ 250 KB |
-| 初始模型与纹理传输 | Desktop ≤ 4 MB；Mobile ≤ 2.5 MB |
-| 三角形 | Desktop ≤ 150k；Mobile ≤ 80k |
-| Draw calls | ≤ 80 |
-| 最大纹理 | Desktop 2K；Mobile 1K |
-| DPR | Desktop 1–1.5；Mobile 1 |
-| 运行目标 | Desktop ≥ 50 FPS；Mobile ≥ 30 FPS |
+| 项目                      |                          首版预算 |
+| ------------------------- | --------------------------------: |
+| Desk 专属 JavaScript gzip |                          ≤ 300 KB |
+| Preview 图片              |                          ≤ 250 KB |
+| 初始模型与纹理传输        |   Desktop ≤ 4 MB；Mobile ≤ 2.5 MB |
+| 三角形                    |      Desktop ≤ 150k；Mobile ≤ 80k |
+| Draw calls                |                              ≤ 80 |
+| 最大纹理                  |             Desktop 2K；Mobile 1K |
+| DPR                       |           Desktop 1–1.5；Mobile 1 |
+| 运行目标                  | Desktop ≥ 50 FPS；Mobile ≥ 30 FPS |
 
 基础版本先使用普通 GLB/纹理。只有真实资产超过预算或测试证明解码收益明确时，再决定 Draco/KTX2，避免首版同时引入解码器、额外 Worker 路径和 CSP 变量。
 
@@ -671,8 +700,8 @@ Next 配置按 R3F 官方要求加入 `three` 的 `transpilePackages`。`ssr: fa
 ### 便签与聊天
 
 - `/desk` 不显示原圆形 Chat Launcher；
-- 便签和 HTML Message 控制都能打开同一个 ChatPanel；
-- 关闭 ChatPanel 后镜头退回 Overview；
+- 便签和 HTML Message 控制都能打开同一个 FloatingChat 的纸面展示（fallback 为 ChatPanel）；
+- 关闭留言后镜头退回 Overview；
 - conversation、messages、input draft、Turnstile、realtime 与滚动无回归。
 
 ### 移动端与降级
@@ -696,7 +725,7 @@ Desk Radio 是独立实例，但第一次播放前必须暂停 `window.globalAud
 
 ### Chat 入口物件化导致业务复制
 
-便签只能作为现有 FloatingChat 的外部 trigger。不得在 Desk 中复制请求、Realtime、消息 merge 或 Turnstile 逻辑。
+便签只提供现有 FloatingChat 的外部 trigger 和纸面 portal host。不得在 Desk 中复制请求、Realtime、消息 merge 或 Turnstile 逻辑。
 
 ### 视频纹理的资源生命周期
 
@@ -719,7 +748,7 @@ Desk 入口不使用 View Transition，不把 ChatSurface、MusicDock 和 Canvas
 - 带透视变换的原生视频控件；
 - 相框自动轮播；
 - Desk 音乐与 MusicDock 播放状态持久同步；
-- 展开 ChatPanel 的纸张皮肤；
+- 改动常规页面 ChatPanel 的玻璃皮肤（Desk 纸面展示已在追加范围内）；
 - 真实黑胶物理、频谱驱动灯光、物理碰撞；
 - postprocessing、复杂 shader、实时体积雾；
 - 多人同步桌面；
@@ -732,9 +761,9 @@ Desk 入口不使用 View Transition，不把 ChatSurface、MusicDock 和 Canvas
 /desk（全视口）
 ├─ 深夜电影感的完整个人桌面 Overview
 ├─ 电脑：82 条 Gallery 的无重复随机袋 + 单视频播放器
-├─ 黑色收音机：四首歌的 Desk 独立播放器
+├─ 木质复古收音机：机身上操作的四首歌 Desk 独立播放器
 ├─ 相框：七张 FNDS 图片手动切换
-├─ 便签纸：现有 Floating Chat 的场景入口
+├─ 两张平放便签：现有 FloatingChat 的纸面历史与输入
 ├─ 每件物品独立推进，退出后回 Overview
 ├─ 普通 HTML 辅助控制条
 └─ Mobile 简化 3D + 等价 2D fallback

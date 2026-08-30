@@ -9,7 +9,17 @@ const blenderScript = path.join(scriptDirectory, 'normalize-model.py')
 
 const result = spawnSync(
   blenderPath,
-  ['--background', '--factory-startup', '--python', blenderScript, '--', ...process.argv.slice(2)],
+  [
+    '--background',
+    '--factory-startup',
+    '--disable-autoexec',
+    '--python-exit-code',
+    '1',
+    '--python',
+    blenderScript,
+    '--',
+    ...process.argv.slice(2),
+  ],
   { cwd: repositoryRoot, stdio: 'inherit' }
 )
 

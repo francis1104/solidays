@@ -29,6 +29,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", required=True, help="FBX, GLB, or glTF source path")
     parser.add_argument("--output", required=True, help="Output GLB path")
     parser.add_argument(
+        "--only-mesh", action="append", default=[], metavar="NAME",
+        help="Keep only this source mesh (repeatable); useful for individual props in a pack",
+    )
+    parser.add_argument(
+        "--max-texture-size", type=int, default=None,
+        help="Optionally downsample embedded textures before export; source files stay unchanged",
+    )
+    parser.add_argument(
         "--scale",
         type=float,
         default=1.0,
@@ -271,8 +279,22 @@ def main() -> None:
     mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
     if not mesh_objects:
         raise SystemExit("The source model contains no mesh objects")
+    if args.only_mesh:
+        missing = set(args.only_mesh) - {obj.name for obj in mesh_objects}
+        if missing:
+            raise SystemExit(f"Unknown source mesh for --only-mesh: {sorted(missing)}")
+        mesh_objects = [obj for obj in mesh_objects if obj.name in args.only_mesh]
 
     missing_textures = make_paths_absolute()
+    if args.max_texture_size is not None:
+        if args.max_texture_size < 1:
+            raise SystemExit("--max-texture-size must be positive")
+        for image in bpy.data.images:
+            width, height = image.size
+            if max(width, height) > args.max_texture_size:
+                ratio = args.max_texture_size / max(width, height)
+                image.scale(max(1, round(width * ratio)), max(1, round(height * ratio)))
+                image.pack()
     baked_objects = bake_mesh_objects(mesh_objects, args.scale, tuple(args.rotation))
     place_origin_at_bottom_center(baked_objects)
     offset_parts(baked_objects, args.part_offset)
@@ -298,6 +320,8 @@ def main() -> None:
                 "origin": "normalized-bottom-center-anchor" if args.part_offset else "bottom-center",
                 "partOffsets": args.part_offset,
                 "screenUVs": args.screen_uv,
+                "selectedMeshes": args.only_mesh,
+                "maxTextureSize": args.max_texture_size,
                 "missingTextures": missing_textures,
             },
             ensure_ascii=False,

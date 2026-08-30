@@ -5,8 +5,8 @@ import * as THREE from 'three'
 import { GLTFLoader, RGBELoader } from 'three-stdlib'
 import { createDeskVideoTexture, disposeDeskModel, loadDeskAssets } from './desk-assets.ts'
 
-test('asset readiness waits for the cup too; late loads after teardown are disposed', async (t) => {
-  let resolveTable, resolveComputer, resolveCup, resolveEnvironment
+test('readiness waits for every prop; late note loads after teardown are disposed', async (t) => {
+  let resolveTable, resolveComputer, resolveCup, resolveNote, resolveEnvironment
   const table = new Promise((resolve) => {
     resolveTable = resolve
   })
@@ -16,11 +16,26 @@ test('asset readiness waits for the cup too; late loads after teardown are dispo
   const cup = new Promise((resolve) => {
     resolveCup = resolve
   })
+  const note = new Promise((resolve) => {
+    resolveNote = resolve
+  })
   const environment = new Promise((resolve) => {
     resolveEnvironment = resolve
   })
   let calls = 0
-  t.mock.method(GLTFLoader.prototype, 'loadAsync', () => [table, computer, cup][calls++])
+  t.mock.method(
+    GLTFLoader.prototype,
+    'loadAsync',
+    () =>
+      [
+        table,
+        computer,
+        cup,
+        Promise.resolve({ scene: new THREE.Group() }),
+        Promise.resolve({ scene: new THREE.Group() }),
+        note,
+      ][calls++]
+  )
   t.mock.method(RGBELoader.prototype, 'loadAsync', () => environment)
   const changes: number[] = []
   const loading = loadDeskAssets(true, (value) => changes.push(value))
@@ -35,18 +50,39 @@ test('asset readiness waits for the cup too; late loads after teardown are dispo
   geometry.addEventListener('dispose', () => disposed++)
   resolveTable({ scene: new THREE.Group() })
   resolveComputer({ scene: new THREE.Group() })
+  resolveCup({ scene: new THREE.Group() })
   resolveEnvironment(new THREE.DataTexture())
   await Promise.resolve()
   assert.equal(ready, false)
   assert.ok(changes.at(-1)! < 100)
   loading.dispose()
   const progressAtExit = changes.length
-  resolveCup({ scene: model })
+  resolveNote({ scene: model })
   await loading.promise
   assert.equal(disposed, 1)
   assert.equal(changes.length, progressAtExit)
   loading.dispose()
   assert.equal(disposed, 1)
+})
+
+test('radio and exactly two selected note variants have bounded embedded assets', () => {
+  for (const [name, width, height, maxBytes] of [
+    ['vintage-radio', 2.24, 1.178666, 2200000],
+    ['note-pad', 1.447307, 0.419208, 600000],
+    ['note-paper', 1.441196, 0.008521, 600000],
+  ] as const) {
+    const path = `public/desk/models/${name}.glb`
+    const model = glb(path)
+    assert.equal(model.meshes.length, 1, `${name}: do not include the full source pack`)
+    assert.ok(readFileSync(path).length < maxBytes, `${name}: texture budget`)
+    assert.ok(model.images.every((image) => image.bufferView !== undefined && !image.uri))
+    const bounds = model.meshes[0].primitives.map((p) => model.accessors[p.attributes.POSITION])
+    const min = [0, 1, 2].map((i) => Math.min(...bounds.map((b) => b.min[i])))
+    const max = [0, 1, 2].map((i) => Math.max(...bounds.map((b) => b.max[i])))
+    assert.ok(Math.abs(min[1]) < 0.00001, `${name}: bottom sits on tabletop`)
+    assert.ok(Math.abs(max[1] - height) < 0.00001, `${name}: normalized height`)
+    assert.ok(Math.abs(max[0] - min[0] - width) < 0.00001, `${name}: normalized width`)
+  }
 })
 
 test('model teardown releases shared geometry/material/maps exactly once', () => {

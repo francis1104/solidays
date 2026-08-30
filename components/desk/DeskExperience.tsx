@@ -179,6 +179,7 @@ export default function DeskExperience() {
   const [radioTime, setRadioTime] = useState(0)
   const [radioDuration, setRadioDuration] = useState<number | null>(null)
   const [radioError, setRadioError] = useState(false)
+  const [radioMuted, setRadioMuted] = useState(false)
   const [frameIndex, setFrameIndex] = useState(0)
   const phaseRef = useRef<DeskPhase>('loading')
   const targetRef = useRef<DeskTarget | null>(null)
@@ -199,6 +200,8 @@ export default function DeskExperience() {
     setSceneReady(true)
   }, [])
   const handleSceneFailure = useCallback(() => {
+    // Paper hosts disappear with Canvas; close their UI subscription as well.
+    window.dispatchEvent(new Event(DESK_CHAT_CLOSE_EVENT))
     setSimpleMode(true)
     setPhase('overview')
     setTarget(null)
@@ -470,7 +473,8 @@ export default function DeskExperience() {
 
     if (currentPhase === 'entering') {
       setPhase('focused')
-      if (currentTarget === 'note') window.dispatchEvent(new Event(DESK_CHAT_OPEN_EVENT))
+      if (currentTarget === 'note')
+        window.dispatchEvent(new CustomEvent(DESK_CHAT_OPEN_EVENT, { detail: { embedded: true } }))
     } else if (currentPhase === 'leaving') {
       setPhase('overview')
       setTarget(null)
@@ -540,6 +544,17 @@ export default function DeskExperience() {
   const currentPosterSource = posterKey ? privateMediaUrl(posterKey) : undefined
   const isFocused = phase === 'focused'
   const isMoving = phase === 'entering' || phase === 'leaving'
+  const radioControls = {
+    song: activeRadio?.song ?? 'Desk Radio',
+    time: `${formatDeskTime(radioTime)} / ${formatDeskTime(radioDuration)}`,
+    playing: radioPlaying,
+    muted: radioMuted,
+    error: radioError,
+    onToggle: toggleRadio,
+    onPrevious: previousRadioTrack,
+    onNext: nextRadioTrack,
+    onMute: () => setRadioMuted((current) => !current),
+  }
 
   return (
     <div
@@ -551,7 +566,7 @@ export default function DeskExperience() {
       {!simpleMode && currentPosterSource ? (
         <div
           className={`absolute inset-0 transition-opacity duration-500 ${sceneReady ? 'opacity-100' : 'opacity-0'}`}
-          style={{ pointerEvents: phase === 'overview' ? 'auto' : 'none' }}
+          style={{ pointerEvents: phase === 'overview' || isFocused ? 'auto' : 'none' }}
         >
           <DeskCanvas
             posterUrl={currentPosterSource}
@@ -561,6 +576,7 @@ export default function DeskExperience() {
             videoElement={videoElement}
             videoReady={videoReady}
             videoPlaying={videoPlaying}
+            radioControls={radioControls}
             onSelect={focusObject}
             onSettled={handleCameraSettled}
             onReady={handleSceneReady}
@@ -586,6 +602,7 @@ export default function DeskExperience() {
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio
         ref={radioRef}
+        muted={radioMuted}
         src={activeRadio?.audioKey ? mediaUrl(activeRadio.audioKey) : undefined}
         preload="none"
         className="hidden"
@@ -677,7 +694,7 @@ export default function DeskExperience() {
           </div>
         ) : null}
 
-        {isFocused && target === 'radio' ? (
+        {simpleMode && isFocused && target === 'radio' ? (
           <div className="pointer-events-auto absolute top-[22%] left-1/2 w-[min(86vw,420px)] -translate-x-1/2 sm:top-[20%]">
             <div className="desk-glass-panel p-5 sm:p-6">
               <p className="text-[0.65rem] tracking-[0.28em] text-[#75c7a0] uppercase">
@@ -768,13 +785,24 @@ export default function DeskExperience() {
           </div>
         ) : null}
 
-        {isFocused && target === 'note' ? (
+        {simpleMode && isFocused && target === 'note' ? (
           <div className="pointer-events-none absolute top-[17%] left-1/2 -translate-x-1/2 text-center">
             <p className="text-[0.65rem] tracking-[0.3em] text-[#f4d35e]/80 uppercase">
               Leave a message
             </p>
             <p className="mt-2 text-sm text-white/55">The conversation is open beside the desk.</p>
           </div>
+        ) : null}
+
+        {isFocused && target === 'radio' && !simpleMode ? (
+          <a
+            className="pointer-events-auto absolute bottom-24 left-5 text-[10px] text-black/60 underline"
+            href="https://sketchfab.com/3d-models/vintage-radio-e2b64f5031fa45e8be661a89baeae3f0"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Radio model: Loïc · CC BY 4.0
+          </a>
         ) : null}
 
         <div className="desk-bottom-controls pointer-events-auto absolute right-0 bottom-5 left-0 flex justify-center px-4 sm:bottom-8">

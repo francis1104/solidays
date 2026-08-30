@@ -26,8 +26,9 @@ const DESK_COLORS = {
 
 const DESK_POSE: Record<DeskTarget, Pose> = {
   computer: {
-    position: [0, 3.15, 0.8],
-    lookAt: [0, 2.05, -4.2],
+    position: [0, 3.45, 0.8],
+    // Curved display bounds, including the computer's placement on the desk.
+    lookAt: [0, 3.08, -5.22],
   },
   radio: {
     position: [-3.15, 2.7, 0.7],
@@ -124,7 +125,8 @@ function getPose(
   phase: DeskPhase,
   target: DeskTarget | null,
   narrow: boolean,
-  compact: boolean
+  compact: boolean,
+  aspect: number
 ): Pose {
   if (phase === 'overview' || phase === 'loading' || phase === 'leaving' || !target) {
     if (compact) {
@@ -139,6 +141,13 @@ function getPose(
   if (!narrow) return DESK_POSE[target]
 
   const pose = DESK_POSE[target]
+  if (target === 'computer') {
+    // Keep the actual screen center at every viewport; only back up enough to
+    // fit its 3.85-unit width on portrait phones (rather than aiming below it).
+    const halfFov = THREE.MathUtils.degToRad((compact ? 44 : 48) / 2)
+    const distance = Math.max(6.02, 3.85 / (2 * Math.tan(halfFov) * aspect * 0.88))
+    return { position: [0, pose.position[1], pose.lookAt[2] + distance], lookAt: pose.lookAt }
+  }
   return {
     position: [pose.position[0] * 0.7, pose.position[1] * 0.7 + 0.45, pose.position[2] + 1.35],
     lookAt: [pose.lookAt[0] * 0.8, pose.lookAt[1] * 0.8, pose.lookAt[2]],
@@ -159,9 +168,10 @@ function CameraRig({
   const { camera, invalidate, size } = useThree()
   const narrow = size.width < 640 || size.height < 520
   const compact = size.height < 520
+  const aspect = size.width / Math.max(1, size.height)
   const pose = useMemo(
-    () => getPose(phase, target, narrow, compact),
-    [compact, narrow, phase, target]
+    () => getPose(phase, target, narrow, compact, aspect),
+    [aspect, compact, narrow, phase, target]
   )
   const currentLookAtRef = useRef(new THREE.Vector3(0, 0.65, -2.35))
   const transitionRef = useRef<CameraTransition | null>(null)
@@ -534,14 +544,6 @@ function DeskDetails() {
       >
         <torusGeometry args={[0.22, 0.06, 10, 20]} />
         <meshStandardMaterial color="#ad675c" roughness={0.82} />
-      </mesh>
-      <mesh position={[1.05, DESK_SURFACE_Y + 0.03, DESK_SURFACE_Z + 0.1]} rotation={[0, 0, 0.1]}>
-        <boxGeometry args={[1.2, 0.05, 1.8]} />
-        <meshStandardMaterial color="#252a32" roughness={0.82} />
-      </mesh>
-      <mesh position={[-0.9, DESK_SURFACE_Y + 0.05, DESK_SURFACE_Z + 0.15]}>
-        <boxGeometry args={[0.65, 0.08, 0.95]} />
-        <meshStandardMaterial color="#171b22" roughness={0.8} />
       </mesh>
     </group>
   )

@@ -526,26 +526,13 @@ function DeskNote({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
   )
 }
 
-function DeskDetails() {
-  const mugPosition = useMemo<[number, number, number]>(
-    () => [-4.5, DESK_SURFACE_Y + 0.35, DESK_SURFACE_Z + 0.45],
-    []
-  )
-
+function DeskCup({ scene }: { scene: THREE.Group }) {
   return (
-    <group>
-      <mesh position={mugPosition}>
-        <cylinderGeometry args={[0.42, 0.35, 0.7, 20]} />
-        <meshStandardMaterial color="#ad675c" roughness={0.82} />
-      </mesh>
-      <mesh
-        position={[-4.5, DESK_SURFACE_Y + 0.35, DESK_SURFACE_Z + 0.83]}
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <torusGeometry args={[0.22, 0.06, 10, 20]} />
-        <meshStandardMaterial color="#ad675c" roughness={0.82} />
-      </mesh>
-    </group>
+    <primitive
+      object={scene}
+      dispose={null}
+      position={[-4.5, DESK_SURFACE_Y, DESK_SURFACE_Z + 0.45]}
+    />
   )
 }
 
@@ -590,7 +577,7 @@ function DeskScene({
       />
       <WebglLifecycle onContextLost={onContextLost} />
       <DeskTableModel scene={assets.table} />
-      <DeskDetails />
+      <DeskCup scene={assets.cup} />
       <DeskComputer
         scene={assets.computer}
         poster={poster}

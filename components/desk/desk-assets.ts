@@ -4,6 +4,7 @@ import { GLTFLoader, RGBELoader, type GLTFLoaderPlugin } from 'three-stdlib'
 export type DeskAssets = {
   table: THREE.Group
   computer: THREE.Group
+  cup: THREE.Group
   environment: THREE.DataTexture
 }
 
@@ -37,10 +38,10 @@ export function disposeDeskModel(model: THREE.Object3D) {
 export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) => void) {
   let disposed = false
   const owned: Array<() => void> = []
-  const progress = [0, 0, 0]
+  const progress = [0, 0, 0, 0]
   const report = (index: number, value: number) => {
     progress[index] = Math.max(progress[index], value)
-    if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / 3)
+    if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / progress.length)
   }
   const track = <T>(promise: Promise<T>, index: number, release: (value: T) => void) =>
     promise.then((value) => {
@@ -74,18 +75,21 @@ export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) =
     track(loader.loadAsync('/desk/models/pc-mingtu.glb', downloading(1)), 1, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
+    track(loader.loadAsync('/desk/models/mcdonalds-cup.glb', downloading(2)), 2, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
     track(
       new RGBELoader(manager).loadAsync(
         `/desk/kloofendal-overcast-${mobile ? '1k' : '2k'}.hdr`,
-        downloading(2)
+        downloading(3)
       ),
-      2,
+      3,
       (texture) => texture.dispose()
     ),
   ])
-    .then(([table, computer, environment]) => {
+    .then(([table, computer, cup, environment]) => {
       environment.mapping = THREE.EquirectangularReflectionMapping
-      return { table: table.scene, computer: computer.scene, environment }
+      return { table: table.scene, computer: computer.scene, cup: cup.scene, environment }
     })
     .catch((error: unknown) => {
       dispose()

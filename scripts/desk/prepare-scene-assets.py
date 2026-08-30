@@ -7,7 +7,9 @@ import bpy
 
 root = Path(__file__).resolve().parents[2]
 bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=str(root / "public/desk/desk-only.glb"))
+bpy.ops.import_scene.gltf(
+    filepath=str(root / "assets/3d/models/desks/computer-desk/processed/desk-only.glb")
+)
 for image in bpy.data.images:
     width, height = image.size
     if max(width, height) > 1024:
@@ -18,7 +20,7 @@ output = root / "public/desk/models/desk-web.glb"
 bpy.ops.export_scene.gltf(filepath=str(output), export_format="GLB")
 print("TABLE_WEB_BYTES", output.stat().st_size)
 
-source = root / "assets/3d/2026-08-30/environments/kloofendal_overcast_puresky_4k.hdr"
+source = root / "assets/3d/environments/kloofendal-overcast/source/kloofendal_overcast_puresky_4k.hdr"
 for width in (1024, 2048):
     image = bpy.data.images.load(str(source), check_existing=False)
     image.scale(width, width // 2)

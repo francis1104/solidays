@@ -5,19 +5,22 @@ import * as THREE from 'three'
 import { GLTFLoader, RGBELoader } from 'three-stdlib'
 import { createDeskVideoTexture, disposeDeskModel, loadDeskAssets } from './desk-assets.ts'
 
-test('asset readiness waits for every parsed resource; late loads after teardown are disposed', async (t) => {
-  let resolveTable, resolveComputer, resolveEnvironment
+test('asset readiness waits for the cup too; late loads after teardown are disposed', async (t) => {
+  let resolveTable, resolveComputer, resolveCup, resolveEnvironment
   const table = new Promise((resolve) => {
     resolveTable = resolve
   })
   const computer = new Promise((resolve) => {
     resolveComputer = resolve
   })
+  const cup = new Promise((resolve) => {
+    resolveCup = resolve
+  })
   const environment = new Promise((resolve) => {
     resolveEnvironment = resolve
   })
   let calls = 0
-  t.mock.method(GLTFLoader.prototype, 'loadAsync', () => (calls++ === 0 ? table : computer))
+  t.mock.method(GLTFLoader.prototype, 'loadAsync', () => [table, computer, cup][calls++])
   t.mock.method(RGBELoader.prototype, 'loadAsync', () => environment)
   const changes: number[] = []
   const loading = loadDeskAssets(true, (value) => changes.push(value))
@@ -31,13 +34,14 @@ test('asset readiness waits for every parsed resource; late loads after teardown
   let disposed = 0
   geometry.addEventListener('dispose', () => disposed++)
   resolveTable({ scene: new THREE.Group() })
+  resolveComputer({ scene: new THREE.Group() })
   resolveEnvironment(new THREE.DataTexture())
   await Promise.resolve()
   assert.equal(ready, false)
   assert.ok(changes.at(-1)! < 100)
   loading.dispose()
   const progressAtExit = changes.length
-  resolveComputer({ scene: model })
+  resolveCup({ scene: model })
   await loading.promise
   assert.equal(disposed, 1)
   assert.equal(changes.length, progressAtExit)
@@ -85,6 +89,24 @@ function glb(path: string) {
   const buffer = readFileSync(path)
   return JSON.parse(buffer.subarray(20, 20 + buffer.readUInt32LE(12)).toString())
 }
+
+test('McDonalds cup is an upright self-contained web model that fits the existing spot', () => {
+  const bytes = readFileSync('public/desk/models/mcdonalds-cup.glb')
+  const model = glb('public/desk/models/mcdonalds-cup.glb')
+  assert.ok(bytes.length < 2 * 1024 * 1024)
+  assert.equal(model.meshes.length, 1)
+  const primitive = model.meshes[0].primitives[0]
+  const bounds = model.accessors[primitive.attributes.POSITION]
+  assert.ok(Math.abs(bounds.min[1]) < 1e-5, 'Bottom-center origin must sit on the desk')
+  assert.ok(bounds.max[1] > 0.99 && bounds.max[1] < 1.01, 'Height is normalized offline')
+  assert.ok(bounds.max[0] - bounds.min[0] < 0.84, 'Do not exceed the original mug footprint')
+  assert.ok(model.accessors[primitive.indices].count / 3 < 10000)
+  assert.equal(model.images.length, 2)
+  assert.ok(model.images.every((image) => image.bufferView !== undefined && !image.uri))
+  const material = model.materials[primitive.material]
+  assert.ok(material.pbrMetallicRoughness.baseColorTexture)
+  assert.ok(Math.abs(material.normalTexture.scale - 0.117) < 1e-5)
+})
 
 test('processed keyboard retains source Corona colors and curved display geometry', () => {
   const model = glb('public/desk/models/pc-mingtu.glb')

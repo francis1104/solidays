@@ -8,11 +8,15 @@
 
 ### 资产处理约定
 
+素材按桌子、电脑、杯子、环境分类，原件与历史导出放在本地 `assets/3d/`，
+网页只发布当前使用的处理产物。完整目录、候选模型与重复副本见
+[3D 素材目录](./asset-catalog.md)。
+
 外部模型不直接在浏览器中加载 FBX。统一使用仓库内的 Blender CLI wrapper：
 
 ```bash
 node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
-  --source assets/3d/2026-08-30/models/PC+MODEL+MINGTU.fbx \
+  --source assets/3d/models/computers/pc-mingtu/source/PC+MODEL+MINGTU.fbx \
   --output public/desk/models/pc-mingtu.glb \
   --part-offset Cube.003 0 0 0.4 \
   --part-offset Cube.004 0 0 0.4 \
@@ -33,6 +37,20 @@ MINGTU 原内屏 UV 在右边缘折叠，同一物理高度会采样视频的不
 支架和键盘不变，poster 与 VideoTexture 共用修正后的 UV。该参数只适用于已摆正、
 正面沿 glTF X/Y 展开的显示面，不能无差别用于其他模型；找不到网格/材质或投影退化时失败。
 新增屏幕资源时应以棋盘格检查边缘采样，不只检查图片是否能显示。
+
+麦当劳杯替换原来的粉色灰模杯，源文件保留不动，尺寸通过同一流程离线归一化：
+
+```bash
+node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
+  --source assets/3d/models/cups/mcdonalds-cup/source/mcdonalds_cup.glb \
+  --output public/desk/models/mcdonalds-cup.glb \
+  --scale 0.168
+```
+
+输出约宽 0.795 × 高 1.0 × 深 0.795，底部中心原点；场景只配置原杯子的落点
+`[-4.5, 1.62, -2.8]`，不在浏览器中临时校正单位。保留源 base-color/normal 贴图，
+约 8,960 三角形，纹理为 1K/512px。杯子和桌子/电脑/HDR 一起参与 readiness，
+进入场景前等待解析完成；退出统一释放网格、材质和纹理。
 
 处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
 并导出内嵌材质的 GLB。FBX 中直接连接到 diffuse 的 CoronaColor 常量会转换为
@@ -61,7 +79,8 @@ CLI，再把标准化输出接入页面。
 
 现有桌子/HDR 的网页降采样通过 Blender 运行 `scripts/desk/prepare-scene-assets.py`：
 桌子保留原坐标与网格，纹理降至 1K，输出 `public/desk/models/desk-web.glb`；
-环境生成 1K/2K HDR。原始 4K HDR 与旧 GLB 保留，但页面不再请求它们。
+环境生成 1K/2K HDR。原始 4K HDR 与旧 GLB 保留在 `assets/3d/` 分类目录，
+未使用的 `public/desk/` 副本已归档，不随站点发布；网页产物 URL 不变。
 完整原因、数据和验证记录见 [加载与资源审查](./loading-and-resource-audit.md)。
 
 ## 1. 一句话概念

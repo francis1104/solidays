@@ -1,8 +1,10 @@
 'use client'
 
+import { useEnvironment, useGLTF } from '@react-three/drei'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import type { GLTFLoader, GLTFLoaderPlugin } from 'three-stdlib'
 import type { DeskPhase, DeskTarget } from '@/lib/desk'
 
 type Pose = {
@@ -25,21 +27,98 @@ const DESK_COLORS = {
 
 const DESK_POSE: Record<DeskTarget, Pose> = {
   computer: {
-    position: [0, 1.35, 4.7],
-    lookAt: [0, 1.1, 0.05],
+    position: [0, 3.15, 0.8],
+    lookAt: [0, 2.05, -4.2],
   },
   radio: {
-    position: [-3.15, 0.15, 4.25],
-    lookAt: [-3.45, -0.35, 0.1],
+    position: [-3.15, 2.7, 0.7],
+    lookAt: [-3.45, 2.1, -4.2],
   },
   frame: {
-    position: [3.15, 0.5, 4.2],
-    lookAt: [3.45, 0.2, 0.05],
+    position: [2.8, 2.8, 0.7],
+    lookAt: [3.25, 2.05, -4.2],
   },
   note: {
-    position: [3.7, 1.35, 3.8],
-    lookAt: [3.55, 0.85, 1.35],
+    position: [3.8, 4.7, 0.4],
+    lookAt: [4.05, 1.65, -2.55],
   },
+}
+
+type CameraTransition = {
+  startPosition: THREE.Vector3
+  controlPositionA: THREE.Vector3
+  controlPositionB: THREE.Vector3
+  endPosition: THREE.Vector3
+  startLookAt: THREE.Vector3
+  controlLookAtA: THREE.Vector3
+  controlLookAtB: THREE.Vector3
+  endLookAt: THREE.Vector3
+  duration: number
+  elapsed: number
+}
+
+function cubicBezierPoint(
+  out: THREE.Vector3,
+  start: THREE.Vector3,
+  controlA: THREE.Vector3,
+  controlB: THREE.Vector3,
+  end: THREE.Vector3,
+  progress: number
+) {
+  const inverse = 1 - progress
+  const inverseSquared = inverse * inverse
+  const progressSquared = progress * progress
+
+  out.set(0, 0, 0)
+  out.addScaledVector(start, inverseSquared * inverse)
+  out.addScaledVector(controlA, 3 * inverseSquared * progress)
+  out.addScaledVector(controlB, 3 * inverse * progressSquared)
+  out.addScaledVector(end, progressSquared * progress)
+  return out
+}
+
+function createCameraTransition(
+  startPosition: THREE.Vector3,
+  startLookAt: THREE.Vector3,
+  endPosition: THREE.Vector3,
+  endLookAt: THREE.Vector3,
+  target: DeskTarget | null,
+  narrow: boolean,
+  compact: boolean,
+  phase: DeskPhase
+): CameraTransition {
+  const arcSign = target === 'radio' ? -1 : 1
+  const arcScale = compact ? 0.55 : narrow ? 0.85 : 1.55
+  const travel = endPosition.clone().sub(startPosition)
+  const lookTravel = endLookAt.clone().sub(startLookAt)
+  const positionArcA = new THREE.Vector3(arcSign * arcScale, compact ? 0.2 : 0.7, -0.7)
+  const positionArcB = new THREE.Vector3(arcSign * arcScale * 0.58, compact ? 0.08 : 0.3, 0.2)
+  const lookArcA = new THREE.Vector3(arcSign * arcScale * 0.24, compact ? 0.05 : 0.2, 0)
+  const lookArcB = new THREE.Vector3(arcSign * arcScale * 0.14, compact ? 0.02 : 0.1, 0.05)
+
+  return {
+    startPosition: startPosition.clone(),
+    controlPositionA: startPosition.clone().addScaledVector(travel, 0.22).add(positionArcA),
+    controlPositionB: startPosition.clone().addScaledVector(travel, 0.78).add(positionArcB),
+    endPosition: endPosition.clone(),
+    startLookAt: startLookAt.clone(),
+    controlLookAtA: startLookAt.clone().addScaledVector(lookTravel, 0.25).add(lookArcA),
+    controlLookAtB: startLookAt.clone().addScaledVector(lookTravel, 0.75).add(lookArcB),
+    endLookAt: endLookAt.clone(),
+    duration:
+      phase === 'leaving'
+        ? compact
+          ? 0.72
+          : narrow
+            ? 0.9
+            : 1.05
+        : compact
+          ? 0.85
+          : narrow
+            ? 1.05
+            : 1.25,
+    elapsed: 0,
+  }
 }
 
 function getPose(
@@ -50,12 +129,12 @@ function getPose(
 ): Pose {
   if (phase === 'overview' || phase === 'loading' || phase === 'leaving' || !target) {
     if (compact) {
-      return { position: [0, 2.8, 8.5], lookAt: [0, -0.4, 0] }
+      return { position: [1.2, 5.2, 11.2], lookAt: [0, 0.65, -2.8] }
     }
 
     return narrow
-      ? { position: [0, 5.5, 23], lookAt: [0, -0.05, 0] }
-      : { position: [0, 5.2, 11.5], lookAt: [0, -0.25, 0] }
+      ? { position: [1.2, 6.9, 19.8], lookAt: [0, 0.65, -2.8] }
+      : { position: [3.6, 6.4, 12.4], lookAt: [0, 0.65, -2.8] }
   }
 
   if (!narrow) return DESK_POSE[target]
@@ -85,8 +164,11 @@ function CameraRig({
     () => getPose(phase, target, narrow, compact),
     [compact, narrow, phase, target]
   )
-  const doneRef = useRef(false)
-  const poseKey = `${phase}:${target ?? 'overview'}:${narrow ? 'narrow' : 'wide'}`
+  const currentLookAtRef = useRef(new THREE.Vector3(0, 0.65, -2.35))
+  const transitionRef = useRef<CameraTransition | null>(null)
+  const transitionPositionRef = useRef(new THREE.Vector3())
+  const transitionLookAtRef = useRef(new THREE.Vector3())
+  const poseKey = `${phase}:${target ?? 'overview'}:${narrow ? 'narrow' : 'wide'}:${compact ? 'compact' : 'regular'}`
 
   useEffect(() => {
     const perspectiveCamera = camera as THREE.PerspectiveCamera
@@ -96,47 +178,79 @@ function CameraRig({
   }, [camera, compact, narrow, phase])
 
   useEffect(() => {
-    doneRef.current = false
-
     if (phase !== 'entering' && phase !== 'leaving') {
+      transitionRef.current = null
       camera.position.set(...pose.position)
       camera.lookAt(...pose.lookAt)
+      currentLookAtRef.current.set(...pose.lookAt)
       invalidate()
       return
     }
 
+    const endPosition = new THREE.Vector3(...pose.position)
+    const endLookAt = new THREE.Vector3(...pose.lookAt)
+
     if (reducedMotion) {
-      camera.position.set(...pose.position)
-      camera.lookAt(...pose.lookAt)
-      doneRef.current = true
+      transitionRef.current = null
+      camera.position.copy(endPosition)
+      camera.lookAt(endLookAt)
+      currentLookAtRef.current.copy(endLookAt)
       onSettled()
-    }
-
-    invalidate()
-  }, [camera, invalidate, onSettled, phase, pose, poseKey, reducedMotion])
-
-  useFrame((_, delta) => {
-    if (phase !== 'entering' && phase !== 'leaving') return
-    if (reducedMotion) return
-
-    const nextPosition = new THREE.Vector3(...pose.position)
-    const nextLookAt = new THREE.Vector3(...pose.lookAt)
-    const progress = 1 - Math.exp(-delta * 6)
-
-    camera.position.lerp(nextPosition, progress)
-    camera.lookAt(nextLookAt)
-
-    if (camera.position.distanceTo(nextPosition) < 0.035) {
-      camera.position.copy(nextPosition)
-      camera.lookAt(nextLookAt)
-      if (!doneRef.current) {
-        doneRef.current = true
-        onSettled()
-      }
+      invalidate()
       return
     }
 
+    transitionRef.current = createCameraTransition(
+      camera.position.clone(),
+      currentLookAtRef.current.clone(),
+      endPosition,
+      endLookAt,
+      target,
+      narrow,
+      compact,
+      phase
+    )
     invalidate()
+  }, [camera, compact, invalidate, narrow, onSettled, phase, pose, poseKey, reducedMotion, target])
+
+  useFrame((_, delta) => {
+    const transition = transitionRef.current
+    if (!transition || reducedMotion || (phase !== 'entering' && phase !== 'leaving')) return
+
+    transition.elapsed += Math.min(delta, 0.05)
+    const linearProgress = Math.min(transition.elapsed / transition.duration, 1)
+    const progress = linearProgress * linearProgress * (3 - 2 * linearProgress)
+
+    cubicBezierPoint(
+      transitionPositionRef.current,
+      transition.startPosition,
+      transition.controlPositionA,
+      transition.controlPositionB,
+      transition.endPosition,
+      progress
+    )
+    cubicBezierPoint(
+      transitionLookAtRef.current,
+      transition.startLookAt,
+      transition.controlLookAtA,
+      transition.controlLookAtB,
+      transition.endLookAt,
+      progress
+    )
+
+    camera.position.copy(transitionPositionRef.current)
+    camera.lookAt(transitionLookAtRef.current)
+    currentLookAtRef.current.copy(transitionLookAtRef.current)
+
+    if (linearProgress >= 1) {
+      transitionRef.current = null
+      camera.position.copy(transition.endPosition)
+      camera.lookAt(transition.endLookAt)
+      currentLookAtRef.current.copy(transition.endLookAt)
+      onSettled()
+    } else {
+      invalidate()
+    }
   })
 
   return null
@@ -165,23 +279,110 @@ function clickTarget(onSelect: (target: DeskTarget) => void, target: DeskTarget)
   }
 }
 
-function DeskTable() {
+const DESK_MODEL_URL = '/desk/desk-only.glb'
+const DESK_PC_MODEL_URL = '/desk/models/pc-mingtu.glb'
+const DESK_ENVIRONMENT_URL = '/desk/kloofendal-overcast-4k.hdr'
+const DESK_ENVIRONMENT_BACKGROUND_INTENSITY = 2.5
+const DESK_ENVIRONMENT_INTENSITY = 1.2
+const DESK_TABLE_POSITION: [number, number, number] = [0, -2.8, -4]
+const DESK_TABLE_SCALE: [number, number, number] = [5.4, 4.5, 5.4]
+const DESK_SURFACE_Y = 1.62
+const DESK_SURFACE_Z = -3.25
+const DESK_PC_POSITION: [number, number, number] = [0, DESK_SURFACE_Y, -4.5]
+const DESK_PC_SCALE = 1
+
+function configureDeskTextureLoader(loader: GLTFLoader) {
+  loader.register((parser) => {
+    const textureLoader = new THREE.TextureLoader(parser.options.manager)
+    textureLoader.setCrossOrigin(parser.options.crossOrigin)
+    textureLoader.setRequestHeader(parser.options.requestHeader)
+    parser.textureLoader = textureLoader
+
+    return { name: 'desk-compatible-texture-loader' } as GLTFLoaderPlugin & { name: string }
+  })
+}
+
+function DeskEnvironment() {
+  const environment = useEnvironment({ files: DESK_ENVIRONMENT_URL })
+  const { invalidate, scene } = useThree()
+
+  useEffect(() => {
+    const previousBackground = scene.background
+    const previousEnvironment = scene.environment
+    const previousBackgroundIntensity = scene.backgroundIntensity
+    const previousEnvironmentIntensity = scene.environmentIntensity
+
+    scene.background = environment
+    scene.backgroundIntensity = DESK_ENVIRONMENT_BACKGROUND_INTENSITY
+    scene.environment = environment
+    scene.environmentIntensity = DESK_ENVIRONMENT_INTENSITY
+    invalidate()
+
+    return () => {
+      scene.background = previousBackground
+      scene.backgroundIntensity = previousBackgroundIntensity
+      scene.environment = previousEnvironment
+      scene.environmentIntensity = previousEnvironmentIntensity
+      invalidate()
+    }
+  }, [environment, invalidate, scene])
+
+  return null
+}
+
+function DeskTableModel() {
+  const { scene } = useGLTF(DESK_MODEL_URL, false, false, configureDeskTextureLoader)
+  const model = useMemo(() => {
+    const clone = scene.clone()
+
+    clone.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = true
+        object.receiveShadow = true
+
+        const materials = Array.isArray(object.material) ? object.material : [object.material]
+        const tintedMaterials = materials.map((material) => {
+          const tintedMaterial = material.clone()
+
+          if (tintedMaterial instanceof THREE.MeshStandardMaterial) {
+            tintedMaterial.color.set(DESK_COLORS.wood)
+            tintedMaterial.roughness = 0.78
+            tintedMaterial.metalness = 0.12
+          }
+
+          return tintedMaterial
+        })
+
+        object.material = Array.isArray(object.material) ? tintedMaterials : tintedMaterials[0]
+      }
+    })
+
+    return clone
+  }, [scene])
+
+  return <primitive object={model} position={DESK_TABLE_POSITION} scale={DESK_TABLE_SCALE} />
+}
+
+useGLTF.preload(DESK_MODEL_URL, false, false, configureDeskTextureLoader)
+useGLTF.preload(DESK_PC_MODEL_URL, false, false, configureDeskTextureLoader)
+
+function DeskTableFallback() {
   return (
     <group>
-      <mesh position={[0, -1.45, 0]} receiveShadow>
-        <boxGeometry args={[12, 0.35, 8]} />
+      <mesh position={[0, DESK_SURFACE_Y - 0.18, DESK_SURFACE_Z]} receiveShadow>
+        <boxGeometry args={[11.5, 0.36, 5.4]} />
         <meshStandardMaterial color={DESK_COLORS.wood} roughness={0.9} />
       </mesh>
-      <mesh position={[0, -1.23, -3.85]}>
-        <boxGeometry args={[12, 0.1, 0.18]} />
+      <mesh position={[0, DESK_SURFACE_Y + 0.02, DESK_SURFACE_Z - 2.6]}>
+        <boxGeometry args={[11.5, 0.1, 0.18]} />
         <meshStandardMaterial color={DESK_COLORS.woodEdge} roughness={0.85} />
       </mesh>
-      <mesh position={[-5.75, -1.23, 0]}>
-        <boxGeometry args={[0.18, 0.1, 7.7]} />
+      <mesh position={[-5.58, DESK_SURFACE_Y + 0.02, DESK_SURFACE_Z]}>
+        <boxGeometry args={[0.18, 0.1, 4.8]} />
         <meshStandardMaterial color={DESK_COLORS.woodEdge} roughness={0.85} />
       </mesh>
-      <mesh position={[5.75, -1.23, 0]}>
-        <boxGeometry args={[0.18, 0.1, 7.7]} />
+      <mesh position={[5.58, DESK_SURFACE_Y + 0.02, DESK_SURFACE_Z]}>
+        <boxGeometry args={[0.18, 0.1, 4.8]} />
         <meshStandardMaterial color={DESK_COLORS.woodEdge} roughness={0.85} />
       </mesh>
     </group>
@@ -189,42 +390,25 @@ function DeskTable() {
 }
 
 function DeskComputer({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
+  const { scene } = useGLTF(DESK_PC_MODEL_URL, false, false, configureDeskTextureLoader)
+  const model = useMemo(() => {
+    const clone = scene.clone(true)
+
+    clone.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = true
+        object.receiveShadow = true
+      }
+    })
+
+    return clone
+  }, [scene])
+
   const handleClick = clickTarget(onSelect, 'computer')
 
   return (
-    <group position={[0, 0, 0.25]} onClick={handleClick}>
-      <mesh position={[0, -0.48, 0]}>
-        <boxGeometry args={[3.35, 0.18, 1.55]} />
-        <meshStandardMaterial color={DESK_COLORS.blackSoft} roughness={0.5} metalness={0.2} />
-      </mesh>
-      <mesh position={[0, 0.62, -0.12]}>
-        <boxGeometry args={[3.7, 2.45, 0.24]} />
-        <meshStandardMaterial color={DESK_COLORS.black} roughness={0.45} metalness={0.25} />
-      </mesh>
-      <mesh position={[0, 0.64, 0.03]}>
-        <planeGeometry args={[3.25, 1.9]} />
-        <meshBasicMaterial color="#25354b" />
-      </mesh>
-      <mesh position={[0, 0.64, 0.045]}>
-        <planeGeometry args={[2.98, 1.63]} />
-        <meshBasicMaterial color="#334b65" transparent opacity={0.74} />
-      </mesh>
-      <mesh position={[0, -0.04, -0.02]}>
-        <boxGeometry args={[0.28, 0.9, 0.28]} />
-        <meshStandardMaterial color={DESK_COLORS.blackSoft} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, -0.52, 0.12]}>
-        <boxGeometry args={[1.35, 0.05, 0.8]} />
-        <meshStandardMaterial color="#2a303b" roughness={0.55} />
-      </mesh>
-      <mesh position={[0.55, -0.48, 0.48]}>
-        <boxGeometry args={[0.18, 0.03, 0.25]} />
-        <meshBasicMaterial color={DESK_COLORS.pink} />
-      </mesh>
-      <mesh position={[0, 0.64, 0.07]}>
-        <planeGeometry args={[3.05, 0.025]} />
-        <meshBasicMaterial color={DESK_COLORS.blue} transparent opacity={0.42} />
-      </mesh>
+    <group position={DESK_PC_POSITION} scale={DESK_PC_SCALE} onClick={handleClick}>
+      <primitive object={model} />
     </group>
   )
 }
@@ -233,7 +417,7 @@ function DeskRadio({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
   const handleClick = clickTarget(onSelect, 'radio')
 
   return (
-    <group position={[-3.65, -0.53, 0.35]} onClick={handleClick}>
+    <group position={[-3.65, DESK_SURFACE_Y + 0.675, DESK_SURFACE_Z - 1.15]} onClick={handleClick}>
       <mesh>
         <boxGeometry args={[2.25, 1.35, 1.45]} />
         <meshStandardMaterial color="#090b0f" roughness={0.55} metalness={0.3} />
@@ -270,7 +454,11 @@ function DeskFrame({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
   const handleClick = clickTarget(onSelect, 'frame')
 
   return (
-    <group position={[3.55, -0.4, 0.05]} rotation={[0, -0.1, 0]} onClick={handleClick}>
+    <group
+      position={[3.45, DESK_SURFACE_Y + 1.35, DESK_SURFACE_Z - 1.15]}
+      rotation={[0, -0.1, 0]}
+      onClick={handleClick}
+    >
       <mesh>
         <boxGeometry args={[2.2, 2.7, 0.18]} />
         <meshStandardMaterial color="#443a35" roughness={0.7} metalness={0.15} />
@@ -299,7 +487,12 @@ function DeskNote({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
   const handleClick = clickTarget(onSelect, 'note')
 
   return (
-    <group position={[3.6, 0.75, 1.5]} rotation={[0.03, -0.08, -0.08]} onClick={handleClick}>
+    <group
+      position={[4.25, DESK_SURFACE_Y + 0.04, DESK_SURFACE_Z + 0.45]}
+      scale={0.75}
+      rotation={[-Math.PI / 2, 0.08, -0.08]}
+      onClick={handleClick}
+    >
       <mesh>
         <boxGeometry args={[2.15, 1.55, 0.08]} />
         <meshStandardMaterial color={DESK_COLORS.paper} roughness={0.92} />
@@ -325,7 +518,10 @@ function DeskNote({ onSelect }: { onSelect: (target: DeskTarget) => void }) {
 }
 
 function DeskDetails() {
-  const mugPosition = useMemo<[number, number, number]>(() => [-4.55, -0.7, 1.4], [])
+  const mugPosition = useMemo<[number, number, number]>(
+    () => [-4.5, DESK_SURFACE_Y + 0.35, DESK_SURFACE_Z + 0.45],
+    []
+  )
 
   return (
     <group>
@@ -333,15 +529,18 @@ function DeskDetails() {
         <cylinderGeometry args={[0.42, 0.35, 0.7, 20]} />
         <meshStandardMaterial color="#ad675c" roughness={0.82} />
       </mesh>
-      <mesh position={[-4.55, -0.7, 1.78]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[-4.5, DESK_SURFACE_Y + 0.35, DESK_SURFACE_Z + 0.83]}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
         <torusGeometry args={[0.22, 0.06, 10, 20]} />
         <meshStandardMaterial color="#ad675c" roughness={0.82} />
       </mesh>
-      <mesh position={[4.65, -0.65, -2.1]} rotation={[0, 0, 0.1]}>
+      <mesh position={[1.05, DESK_SURFACE_Y + 0.03, DESK_SURFACE_Z + 0.1]} rotation={[0, 0, 0.1]}>
         <boxGeometry args={[1.2, 0.05, 1.8]} />
         <meshStandardMaterial color="#252a32" roughness={0.82} />
       </mesh>
-      <mesh position={[-1.8, -1.16, -2.8]}>
+      <mesh position={[-0.9, DESK_SURFACE_Y + 0.05, DESK_SURFACE_Z + 0.15]}>
         <boxGeometry args={[0.65, 0.08, 0.95]} />
         <meshStandardMaterial color="#171b22" roughness={0.8} />
       </mesh>
@@ -366,8 +565,10 @@ function DeskScene({
 }) {
   return (
     <>
-      <color attach="background" args={[DESK_COLORS.ink]} />
       <fog attach="fog" args={[DESK_COLORS.ink, 10, 40]} />
+      <Suspense fallback={null}>
+        <DeskEnvironment />
+      </Suspense>
       <ambientLight intensity={1.2} color="#9ba9c6" />
       <directionalLight position={[-4, 8, 5]} intensity={2.2} color="#d7ddff" />
       <pointLight position={[2, 2.8, 2]} intensity={15} distance={8} color="#ffca7a" />
@@ -379,7 +580,9 @@ function DeskScene({
         onSettled={onSettled}
       />
       <WebglLifecycle onContextLost={onContextLost} />
-      <DeskTable />
+      <Suspense fallback={<DeskTableFallback />}>
+        <DeskTableModel />
+      </Suspense>
       <DeskDetails />
       <DeskComputer onSelect={onSelect} />
       <DeskRadio onSelect={onSelect} />

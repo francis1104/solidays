@@ -4,7 +4,23 @@
 - 日期：2026-08-29
 - 目标分支：`cloudflare-worker-DEV`
 - Feature 名称：Desk Mode / The Desk
-- 实施状态：Phase 0–4 的首版已落地；使用程序化 Graybox 与现有媒体 catalog，暂未引入外部模型/贴图，也未上传媒体到 R2。Phase 5 正式模型替换与视觉深化留待后续。
+- 实施状态：Phase 0–4 的首版已落地；桌面与交互继续使用现有实现，外部模型通过 Blender CLI 统一处理后再接入。模型源文件保留在 `assets/3d/`，页面只加载 `public/desk/models/` 下自包含的 GLB；未上传模型到 R2。
+
+### 资产处理约定
+
+外部模型不直接在浏览器中加载 FBX。统一使用仓库内的 Blender CLI wrapper：
+
+```bash
+node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
+  --source assets/3d/2026-08-30/models/PC+MODEL+MINGTU.fbx \
+  --output public/desk/models/pc-mingtu.glb
+```
+
+处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
+并导出内嵌材质的 GLB。`--scale` 与 `--rotation X Y Z` 只在新模型的源单位或朝向不同
+时显式指定；页面代码只负责把标准化模型放到桌面场景中的落点，不再修正模型自身的
+单位、坐标轴或原点。默认输出会被页面直接加载，避免运行时 FBX 解析和不同浏览器的
+坐标差异。
 
 ## 1. 一句话概念
 

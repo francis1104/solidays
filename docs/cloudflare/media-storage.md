@@ -50,8 +50,11 @@ Worker 会通过 `/media/<key>` 读取私有桶。`app/fnds/page.tsx` 会请求
 ## Gallery 视频
 
 Gallery 成品不进 `solidays-media`。公开桶 `solidays-gallery` 已创建，
-`media.solidays.win` 只绑这个桶；现有私有桶和 `/media` 白名单不变，
-Worker 不绑定 Gallery 桶。处理规则、上传契约和元数据见
+`media.solidays.win` 只绑这个桶；Worker 不绑定 Gallery 桶。
+Desk 曲面屏需要同源纹理：`/media/gaming/`、`/media/gallery-phase2/` 仅代理到该
+公开域名，不读取私有桶；MP4 在 Worker 入口保留 Range/Content-Length，poster
+由媒体 route 代理。Overview 仅请求当前 768px poster，点击电脑才请求视频。
+处理规则、上传契约和元数据见
 `docs/features/gallery/metadata-processing.md`。`data/gallery.ts` 已按成品写入，
 对象在 `https://media.solidays.win/gaming/<id>.mp4`。`/gallery` 页面已上线；
 首页入口预览只使用 poster / 480w WebP，不得请求 preview mp4 或原片。

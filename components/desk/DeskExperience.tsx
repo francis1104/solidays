@@ -41,7 +41,7 @@ function formatDeskTime(value: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-function DeskPreview() {
+function DeskPreview({ progress, onExit }: { progress: number; onExit: () => void }) {
   return (
     <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#080b10] text-white transition-opacity duration-500">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(67,91,126,0.3),transparent_42%),linear-gradient(135deg,#080b10_0%,#111923_52%,#080b10_100%)]" />
@@ -58,7 +58,26 @@ function DeskPreview() {
         <div className="mx-auto h-2 w-2/5 rounded-full bg-white/15" />
       </div>
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center text-[0.65rem] tracking-[0.35em] text-white/45 uppercase">
-        Preparing the desk
+        <div
+          role="progressbar"
+          aria-label="Loading desk"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+        >
+          <p className="mb-3 font-mono text-2xl tracking-normal text-white/80">{progress}%</p>
+          <div className="mb-3 h-0.5 w-48 overflow-hidden bg-white/10">
+            <div className="h-full bg-white/70" style={{ width: `${progress}%` }} />
+          </div>
+          {progress >= 95 ? 'Preparing the scene' : 'Loading the desk'}
+        </div>
+        <button
+          type="button"
+          onClick={onExit}
+          className="pointer-events-auto mt-4 tracking-normal underline"
+        >
+          Back to Solidays
+        </button>
       </div>
     </div>
   )
@@ -147,6 +166,7 @@ export default function DeskExperience() {
   const [phase, setPhase] = useState<DeskPhase>('loading')
   const [target, setTarget] = useState<DeskTarget | null>(null)
   const [sceneReady, setSceneReady] = useState(false)
+  const [loadProgress, setLoadProgress] = useState(0)
   const [simpleMode, setSimpleMode] = useState(false)
   const [activeClip, setActiveClip] = useState<GalleryItem | undefined>()
   const [videoPlaying, setVideoPlaying] = useState(false)
@@ -166,9 +186,23 @@ export default function DeskExperience() {
   const galleryCursorRef = useRef(0)
   const lastGalleryIdRef = useRef<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const videoCommandRef = useRef(0)
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const radioRef = useRef<HTMLAudioElement>(null)
   const radioShouldPlayRef = useRef(false)
+
+  const handleProgress = useCallback((value: number) => {
+    setLoadProgress((current) => Math.max(current, Math.min(95, Math.floor(value))))
+  }, [])
+  const handleSceneReady = useCallback(() => {
+    setLoadProgress(100)
+    setSceneReady(true)
+  }, [])
+  const handleSceneFailure = useCallback(() => {
+    setSimpleMode(true)
+    setPhase('overview')
+    setTarget(null)
+  }, [])
 
   const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element
@@ -213,6 +247,8 @@ export default function DeskExperience() {
         setSimpleMode(true)
         setPhase('overview')
       }
+      // The capability probe must not retain a second WebGL context.
+      context?.getExtension('WEBGL_lose_context')?.loseContext()
     } catch {
       setSimpleMode(true)
       setPhase('overview')
@@ -227,6 +263,7 @@ export default function DeskExperience() {
 
   const playVideoElement = useCallback(
     async (video: HTMLVideoElement) => {
+      const command = ++videoCommandRef.current
       pauseGlobalMusic()
       pauseRadio()
       try {
@@ -234,9 +271,9 @@ export default function DeskExperience() {
           setVideoReady(true)
         }
         await video.play()
-        setVideoError(false)
+        if (command === videoCommandRef.current) setVideoError(false)
       } catch {
-        setVideoError(true)
+        if (command === videoCommandRef.current) setVideoError(true)
       }
     },
     [pauseGlobalMusic, pauseRadio]
@@ -244,9 +281,22 @@ export default function DeskExperience() {
 
   const playVideo = useCallback(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !activeClip) return
+    const source = privateMediaUrl(activeClip.video)
+    if (video.getAttribute('src') !== source) {
+      video.src = source
+      video.load()
+    }
     void playVideoElement(video)
-  }, [playVideoElement])
+  }, [activeClip, playVideoElement])
+
+  const toggleVideo = useCallback(() => {
+    const video = videoRef.current
+    if (video && !video.paused && !video.ended) {
+      videoCommandRef.current += 1
+      video.pause()
+    } else playVideo()
+  }, [playVideo])
 
   const nextGalleryClip = useCallback(() => {
     const next = drawGalleryItem()
@@ -261,22 +311,13 @@ export default function DeskExperience() {
     setVideoDuration(null)
 
     if (!video) return
+    videoCommandRef.current += 1
     video.pause()
     video.src = privateMediaUrl(next.video)
-    video.poster = privateMediaUrl(next.poster)
     video.load()
 
-    if (shouldPlay) {
-      const resume = () => {
-        video.removeEventListener('canplay', resume)
-        void playVideoElement(video)
-      }
-      if (video.readyState >= 3) {
-        void playVideoElement(video)
-      } else {
-        video.addEventListener('canplay', resume, { once: true })
-      }
-    }
+    // play() waits for data itself; no orphaned canplay listener after rapid next/exit.
+    if (shouldPlay) void playVideoElement(video)
   }, [drawGalleryItem, playVideoElement])
 
   const selectRadioTrack = useCallback((nextIndex: number, shouldPlay: boolean) => {
@@ -329,7 +370,12 @@ export default function DeskExperience() {
       setRadioPlaying(false)
       setRadioError(true)
     }
-    const onEnded = () => nextRadioTrack()
+    const onEnded = () => selectRadioTrack(radioTrackIndex + 1, true)
+    const playWhenReady = () => {
+      if (!radioShouldPlayRef.current) return
+      pauseGlobalMusic()
+      void audio.play().catch(() => setRadioError(true))
+    }
 
     audio.addEventListener('play', onPlay)
     audio.addEventListener('pause', onPause)
@@ -338,14 +384,8 @@ export default function DeskExperience() {
     audio.addEventListener('durationchange', onLoadedMetadata)
     audio.addEventListener('error', onError)
     audio.addEventListener('ended', onEnded)
-    audio.load()
-
     if (radioShouldPlayRef.current) {
-      const playWhenReady = () => {
-        audio.removeEventListener('canplay', playWhenReady)
-        pauseGlobalMusic()
-        void audio.play().catch(() => setRadioError(true))
-      }
+      audio.load()
       if (audio.readyState >= 3) {
         void audio.play().catch(() => setRadioError(true))
       } else {
@@ -361,16 +401,18 @@ export default function DeskExperience() {
       audio.removeEventListener('durationchange', onLoadedMetadata)
       audio.removeEventListener('error', onError)
       audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('canplay', playWhenReady)
     }
-  }, [nextRadioTrack, pauseGlobalMusic, radioTrackIndex])
+  }, [pauseGlobalMusic, radioTrackIndex, selectRadioTrack])
 
   const cleanupVideo = useCallback(() => {
     const video = videoRef.current
     if (!video) return
+    videoCommandRef.current += 1
     video.pause()
-    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-      video.currentTime = 0
-    }
+    // Source is owned by playVideo/nextGalleryClip, not a stale JSX src prop.
+    video.removeAttribute('src')
+    video.load()
     setVideoPlaying(false)
     setVideoReady(false)
     setVideoTime(0)
@@ -388,6 +430,7 @@ export default function DeskExperience() {
       if (simpleMode) {
         setTarget(nextTarget)
         setPhase('focused')
+        if (nextTarget === 'computer') playVideo()
         if (nextTarget === 'note') window.dispatchEvent(new Event(DESK_CHAT_OPEN_EVENT))
         return
       }
@@ -462,6 +505,16 @@ export default function DeskExperience() {
   }, [exitFocus, router])
 
   useEffect(() => {
+    const pauseHiddenVideo = () => {
+      if (!document.hidden) return
+      videoCommandRef.current += 1
+      videoRef.current?.pause()
+    }
+    document.addEventListener('visibilitychange', pauseHiddenVideo)
+    return () => document.removeEventListener('visibilitychange', pauseHiddenVideo)
+  }, [])
+
+  useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
@@ -482,8 +535,9 @@ export default function DeskExperience() {
   const activeRadio = defaultCards[radioTrackIndex]
   const activeFrame = fndsItems[frameIndex]
   const nextFrame = fndsItems[(frameIndex + 1) % fndsItems.length]
-  const currentVideoSource = activeClip ? privateMediaUrl(activeClip.video) : undefined
-  const currentPosterSource = activeClip ? privateMediaUrl(activeClip.poster) : undefined
+  const posterKey =
+    activeClip?.posterSrcSet?.find((source) => source.width === 768)?.src ?? activeClip?.poster
+  const currentPosterSource = posterKey ? privateMediaUrl(posterKey) : undefined
   const isFocused = phase === 'focused'
   const isMoving = phase === 'entering' || phase === 'leaving'
 
@@ -494,12 +548,13 @@ export default function DeskExperience() {
       data-desk-target={target ?? 'overview'}
       className="fixed inset-0 z-10 overflow-hidden bg-[#080b10] text-white"
     >
-      {!simpleMode ? (
+      {!simpleMode && currentPosterSource ? (
         <div
           className={`absolute inset-0 transition-opacity duration-500 ${sceneReady ? 'opacity-100' : 'opacity-0'}`}
           style={{ pointerEvents: phase === 'overview' ? 'auto' : 'none' }}
         >
           <DeskCanvas
+            posterUrl={currentPosterSource}
             phase={phase}
             target={target}
             reducedMotion={reducedMotion}
@@ -508,17 +563,16 @@ export default function DeskExperience() {
             videoPlaying={videoPlaying}
             onSelect={focusObject}
             onSettled={handleCameraSettled}
-            onReady={() => setSceneReady(true)}
-            onContextLost={() => {
-              setSimpleMode(true)
-              setPhase('overview')
-              setTarget(null)
-            }}
+            onReady={handleSceneReady}
+            onProgress={handleProgress}
+            onContextLost={handleSceneFailure}
           />
         </div>
       ) : null}
 
-      {!sceneReady && !simpleMode ? <DeskPreview /> : null}
+      {!sceneReady && !simpleMode ? (
+        <DeskPreview progress={loadProgress} onExit={leaveDesk} />
+      ) : null}
 
       {simpleMode ? (
         <DeskFallback
@@ -533,7 +587,7 @@ export default function DeskExperience() {
       <audio
         ref={radioRef}
         src={activeRadio?.audioKey ? mediaUrl(activeRadio.audioKey) : undefined}
-        preload="metadata"
+        preload="none"
         className="hidden"
         aria-hidden="true"
       />
@@ -542,10 +596,9 @@ export default function DeskExperience() {
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={setVideoRef}
-        src={currentVideoSource}
-        poster={currentPosterSource}
-        preload="metadata"
+        preload="none"
         playsInline
+        controls={simpleMode && target === 'computer'}
         tabIndex={-1}
         onPlay={() => {
           pauseGlobalMusic()
@@ -565,15 +618,22 @@ export default function DeskExperience() {
           const duration = event.currentTarget.duration
           setVideoDuration(Number.isFinite(duration) ? duration : null)
         }}
-        onError={() => {
+        onError={(event) => {
+          if (!event.currentTarget.getAttribute('src')) return
           setVideoReady(false)
           setVideoError(true)
         }}
-        className="pointer-events-none fixed -left-[9999px] h-px w-px opacity-0"
-        aria-hidden="true"
+        className={
+          simpleMode && target === 'computer'
+            ? 'absolute top-[18%] left-1/2 z-30 max-h-[55vh] w-[min(90vw,800px)] -translate-x-1/2 bg-black'
+            : 'pointer-events-none fixed -left-[9999px] h-px w-px opacity-0'
+        }
+        aria-hidden={!simpleMode || target !== 'computer'}
       />
 
       <div
+        inert={!sceneReady && !simpleMode}
+        aria-hidden={!sceneReady && !simpleMode}
         className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-500 ${sceneReady || simpleMode ? 'opacity-100' : 'opacity-0'}`}
       >
         <div className="desk-back-control pointer-events-auto absolute top-5 left-5 sm:top-8 sm:left-8">
@@ -607,7 +667,7 @@ export default function DeskExperience() {
                   {videoError ? ' · unavailable' : ''}
                 </p>
               </div>
-              <DeskButton label={videoPlaying ? 'Pause video' : 'Play video'} onClick={playVideo}>
+              <DeskButton label={videoPlaying ? 'Pause video' : 'Play video'} onClick={toggleVideo}>
                 {videoPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
               </DeskButton>
               <DeskButton label="Random next video" onClick={nextGalleryClip}>

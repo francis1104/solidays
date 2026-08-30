@@ -17,7 +17,9 @@ node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
 ```
 
 处理器会保留原始文件不变，导入 FBX/GLB，应用源模型变换，将原点归到模型底部中心，
-并导出内嵌材质的 GLB。`--scale` 与 `--rotation X Y Z` 只在新模型的源单位或朝向不同
+并导出内嵌材质的 GLB。FBX 中直接连接到 diffuse 的 CoronaColor 常量会转换为
+Principled base color；不支持的程序化贴图仍需单独烘焙，不能把 `missingTextures=[]`
+当作所有源 shader 都被正确转换的证明。`--scale` 与 `--rotation X Y Z` 只在新模型的源单位或朝向不同
 时显式指定；页面代码只负责把标准化模型放到桌面场景中的落点，不再修正模型自身的
 单位、坐标轴或原点。默认输出会被页面直接加载，避免运行时 FBX 解析和不同浏览器的
 坐标差异。
@@ -38,6 +40,11 @@ node .yarn/releases/yarn-3.6.1.cjs desk:process-model \
 该 wrapper 当前通用支持 `.fbx`、`.glb` 和 `.gltf`。它不会监视目录或自动处理刚下载的
 文件；“自动使用”指每次 Desk 接入新模型时，这套流程是默认必经步骤，接入者必须先运行
 CLI，再把标准化输出接入页面。
+
+现有桌子/HDR 的网页降采样通过 Blender 运行 `scripts/desk/prepare-scene-assets.py`：
+桌子保留原坐标与网格，纹理降至 1K，输出 `public/desk/models/desk-web.glb`；
+环境生成 1K/2K HDR。原始 4K HDR 与旧 GLB 保留，但页面不再请求它们。
+完整原因、数据和验证记录见 [加载与资源审查](./loading-and-resource-audit.md)。
 
 ## 1. 一句话概念
 
@@ -78,7 +85,7 @@ Solidays 首页
 - 不做物理引擎、多人互动、复杂任务或可任意搬动物件。
 - 不在电脑中复制完整 Gallery 页面、搜索、年份筛选或 Grid/Index。
 - 不一次创建或预加载 82 个视频元素。
-- 不使用 VideoTexture 作为首版视频方案。
+- 不同时解码或保留多个视频纹理。
 - 不让 Canvas 成为唯一操作路径；核心功能必须有 HTML/键盘入口。
 - 不新增 D1、聊天 API、Durable Object 或 Realtime 协议。
 - 不重写现有 Floating Chat 的 conversation、Turnstile、滚动与 realtime 状态机。
@@ -212,7 +219,9 @@ Canvas 不是唯一入口。页面同时提供一个可访问的 Desk 控制条�
 - 视频控件使用 Desk 自己的最小 HTML UI：播放/暂停、随机下一个；退出仍由底部 Desk 导航完成；
 - 切换下一条由点击手势设置新 src，并在切换前正在播放时自动继续播放；
 - 当前视频播放时暂停 Desk Radio 和全局 MusicDock 音频；
-- 退出电脑时暂停并把播放位置重置到开头，但保留当前 source，重新进入时可直接恢复；
+- Overview 只显示当前随机片段的 768px poster，不请求视频；
+- 点击电脑时才设置视频 source 并播放；退出后清除 source，释放解码资源，重新进入从开头播放；
+- 视频纹理在切换/退出时单独 dispose，取消逐帧回调；不能只释放材质；
 - `/media/gaming/` 和 `/media/gallery-phase2/` 的视频由 Worker 同源代理到公开 Gallery
   媒体域名，保留 HTTP Range 与 `Content-Length`，以便浏览器和 WebGL 稳定解码；
 - 可提供普通链接进入 `/gallery?clip=<id>`，但不是首版主要路径。
@@ -379,11 +388,16 @@ R2 使用 immutable cache；发布新模型或纹理时使用 `v2` 或内容版�
 → 全屏 preview 快速覆盖当前首页
 → router 进入 /desk
 → /desk 继续显示同一张 preview
-→ Canvas / Graybox / GLB ready
+→ 显示资源加载百分比，等待模型、环境和首张 poster 完成
+→ 着色器预编译与完整场景首帧完成
 → preview crossfade 到 3D Overview
 ```
 
 这样直接访问 `/desk` 也能立即看到有效画面，不出现空 Canvas。入口过渡使用 Framer Motion DOM 层，不使用 `document.startViewTransition()`，避免再次触发 Safari 玻璃合成问题。
+
+进度是四类资源的阶段加权值，不是整页总字节百分比：模型/HDR 下载与解析占 75%，
+首张 poster 占 25%，合计映射到 0–95%；剩余阶段等待 shader/首帧，完成才为 100%。
+加载中不可操作隐藏的场景控件，但提供返回站点的按钮；资源失败进入 2D fallback。
 
 ### 10.2 退出 Desk
 
@@ -438,6 +452,9 @@ Next 配置按 R3F 官方要求加入 `three` 的 `transpilePackages`。`ssr: fa
 - 不保留持续运行的装饰性 `useFrame`；
 - Desktop DPR 为 1–1.5；Mobile DPR 为 1；
 - 只有一个活动视频和一个 Desk audio；
+- GLB/HDR 不使用跨访问无限保留的加载缓存，每次 Desk 挂载独立拥有，退出时释放
+  geometry、material、texture；中途退出忽略并释放迟到结果；
+- 首次进入不预加载视频/音频；页面隐藏时暂停视频；
 - Context lost、GL 初始化失败和 GLB 加载失败都必须进入可退出的 2D fallback。
 
 [R3F Canvas](https://r3f.docs.pmnd.rs/api/canvas) 与 [R3F Performance](https://r3f.docs.pmnd.rs/advanced/scaling-performance) 提供了 fallback、DPR 与按需渲染能力。
@@ -482,7 +499,7 @@ Next 配置按 R3F 官方要求加入 `three` 的 `transpilePackages`。`ssr: fa
 - DPR 固定为 1；
 - 3D hotspot 与底部 HTML 控制条同时存在；
 - 点击目标至少满足合理触控面积；
-- 视频使用 `playsInline` DOM overlay；
+- 视频通过 `playsInline` 解码并贴到曲面屏，2D fallback 才显示原生播放器；
 - safe-area 下 Exit、控制条和 ChatPanel 不能互相遮挡；
 - orientation change 后重新计算 overlay rect 和 camera aspect，但不重置媒体 catalog；
 - WebGL 初始化失败、context lost 或用户主动选择简化模式时进入 2D Desk。
@@ -644,9 +661,10 @@ Desk Radio 是独立实例，但第一次播放前必须暂停 `window.globalAud
 
 便签只能作为现有 FloatingChat 的外部 trigger。不得在 Desk 中复制请求、Realtime、消息 merge 或 Turnstile 逻辑。
 
-### DOM video 与 3D 屏幕错位
+### 视频纹理的资源生命周期
 
-只有固定 computer camera 到位后才显示 DOM video；resize/orientation change 必须重新测量 screen overlay。镜头移动期间显示 3D poster，不让 DOM video 跟随任意透视变换。
+屏幕直接使用模型内屏 UV，不额外测量 DOM overlay。VideoTexture 必须独立释放；
+poster 只保留当前一张，下一张加载完成后释放旧纹理。不能在每次视频切换时累计 frame callback。
 
 ### 模型替换破坏热点
 
@@ -661,7 +679,7 @@ Desk 入口不使用 View Transition，不把 ChatSurface、MusicDock 和 Canvas
 - 自由 OrbitControls 或第一人称移动；
 - 物品到物品的直接镜头横移；
 - 电脑内完整 Gallery UI；
-- VideoTexture 和带透视变换的原生视频控件；
+- 带透视变换的原生视频控件；
 - 相框自动轮播；
 - Desk 音乐与 MusicDock 播放状态持久同步；
 - 展开 ChatPanel 的纸张皮肤；

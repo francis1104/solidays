@@ -50,10 +50,56 @@ def import_source(source_path: Path) -> None:
 
     if suffix == ".fbx":
         bpy.ops.import_scene.fbx(filepath=str(source_path))
+        restore_corona_constant_colors(source_path)
     elif suffix in {".glb", ".gltf"}:
         bpy.ops.import_scene.gltf(filepath=str(source_path))
     else:
         raise SystemExit(f"Unsupported model format: {source_path.suffix}")
+
+
+def restore_corona_constant_colors(source_path: Path) -> None:
+    """Recover FBX CoronaColor diffuse constants which Blender's importer ignores.
+
+    Only direct constant-color links are supported, not arbitrary procedural maps.
+    Read the actual source RGB/colour-space, never infer colors from material names.
+    """
+    from io_scene_fbx import parse_fbx
+
+    root, _ = parse_fbx.parse(str(source_path))
+    objects = next(element for element in root.elems if element.id == b"Objects")
+    by_id = {element.props[0]: element for element in objects.elems}
+    connections = next(element for element in root.elems if element.id == b"Connections")
+    for link in connections.elems:
+        if len(link.props) < 4 or link.props[3] != b"3dsMax|CoronaMtlPb|texmapDiffuse":
+            continue
+        color_map = by_id.get(link.props[1])
+        material_element = by_id.get(link.props[2])
+        if color_map is None or material_element is None:
+            continue
+        properties = {
+            prop.props[0]: prop.props[4:]
+            for group in color_map.elems if group.id == b"Properties70"
+            for prop in group.elems
+        }
+        rgb = properties.get(b"3dsMax|CoronaColorPb|color")
+        if not rgb or properties.get(b"3dsMax|CoronaColorPb|method") != [0]:
+            continue
+        if properties.get(b"3dsMax|CoronaColorPb|colorSpace") != [1]:
+            continue  # Do not guess unknown color-space semantics.
+        name = material_element.props[1].split(b"\x00\x01")[0].decode("utf-8")
+        material = bpy.data.materials.get(name)
+        if not material or not material.node_tree:
+            continue
+        # Corona's sRGB constant -> glTF/Principled linear base color.
+        linear = tuple(v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in rgb)
+        for node in material.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                socket = node.inputs["Base Color"]
+                for node_link in list(socket.links):
+                    material.node_tree.links.remove(node_link)
+                socket.default_value = (*linear, 1.0)
+                material.diffuse_color = (*linear, 1.0)
+        print("RESTORED_CORONA_BASE_COLOR", name, list(rgb))
 
 
 def world_bounds(objects: list[bpy.types.Object]) -> tuple[Vector, Vector]:
@@ -88,8 +134,7 @@ def bake_mesh_objects(
         mesh.transform(global_transform @ source.matrix_world)
         baked = bpy.data.objects.new(source.name, mesh)
         bpy.context.scene.collection.objects.link(baked)
-        for material in source.data.materials:
-            mesh.materials.append(material)
+        # Mesh.copy() already copies its material slots; do not append them twice.
         baked_objects.append(baked)
 
     for scene_object in list(bpy.context.scene.objects):

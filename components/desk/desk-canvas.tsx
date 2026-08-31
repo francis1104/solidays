@@ -303,7 +303,6 @@ function clickTarget(onSelect: (target: DeskTarget) => void, target: DeskTarget)
 }
 
 const DESK_PC_SCREEN_MESH_NAME = 'Mesh009_1'
-const DESK_ENVIRONMENT_BACKGROUND_INTENSITY = 2.5
 const DESK_ENVIRONMENT_INTENSITY = 1.2
 const DESK_TABLE_POSITION: [number, number, number] = [0, -2.8, -4]
 const DESK_TABLE_SCALE: [number, number, number] = [5.4, 4.5, 5.4]
@@ -320,9 +319,13 @@ function DeskEnvironment({ environment }: { environment: THREE.Texture }) {
     const previousEnvironment = scene.environment
     const previousBackgroundIntensity = scene.backgroundIntensity
     const previousEnvironmentIntensity = scene.environmentIntensity
+    const background = new THREE.Color(DESK_COLORS.ink)
 
-    scene.background = environment
-    scene.backgroundIntensity = DESK_ENVIRONMENT_BACKGROUND_INTENSITY
+    // Keep the HDR for reflections/IBL, but let the room shell own the visible
+    // backdrop. Showing the HDR as the background makes the desk read like a
+    // model floating in an environment viewer instead of a room.
+    scene.background = background
+    scene.backgroundIntensity = 1
     scene.environment = environment
     scene.environmentIntensity = DESK_ENVIRONMENT_INTENSITY
     invalidate()
@@ -337,6 +340,127 @@ function DeskEnvironment({ environment }: { environment: THREE.Texture }) {
   }, [environment, invalidate, scene])
 
   return null
+}
+
+function createNightWindowTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 512
+  canvas.height = 320
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Unable to create the Desk window canvas')
+
+  const sky = context.createLinearGradient(0, 0, 0, canvas.height)
+  sky.addColorStop(0, '#071321')
+  sky.addColorStop(0.58, '#102d49')
+  sky.addColorStop(1, '#0a111b')
+  context.fillStyle = sky
+  context.fillRect(0, 0, canvas.width, canvas.height)
+
+  const stars = [
+    [42, 34, 1.2],
+    [96, 70, 0.8],
+    [156, 28, 1],
+    [218, 92, 0.7],
+    [286, 46, 1.1],
+    [354, 76, 0.8],
+    [438, 32, 1],
+    [474, 112, 0.7],
+  ]
+  context.fillStyle = '#b6d5eb'
+  for (const [x, y, radius] of stars) {
+    context.beginPath()
+    context.arc(x, y, radius, 0, Math.PI * 2)
+    context.fill()
+  }
+
+  const buildings = [
+    [0, 218, 74, 102, '#0b1825'],
+    [62, 190, 58, 130, '#0a1521'],
+    [112, 232, 84, 88, '#0d1d2b'],
+    [185, 176, 66, 144, '#0a1724'],
+    [244, 212, 92, 108, '#0c1b29'],
+    [327, 166, 72, 154, '#0a1522'],
+    [390, 224, 62, 96, '#0d1e2c'],
+    [444, 194, 68, 126, '#091522'],
+  ] as const
+  for (const [x, y, width, height, color] of buildings) {
+    context.fillStyle = color
+    context.fillRect(x, y, width, height)
+    context.fillStyle = '#d39a56'
+    for (let windowY = y + 18; windowY < y + height - 10; windowY += 25) {
+      for (let windowX = x + 12; windowX < x + width - 8; windowX += 22) {
+        if ((windowX + windowY) % 3 < 1) context.fillRect(windowX, windowY, 4, 7)
+      }
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.needsUpdate = true
+  return texture
+}
+
+function styleRoomModel(scene: THREE.Group, color: string) {
+  scene.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return
+    object.receiveShadow = true
+    const materials = Array.isArray(object.material) ? object.material : [object.material]
+    materials.forEach((material) => {
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.color.set(color)
+        material.roughness = 0.88
+        material.metalness = 0.04
+      }
+    })
+  })
+  return scene
+}
+
+function DeskRoomShell({ assets }: { assets: DeskAssets }) {
+  const { size } = useThree()
+  const narrow = size.width < 640
+  const compact = size.height < 520
+  const nightWindow = useMemo(() => createNightWindowTexture(), [])
+  const roomWallWindow = useMemo(
+    () => styleRoomModel(assets.roomWallWindow, '#27323e'),
+    [assets.roomWallWindow]
+  )
+  const roomWallStraight = useMemo(
+    () => styleRoomModel(assets.roomWallStraight, '#27323e'),
+    [assets.roomWallStraight]
+  )
+  const roomFloor = useMemo(() => styleRoomModel(assets.roomFloor, '#151d27'), [assets.roomFloor])
+  const roomCeiling = useMemo(
+    () => styleRoomModel(assets.roomCeiling, '#111923'),
+    [assets.roomCeiling]
+  )
+
+  useEffect(() => () => nightWindow.dispose(), [nightWindow])
+
+  return (
+    <>
+      <primitive object={roomWallWindow} position={[-2.3, -1, -7.25]} scale={[2.1, 2.1, 1]} />
+      <primitive object={roomWallStraight} position={[4.4, -1, -7.25]} scale={[2.1, 2.1, 1]} />
+      <primitive
+        object={roomFloor}
+        position={[0, -3, -3.4]}
+        scale={narrow ? [3.25, 1, 1.8] : [4, 1, 2.5]}
+      />
+      {!compact ? (
+        <primitive object={roomCeiling} position={[0, 4.9, -6.2]} scale={[4, 1, 1]} />
+      ) : null}
+      <mesh position={[-2.3, 1.95, -7.38]}>
+        <planeGeometry args={[3.45, 2.25]} />
+        <meshBasicMaterial map={nightWindow} toneMapped={false} />
+      </mesh>
+      <primitive
+        object={assets.lamp}
+        position={[4.15, DESK_SURFACE_Y, -2.55]}
+        scale={compact ? 0.7 : narrow ? 0.82 : 1}
+        rotation={[0, -0.18, 0]}
+      />
+    </>
+  )
 }
 
 function DeskTableModel({ scene }: { scene: THREE.Group }) {
@@ -638,8 +762,8 @@ function DeskScene({
       <DeskEnvironment environment={assets.environment} />
       <ambientLight intensity={1.2} color="#9ba9c6" />
       <directionalLight position={[-4, 8, 5]} intensity={2.2} color="#d7ddff" />
-      <pointLight position={[2, 2.8, 2]} intensity={15} distance={8} color="#ffca7a" />
-      <pointLight position={[-4, 0.4, 1]} intensity={6} distance={5} color="#6c8fd4" />
+      <pointLight position={[4.15, 3.1, -2.55]} intensity={10} distance={7} color="#ffca7a" />
+      <pointLight position={[-2.3, 2.1, -5.8]} intensity={4.5} distance={7} color="#6c8fd4" />
       <CameraRig
         phase={phase}
         target={target}
@@ -647,6 +771,7 @@ function DeskScene({
         onSettled={onSettled}
       />
       <WebglLifecycle onContextLost={onContextLost} />
+      <DeskRoomShell assets={assets} />
       <DeskTableModel scene={assets.table} />
       <DeskCup scene={assets.cup} />
       <DeskComputer

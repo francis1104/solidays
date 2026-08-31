@@ -1,7 +1,7 @@
 # Desk 3D 素材目录
 
-整理日期：2026-08-30。桌面已使用麦当劳纸杯；本轮继续入库新下载的模型，
-将收音机和两张便签接入场景，其余新下载模型只作为候选。
+整理日期：2026-08-31。桌面已使用麦当劳纸杯、复古收音机和两张便签；本轮加入
+受控夜间 Room Shell、窗户夜景卡和低模台灯。
 
 ## 目录与使用规则
 
@@ -26,6 +26,9 @@ assets/3d/                              # 本地素材库，现有 .gitignore �
 │   │   └── source/unpacked/           # 解包的 blend / FBX / OBJ / MTL / 纹理
 │   ├── frames/picture-frame/source/picture_frame.glb
 │   ├── lamps/desk-lamp/source/desk_lamp_low_poly.glb
+│   ├── environments/night-room-shell/
+│   │   ├── source/modkit/              # CC0 ModKit 原始窗墙/地面/顶板
+│   │   └── processed/                  # Blender CLI 标准化网页模型
 │   └── cups/
 │       ├── coffee-cup/source/coffee_cup.glb
 │       ├── cup-with-holder/source/cup_with_holder.glb
@@ -42,7 +45,12 @@ public/desk/                           # 仅当前实际使用的网页资产，
 │   ├── mcdonalds-cup.glb
 │   ├── vintage-radio.glb
 │   ├── note-pad.glb
-│   └── note-paper.glb
+│   ├── note-paper.glb
+│   ├── room-wall-window.glb
+│   ├── room-wall-straight.glb
+│   ├── room-floor.glb
+│   ├── room-ceiling.glb
+│   └── desk-lamp.glb
 ├── kloofendal-overcast-1k.hdr
 └── kloofendal-overcast-2k.hdr
 ```
@@ -61,16 +69,19 @@ public/desk/                           # 仅当前实际使用的网页资产，
 | ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | 桌子   | `desks/computer-desk/source/ComputerDesk.fbx`                                | 1 套组合源模型，附原始贴图；网页使用其中提取并降采样后的桌子                         |
 | 电脑   | `computers/pc-mingtu/source/PC+MODEL+MINGTU.fbx`                             | 当前曲面显示器 + 键盘的源模型；最终网页版保留前移位置及内屏 UV 修复                  |
+| 电脑   | `computers/pc-mingtu/processed/pc-mingtu-mobile.glb`                         | 手机专用 LOD；移除高密度键帽字标，约 58,876 三角形，保留曲面屏与键盘主体             |
 | 电脑   | `computers/pc-alternative/source/PC.glb`                                     | 另一款独立电脑候选，约 9.61 MiB；不是 MINGTU；文件内作者字段为 Elixon Avila          |
 | 电脑   | `desks/computer-desk/processed/computer-keyboard.glb`                        | 从桌子套装提取的电脑/键盘，约 1.63 MiB；不是另一次下载的独立套装，未使用             |
 | 杯子   | `cups/coffee-cup/source/coffee_cup.glb`                                      | 新候选：约 1.69 MiB，1 个 mesh、3 张内嵌图片                                         |
 | 杯子   | `cups/cup-with-holder/source/cup_with_holder.glb`                            | 新候选：约 4.79 MiB，2 个 mesh、7 张内嵌图片；两个 mesh 属于同一文件，不计为两次下载 |
 | 杯子   | `cups/mcdonalds-cup/source/mcdonalds_cup.glb`                                | 已选用：原件约 1.51 MiB，1 个 mesh、2 张内嵌图片；经 Blender 归一化后替换场景灰模杯  |
 | 环境   | `environments/kloofendal-overcast/source/kloofendal_overcast_puresky_4k.hdr` | 1 个环境原件；网页手机用 1K、桌面用 2K，不是三个不同环境                             |
+| 房间   | `models/environments/night-room-shell/source/modkit/`                        | GitHub ModKit v1.2 的 CC0 模块；只取窗墙、直墙、地板、顶板，未带入整套工业道具       |
+| 房间   | `models/environments/night-room-shell/processed/room-*.glb`                  | 已由 Blender CLI 归一化的低模 Room Shell；页面按受控镜头铺开，约 2.3k 三角形         |
 | 收音机 | `radios/vintage-radio/source/vintage_radio.glb`                              | 已选用：木质复古收音机，1,894 三角形，1K 内嵌纹理；网页约 1.99 MiB                   |
 | 便签   | `notes/sticky-notes/source/unpacked/post_it.fbx`                             | 组合包有四款（五个 mesh），只选 `SINGLE` 平放便签本和 `single` 单张纸；不是放四张    |
 | 相框   | `frames/picture-frame/source/picture_frame.glb`                              | 新候选，仅入库；尚未替换场景相框                                                     |
-| 台灯   | `lamps/desk-lamp/source/desk_lamp_low_poly.glb`                              | 新候选，仅入库；未加入场景                                                           |
+| 台灯   | `lamps/desk-lamp/source/desk_lamp_low_poly.glb`                              | 已选用：低模台灯源；网页版通过 Blender CLI 缩放至约 2.19 高、256px 纹理              |
 | 电脑   | `computers/gaming-desktop-pc/`                                               | 新候选，保留整个下载包；未替换 MINGTU                                                |
 
 三个杯子先前只复制入库；本轮按用户要求清理 Downloads，详见下节。GLB 都自包含，未发现
@@ -92,6 +103,21 @@ public/desk/                           # 仅当前实际使用的网页资产，
 - 台灯 GLB 声明：[KozlovMaksim / Desk Lamp Low Poly](https://sketchfab.com/3d-models/desk-lamp-low-poly-0dded6b36c464294a0ab966b18109f6d)，CC BY 4.0。
 - 便签与新电脑包未提供可核实的原始下载页/许可；保留为待补信息，不能宣称已核验授权。
   本轮仅 DEV 接入，未发布生产、未上传 R2。
+
+### 2026-08-31 环境资源
+
+- Room Shell 原始资源：[JaronKBragg7337/asset-pack-ue-threejs-blender-unity](https://github.com/JaronKBragg7337/asset-pack-ue-threejs-blender-unity)，
+  使用 v1.2 发布包直接下载；仓库与随包许可证声明为 CC0。
+- 本轮仅取 `Wall_Window`、`Wall_Straight`、`Floor`、`Ceiling` 四个无贴图模块，归类到
+  `models/environments/night-room-shell/source/modkit/`，并重命名为语义化的处理产物；
+  通过 `scripts/desk/process-model.mjs` 统一导出，自包含产物进入 `public/desk/models/`。
+- 网页中的窗外夜景不是额外远程图片，而是一个 512×320 的本地 CanvasTexture：固定星点、低层建筑
+  和暖色窗光，避免增加网络请求与版权不明的图片依赖。
+- 台灯网页产物 `desk-lamp.glb` 使用 `--scale 0.05 --max-texture-size 256`，从约 4.1 MiB
+  压到约 655 KiB；台灯的原始来源与 CC BY 4.0 信息见上方链接。
+- MINGTU 手机 LOD 使用同一 Blender CLI，从源 FBX 排除 `Letters` 网格后导出为
+  `pc-mingtu-mobile.glb`；完整桌面版仍保留原始网格。页面按 coarse pointer/窄屏在加载阶段选择
+  手机产物，不在浏览器运行时隐藏网格或改写坐标。
 
 ## 重复文件和旧版
 

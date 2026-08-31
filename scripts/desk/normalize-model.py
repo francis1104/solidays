@@ -33,6 +33,10 @@ def parse_args() -> argparse.Namespace:
         help="Keep only this source mesh (repeatable); useful for individual props in a pack",
     )
     parser.add_argument(
+        "--omit-mesh", action="append", default=[], metavar="NAME",
+        help="Exclude this source mesh (repeatable); useful for a mobile LOD",
+    )
+    parser.add_argument(
         "--max-texture-size", type=int, default=None,
         help="Optionally downsample embedded textures before export; source files stay unchanged",
     )
@@ -284,6 +288,13 @@ def main() -> None:
         if missing:
             raise SystemExit(f"Unknown source mesh for --only-mesh: {sorted(missing)}")
         mesh_objects = [obj for obj in mesh_objects if obj.name in args.only_mesh]
+    if args.omit_mesh:
+        missing = set(args.omit_mesh) - {obj.name for obj in mesh_objects}
+        if missing:
+            raise SystemExit(f"Unknown source mesh for --omit-mesh: {sorted(missing)}")
+        mesh_objects = [obj for obj in mesh_objects if obj.name not in args.omit_mesh]
+        if not mesh_objects:
+            raise SystemExit("--omit-mesh removed every mesh")
 
     missing_textures = make_paths_absolute()
     if args.max_texture_size is not None:
@@ -321,6 +332,7 @@ def main() -> None:
                 "partOffsets": args.part_offset,
                 "screenUVs": args.screen_uv,
                 "selectedMeshes": args.only_mesh,
+                "omittedMeshes": args.omit_mesh,
                 "maxTextureSize": args.max_texture_size,
                 "missingTextures": missing_textures,
             },

@@ -8,6 +8,11 @@ export type DeskAssets = {
   radio: THREE.Group
   notePad: THREE.Group
   notePaper: THREE.Group
+  roomWallWindow: THREE.Group
+  roomWallStraight: THREE.Group
+  roomFloor: THREE.Group
+  roomCeiling: THREE.Group
+  lamp: THREE.Group
   environment: THREE.DataTexture
 }
 
@@ -41,7 +46,7 @@ export function disposeDeskModel(model: THREE.Object3D) {
 export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) => void) {
   let disposed = false
   const owned: Array<() => void> = []
-  const progress = [0, 0, 0, 0, 0, 0, 0]
+  const progress = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   const report = (index: number, value: number) => {
     progress[index] = Math.max(progress[index], value)
     if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / progress.length)
@@ -71,11 +76,12 @@ export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) =
     // shared request needed by a new Desk; every late result is disposed below.
     owned.splice(0).forEach((release) => release())
   }
+  const computerPath = mobile ? '/desk/models/pc-mingtu-mobile.glb' : '/desk/models/pc-mingtu.glb'
   const promise = Promise.all([
     track(loader.loadAsync('/desk/models/desk-web.glb', downloading(0)), 0, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
-    track(loader.loadAsync('/desk/models/pc-mingtu.glb', downloading(1)), 1, (gltf) =>
+    track(loader.loadAsync(computerPath, downloading(1)), 1, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
     track(loader.loadAsync('/desk/models/mcdonalds-cup.glb', downloading(2)), 2, (gltf) =>
@@ -90,27 +96,62 @@ export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) =
     track(loader.loadAsync('/desk/models/note-paper.glb', downloading(5)), 5, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
+    track(loader.loadAsync('/desk/models/room-wall-window.glb', downloading(6)), 6, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/room-wall-straight.glb', downloading(7)), 7, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/room-floor.glb', downloading(8)), 8, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/room-ceiling.glb', downloading(9)), 9, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
+    track(loader.loadAsync('/desk/models/desk-lamp.glb', downloading(10)), 10, (gltf) =>
+      disposeDeskModel(gltf.scene)
+    ),
     track(
       new RGBELoader(manager).loadAsync(
         `/desk/kloofendal-overcast-${mobile ? '1k' : '2k'}.hdr`,
-        downloading(6)
+        downloading(11)
       ),
-      6,
+      11,
       (texture) => texture.dispose()
     ),
   ])
-    .then(([table, computer, cup, radio, notePad, notePaper, environment]) => {
-      environment.mapping = THREE.EquirectangularReflectionMapping
-      return {
-        table: table.scene,
-        computer: computer.scene,
-        cup: cup.scene,
-        radio: radio.scene,
-        notePad: notePad.scene,
-        notePaper: notePaper.scene,
+    .then(
+      ([
+        table,
+        computer,
+        cup,
+        radio,
+        notePad,
+        notePaper,
+        roomWallWindow,
+        roomWallStraight,
+        roomFloor,
+        roomCeiling,
+        lamp,
         environment,
+      ]) => {
+        environment.mapping = THREE.EquirectangularReflectionMapping
+        return {
+          table: table.scene,
+          computer: computer.scene,
+          cup: cup.scene,
+          radio: radio.scene,
+          notePad: notePad.scene,
+          notePaper: notePaper.scene,
+          roomWallWindow: roomWallWindow.scene,
+          roomWallStraight: roomWallStraight.scene,
+          roomFloor: roomFloor.scene,
+          roomCeiling: roomCeiling.scene,
+          lamp: lamp.scene,
+          environment,
+        }
       }
-    })
+    )
     .catch((error: unknown) => {
       dispose()
       throw error

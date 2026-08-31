@@ -6,7 +6,16 @@ import { GLTFLoader, RGBELoader } from 'three-stdlib'
 import { createDeskVideoTexture, disposeDeskModel, loadDeskAssets } from './desk-assets.ts'
 
 test('readiness waits for every prop; late note loads after teardown are disposed', async (t) => {
-  let resolveTable, resolveComputer, resolveCup, resolveNote, resolveEnvironment
+  let resolveTable,
+    resolveComputer,
+    resolveCup,
+    resolveNote,
+    resolveRoomWallWindow,
+    resolveRoomWallStraight,
+    resolveRoomFloor,
+    resolveRoomCeiling,
+    resolveLamp,
+    resolveEnvironment
   const table = new Promise((resolve) => {
     resolveTable = resolve
   })
@@ -19,26 +28,46 @@ test('readiness waits for every prop; late note loads after teardown are dispose
   const note = new Promise((resolve) => {
     resolveNote = resolve
   })
+  const roomWallWindow = new Promise((resolve) => {
+    resolveRoomWallWindow = resolve
+  })
+  const roomWallStraight = new Promise((resolve) => {
+    resolveRoomWallStraight = resolve
+  })
+  const roomFloor = new Promise((resolve) => {
+    resolveRoomFloor = resolve
+  })
+  const roomCeiling = new Promise((resolve) => {
+    resolveRoomCeiling = resolve
+  })
+  const lamp = new Promise((resolve) => {
+    resolveLamp = resolve
+  })
   const environment = new Promise((resolve) => {
     resolveEnvironment = resolve
   })
   let calls = 0
-  t.mock.method(
-    GLTFLoader.prototype,
-    'loadAsync',
-    () =>
-      [
-        table,
-        computer,
-        cup,
-        Promise.resolve({ scene: new THREE.Group() }),
-        Promise.resolve({ scene: new THREE.Group() }),
-        note,
-      ][calls++]
-  )
+  const requestedUrls: string[] = []
+  t.mock.method(GLTFLoader.prototype, 'loadAsync', (url) => {
+    requestedUrls.push(url)
+    return [
+      table,
+      computer,
+      cup,
+      Promise.resolve({ scene: new THREE.Group() }),
+      Promise.resolve({ scene: new THREE.Group() }),
+      note,
+      roomWallWindow,
+      roomWallStraight,
+      roomFloor,
+      roomCeiling,
+      lamp,
+    ][calls++]
+  })
   t.mock.method(RGBELoader.prototype, 'loadAsync', () => environment)
   const changes: number[] = []
   const loading = loadDeskAssets(true, (value) => changes.push(value))
+  assert.equal(requestedUrls[1], '/desk/models/pc-mingtu-mobile.glb')
   let ready = false
   void loading.promise.then(() => {
     ready = true
@@ -51,6 +80,11 @@ test('readiness waits for every prop; late note loads after teardown are dispose
   resolveTable({ scene: new THREE.Group() })
   resolveComputer({ scene: new THREE.Group() })
   resolveCup({ scene: new THREE.Group() })
+  resolveRoomWallWindow({ scene: new THREE.Group() })
+  resolveRoomWallStraight({ scene: new THREE.Group() })
+  resolveRoomFloor({ scene: new THREE.Group() })
+  resolveRoomCeiling({ scene: new THREE.Group() })
+  resolveLamp({ scene: new THREE.Group() })
   resolveEnvironment(new THREE.DataTexture())
   await Promise.resolve()
   assert.equal(ready, false)
@@ -83,6 +117,47 @@ test('radio and exactly two selected note variants have bounded embedded assets'
     assert.ok(Math.abs(max[1] - height) < 0.00001, `${name}: normalized height`)
     assert.ok(Math.abs(max[0] - min[0] - width) < 0.00001, `${name}: normalized width`)
   }
+})
+
+test('downloaded room shell and lamp are compact self-contained web assets', () => {
+  for (const [name, maxBytes, maxTriangles] of [
+    ['room-wall-window', 100000, 1000],
+    ['room-wall-straight', 100000, 1000],
+    ['room-floor', 100000, 1000],
+    ['room-ceiling', 100000, 500],
+    ['desk-lamp', 800000, 6000],
+  ] as const) {
+    const path = `public/desk/models/${name}.glb`
+    const model = glb(path)
+    const triangles = model.meshes
+      .flatMap((mesh) => mesh.primitives)
+      .reduce((sum, primitive) => sum + model.accessors[primitive.indices].count / 3, 0)
+    assert.ok(readFileSync(path).length < maxBytes, `${name}: web asset budget`)
+    assert.ok(triangles <= maxTriangles, `${name}: triangle budget`)
+    assert.ok((model.images ?? []).every((image) => image.bufferView !== undefined && !image.uri))
+  }
+})
+
+test('mobile computer LOD keeps the curved display and removes only the dense key labels', () => {
+  const desktop = glb('public/desk/models/pc-mingtu.glb')
+  const mobile = glb('public/desk/models/pc-mingtu-mobile.glb')
+  const triangles = (model: ReturnType<typeof glb>) =>
+    model.meshes
+      .flatMap((mesh) => mesh.primitives)
+      .reduce((sum, primitive) => sum + model.accessors[primitive.indices].count / 3, 0)
+
+  assert.ok(readFileSync('public/desk/models/pc-mingtu-mobile.glb').length < 2.5 * 1024 * 1024)
+  assert.ok(triangles(mobile) < triangles(desktop) * 0.75)
+  assert.ok(triangles(mobile) < 60000)
+  assert.equal(
+    mobile.nodes.some((node) => node.name === 'Letters.001'),
+    false
+  )
+  assert.equal(
+    mobile.nodes.some((node) => node.name === 'Plane.001'),
+    true
+  )
+  assert.ok(mobile.meshes.some((mesh) => mesh.name === 'Mesh.009' && mesh.primitives.length === 2))
 })
 
 test('model teardown releases shared geometry/material/maps exactly once', () => {

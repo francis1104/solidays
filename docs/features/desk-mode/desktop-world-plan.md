@@ -4,7 +4,7 @@
 - 日期：2026-08-29
 - 目标分支：`cloudflare-worker-DEV`
 - Feature 名称：Desk Mode / The Desk
-- 实施状态：Phase 0–4 的首版已落地；桌面与交互继续使用现有实现，外部模型通过 Blender CLI 统一处理后再接入。模型源文件保留在 `assets/3d/`，页面只加载 `public/desk/models/` 下自包含的 GLB；未上传模型到 R2。
+- 实施状态：Phase 0–4 的首版已落地；Phase 5 的 Room Shell / 窗户 / 台灯第一切片正在 DEV 验收。桌面与交互继续使用现有实现，外部模型通过 Blender CLI 统一处理后再接入。模型源文件保留在 `assets/3d/`，页面只加载 `public/desk/models/` 下自包含的 GLB；未上传模型到 R2。
 
 ### 资产处理约定
 
@@ -95,6 +95,16 @@ Principled base color；不支持的程序化贴图仍需单独烘焙，不能�
 该 wrapper 当前通用支持 `.fbx`、`.glb` 和 `.gltf`。它不会监视目录或自动处理刚下载的
 文件；“自动使用”指每次 Desk 接入新模型时，这套流程是默认必经步骤，接入者必须先运行
 CLI，再把标准化输出接入页面。
+
+2026-08-31 环境第一切片继续使用同一套 CLI：从 GitHub ModKit v1.2 下载无贴图的窗墙、直墙、地板和顶板，
+分别处理为 `room-wall-window.glb`、`room-wall-straight.glb`、`room-floor.glb`、`room-ceiling.glb`；
+同时将已入库的低模台灯以 `--scale 0.05 --max-texture-size 256` 导出为 `desk-lamp.glb`。
+页面只加载这些小型 GLB；窗外夜景是代码生成的低分辨率 CanvasTexture，不再额外引入未经核验来源的背景图片。
+Room Shell 通过受控镜头下的非均匀模块铺开，不承诺可自由漫游的真实房间尺寸。
+
+同一轮为 MINGTU 电脑生成 `pc-mingtu-mobile.glb` 手机 LOD：通过 `--omit-mesh Letters` 移除高密度
+键帽字标网格，保留显示器、键盘主体和颜色材质，约 58,876 三角形；桌面端仍加载完整
+`pc-mingtu.glb`。选择发生在资源加载阶段，场景交互和模型放置逻辑不变。
 
 现有桌子/HDR 的网页降采样通过 Blender 运行 `scripts/desk/prepare-scene-assets.py`：
 桌子保留原坐标与网格，纹理降至 1K，输出 `public/desk/models/desk-web.glb`；

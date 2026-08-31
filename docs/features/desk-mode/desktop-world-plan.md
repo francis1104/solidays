@@ -102,6 +102,13 @@ CLI，再把标准化输出接入页面。
 页面只加载这些小型 GLB；窗外夜景是代码生成的低分辨率 CanvasTexture，不再额外引入未经核验来源的背景图片。
 Room Shell 通过受控镜头下的非均匀模块铺开，不承诺可自由漫游的真实房间尺寸。
 
+环境构图复测后，房间以桌子实际底部 `y=-3.38` 为共同地面线：窗墙下补直墙，
+增加左侧回墙，地板/顶板边界移到受控镜头之外，避免浮空墙和模型底座感。
+窗户抬到显示器左上方，台灯移到桌面右后方，不压便签；降低全局填充光，保留
+窗边冷光与台灯暖光。新增墙段复用已有 geometry/material；接地阴影只用一张
+128×128 CanvasTexture，退出时释放，不启用实时 shadow map。
+Desktop Overview 降低俯视程度并靠近桌面；手机/矮屏的原有相机布局保持。
+
 同一轮为 MINGTU 电脑生成 `pc-mingtu-mobile.glb` 手机 LOD：通过 `--omit-mesh Letters` 移除高密度
 键帽字标网格，保留显示器、键盘主体和颜色材质，约 58,876 三角形；桌面端仍加载完整
 `pc-mingtu.glb`。选择发生在资源加载阶段，场景交互和模型放置逻辑不变。
@@ -524,7 +531,9 @@ Next 配置按 R3F 官方要求加入 `three` 的 `transpilePackages`。`ssr: fa
 
 - 一个 route 只创建一个 Canvas/WebGL context；
 - 默认 `frameloop="demand"`；
-- 相机 tween 和必要状态动画期间主动 invalidate；
+- 相机 `entering`/`leaving` 和视频播放期间明确使用 `frameloop="always"`，
+  不依赖视频是否播放来驱动运镜；静止后恢复 `demand`；
+- 原有相机 Bézier 轨迹、推进/退出时长与 reduced-motion 直接定位策略保持；
 - 不保留持续运行的装饰性 `useFrame`；
 - Desktop DPR 为 1–1.5；Mobile DPR 为 1；
 - 只有一个活动视频和一个 Desk audio；

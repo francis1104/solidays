@@ -77,4 +77,31 @@
 
 没有部署生产、修改远程 R2 对象、引入依赖或修改聊天后端。
 
+## Room Shell 构图与运镜复测（2026-08-31）
+
+截图中的模型展台感来自实际几何关系：墙底没有接到桌脚地面、顶板/地板边缘在
+Overview 内、窗洞被显示器挡住，台灯底座又落在右侧便签上。现在统一地面线，
+补墙并扩展边界，抬高窗户、后移台灯，降低 Overview 俯视程度及全局填充光。
+仅复用墙体资源和新增 128×128 接地阴影纹理，没有新增模型下载或实时阴影。
+
+相机原有 Bézier 轨迹仍在，渲染模式原先只由 `videoPlaying` 决定；现在明确把
+`entering`/`leaving` 纳入连续帧条件，停止后恢复按需渲染。未获得用户当次浏览器的
+trace，因此不把 demand 模式断言为所有“运镜消失”的唯一原因，也不删除 reduced-motion
+的直接定位分支。
+
+本地 Worker + 隔离 Chrome（Apple M1 Pro / Metal，全程静音）实际验证：
+
+- 1440×900：直接点击电脑、收音机、相框、便签网格；每次推进约 1.3 秒，
+  采集到 76–77 个不同相机位置；四次退出约 1.1 秒，各 64 个不同位置。
+- 1280×608：复核 Overview 墙/地板接合、窗户可见、台灯与便签分离。
+- 390×844 Chromium 仿真：手机 LOD 与 1K HDR 请求成功，无页面横向滚动；
+  电脑推进约 1.1 秒、64 个不同位置。不是 iPhone Safari 真机验证。
+  原有底部横向滚动控制条在 focused 时会把 Exit 挤到右侧可视范围外；直接点其
+  未滚入的中心坐标未生效，不计作移动端退出验证通过。本次桌面修复未改该控制条。
+- 模拟 reduced motion 后重载：点击收音机直接定位，不滞留 entering。
+- 四个物品往返后 geometry/texture 数仍为 93/27；电脑退出后 video
+  `src=null`、`paused=true`、`readyState=0`，静止为 `demand`。
+- 11 项资源回归测试通过。浏览器操作与 Worker 请求中未发现新增应用异常。
+  Chrome DevTools MCP 本会话未提供，以上通过独立 Chrome 的 CDP 实测，并非 MCP。
+
 参考：[Three.js 资源释放](https://threejs.org/manual/en/how-to-dispose-of-objects.html)。

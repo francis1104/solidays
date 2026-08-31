@@ -138,7 +138,7 @@ function getPose(
 
     return narrow
       ? { position: [1.2, 6.9, 19.8], lookAt: [0, 0.65, -2.8] }
-      : { position: [3.6, 6.4, 12.4], lookAt: [0, 0.65, -2.8] }
+      : { position: [2.6, 4.7, 11], lookAt: [0, 1.8, -4.2] }
   }
 
   if (target === 'note') {
@@ -303,13 +303,19 @@ function clickTarget(onSelect: (target: DeskTarget) => void, target: DeskTarget)
 }
 
 const DESK_PC_SCREEN_MESH_NAME = 'Mesh009_1'
-const DESK_ENVIRONMENT_INTENSITY = 1.2
+const DESK_ENVIRONMENT_INTENSITY = 0.6
 const DESK_TABLE_POSITION: [number, number, number] = [0, -2.8, -4]
 const DESK_TABLE_SCALE: [number, number, number] = [5.4, 4.5, 5.4]
 const DESK_SURFACE_Y = 1.62
 const DESK_SURFACE_Z = -3.25
 const DESK_PC_POSITION: [number, number, number] = [0, DESK_SURFACE_Y, -4.5]
 const DESK_PC_SCALE = 1
+// The table's normalized minimum Y is -0.12966: -2.8 + (-0.12966 * 4.5).
+const DESK_ROOM_FLOOR_TOP = -3.38
+const DESK_ROOM_BACK_Z = -8.3
+const DESK_ROOM_CEILING_Y = 7.3
+const DESK_ROOM_WALL_SCALE_Y = (DESK_ROOM_CEILING_Y - DESK_ROOM_FLOOR_TOP) / 3
+const DESK_LAMP_POSITION: [number, number, number] = [5, DESK_SURFACE_Y, -4.9]
 
 function DeskEnvironment({ environment }: { environment: THREE.Texture }) {
   const { invalidate, scene } = useThree()
@@ -416,46 +422,96 @@ function styleRoomModel(scene: THREE.Group, color: string) {
   return scene
 }
 
+function createGroundingTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 128
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Unable to create the Desk contact shadow')
+  const gradient = context.createRadialGradient(64, 64, 16, 64, 64, 64)
+  gradient.addColorStop(0, 'rgba(0,0,0,0.5)')
+  gradient.addColorStop(0.65, 'rgba(0,0,0,0.3)')
+  gradient.addColorStop(1, 'rgba(0,0,0,0)')
+  context.fillStyle = gradient
+  context.fillRect(0, 0, 128, 128)
+  return new THREE.CanvasTexture(canvas)
+}
+
 function DeskRoomShell({ assets }: { assets: DeskAssets }) {
   const { size } = useThree()
   const narrow = size.width < 640
   const compact = size.height < 520
   const nightWindow = useMemo(() => createNightWindowTexture(), [])
+  const grounding = useMemo(() => createGroundingTexture(), [])
   const roomWallWindow = useMemo(
-    () => styleRoomModel(assets.roomWallWindow, '#27323e'),
+    () => styleRoomModel(assets.roomWallWindow, '#202a32'),
     [assets.roomWallWindow]
   )
   const roomWallStraight = useMemo(
-    () => styleRoomModel(assets.roomWallStraight, '#27323e'),
+    () => styleRoomModel(assets.roomWallStraight, '#202a32'),
     [assets.roomWallStraight]
   )
-  const roomFloor = useMemo(() => styleRoomModel(assets.roomFloor, '#151d27'), [assets.roomFloor])
+  const lowerWindowWall = useMemo(() => roomWallStraight.clone(true), [roomWallStraight])
+  const leftWall = useMemo(() => roomWallStraight.clone(true), [roomWallStraight])
+  const roomFloor = useMemo(() => styleRoomModel(assets.roomFloor, '#252321'), [assets.roomFloor])
   const roomCeiling = useMemo(
     () => styleRoomModel(assets.roomCeiling, '#111923'),
     [assets.roomCeiling]
   )
 
-  useEffect(() => () => nightWindow.dispose(), [nightWindow])
+  useEffect(
+    () => () => {
+      nightWindow.dispose()
+      grounding.dispose()
+    },
+    [grounding, nightWindow]
+  )
 
   return (
     <>
-      <primitive object={roomWallWindow} position={[-2.3, -1, -7.25]} scale={[2.1, 2.1, 1]} />
-      <primitive object={roomWallStraight} position={[4.4, -1, -7.25]} scale={[2.1, 2.1, 1]} />
+      {/* Raise the window above the desk, then fill down to the shared floor line. */}
+      <primitive
+        object={roomWallWindow}
+        position={[-4.5, 1, DESK_ROOM_BACK_Z]}
+        scale={[2.1, 2.1, 1]}
+      />
+      <primitive
+        object={lowerWindowWall}
+        dispose={null}
+        position={[-4.5, DESK_ROOM_FLOOR_TOP, DESK_ROOM_BACK_Z]}
+        scale={[2.1, (1 - DESK_ROOM_FLOOR_TOP) / 3, 1]}
+      />
+      <primitive
+        object={roomWallStraight}
+        position={[9.3, DESK_ROOM_FLOOR_TOP, DESK_ROOM_BACK_Z]}
+        scale={[4.8, DESK_ROOM_WALL_SCALE_Y, 1]}
+      />
+      <primitive
+        object={leftWall}
+        dispose={null}
+        position={[-8.7, DESK_ROOM_FLOOR_TOP, 8.7]}
+        rotation={[0, Math.PI / 2, 0]}
+        scale={[8.5, DESK_ROOM_WALL_SCALE_Y, 1]}
+      />
+      {/* Boundaries extend beyond the controlled cameras: no exposed diorama slab. */}
       <primitive
         object={roomFloor}
-        position={[0, -3, -3.4]}
-        scale={narrow ? [3.25, 1, 1.8] : [4, 1, 2.5]}
+        position={[1, DESK_ROOM_FLOOR_TOP - 0.2, 6]}
+        scale={[8, 1, 10]}
       />
       {!compact ? (
-        <primitive object={roomCeiling} position={[0, 4.9, -6.2]} scale={[4, 1, 1]} />
+        <primitive object={roomCeiling} position={[1, DESK_ROOM_CEILING_Y, 6]} scale={[8, 1, 10]} />
       ) : null}
-      <mesh position={[-2.3, 1.95, -7.38]}>
-        <planeGeometry args={[3.45, 2.25]} />
+      <mesh position={[-4.5, 4.36, DESK_ROOM_BACK_Z - 0.12]}>
+        <planeGeometry args={[4.3, 2.6]} />
         <meshBasicMaterial map={nightWindow} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, DESK_ROOM_FLOOR_TOP + 0.01, -4]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[12.4, 7.4]} />
+        <meshBasicMaterial map={grounding} transparent depthWrite={false} toneMapped={false} />
       </mesh>
       <primitive
         object={assets.lamp}
-        position={[4.15, DESK_SURFACE_Y, -2.55]}
+        position={DESK_LAMP_POSITION}
         scale={compact ? 0.7 : narrow ? 0.82 : 1}
         rotation={[0, -0.18, 0]}
       />
@@ -760,10 +816,10 @@ function DeskScene({
     <>
       <fog attach="fog" args={[DESK_COLORS.ink, 10, 40]} />
       <DeskEnvironment environment={assets.environment} />
-      <ambientLight intensity={1.2} color="#9ba9c6" />
-      <directionalLight position={[-4, 8, 5]} intensity={2.2} color="#d7ddff" />
-      <pointLight position={[4.15, 3.1, -2.55]} intensity={10} distance={7} color="#ffca7a" />
-      <pointLight position={[-2.3, 2.1, -5.8]} intensity={4.5} distance={7} color="#6c8fd4" />
+      <ambientLight intensity={0.5} color="#bac3d1" />
+      <directionalLight position={[-4, 8, 5]} intensity={1} color="#d7ddff" />
+      <pointLight position={[5, 3.35, -4.45]} intensity={24} distance={9} color="#ffca7a" />
+      <pointLight position={[-4.5, 4.4, -7.6]} intensity={12} distance={11} color="#6c8fd4" />
       <CameraRig
         phase={phase}
         target={target}
@@ -906,11 +962,13 @@ export default function DeskCanvas({
   }, [onContextLost, onProgress, posterUrl])
   useEffect(() => () => poster?.dispose(), [poster])
   if (!assets || !poster) return null
+  // Keep every camera transition rendering even when no video is driving frames.
+  const cameraMoving = phase === 'entering' || phase === 'leaving'
   return (
     <Canvas
       className="h-full w-full"
       style={{ overflow: 'clip' }}
-      frameloop={videoPlaying ? 'always' : 'demand'}
+      frameloop={videoPlaying || cameraMoving ? 'always' : 'demand'}
       dpr={mobile ? 1 : [1, 1.5]}
       camera={{ position: [0, 5.2, 11.5], fov: 42, near: 0.1, far: 100 }}
       gl={{ antialias: !mobile, alpha: false, powerPreference: 'default' }}

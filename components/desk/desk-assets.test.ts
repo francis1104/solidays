@@ -5,43 +5,13 @@ import * as THREE from 'three'
 import { GLTFLoader, RGBELoader } from 'three-stdlib'
 import { createDeskVideoTexture, disposeDeskModel, loadDeskAssets } from './desk-assets.ts'
 
-test('readiness waits for every prop; late note loads after teardown are disposed', async (t) => {
-  let resolveTable,
-    resolveComputer,
-    resolveCup,
-    resolveNote,
-    resolveRoomWallWindow,
-    resolveRoomWallStraight,
-    resolveRoomFloor,
-    resolveRoomCeiling,
-    resolveLamp,
-    resolveEnvironment
-  const table = new Promise((resolve) => {
-    resolveTable = resolve
-  })
-  const computer = new Promise((resolve) => {
-    resolveComputer = resolve
-  })
-  const cup = new Promise((resolve) => {
-    resolveCup = resolve
+test('readiness waits for the visual pack and notes; late loads after teardown are disposed', async (t) => {
+  let resolveScene, resolveNote, resolveEnvironment
+  const scene = new Promise((resolve) => {
+    resolveScene = resolve
   })
   const note = new Promise((resolve) => {
     resolveNote = resolve
-  })
-  const roomWallWindow = new Promise((resolve) => {
-    resolveRoomWallWindow = resolve
-  })
-  const roomWallStraight = new Promise((resolve) => {
-    resolveRoomWallStraight = resolve
-  })
-  const roomFloor = new Promise((resolve) => {
-    resolveRoomFloor = resolve
-  })
-  const roomCeiling = new Promise((resolve) => {
-    resolveRoomCeiling = resolve
-  })
-  const lamp = new Promise((resolve) => {
-    resolveLamp = resolve
   })
   const environment = new Promise((resolve) => {
     resolveEnvironment = resolve
@@ -50,24 +20,12 @@ test('readiness waits for every prop; late note loads after teardown are dispose
   const requestedUrls: string[] = []
   t.mock.method(GLTFLoader.prototype, 'loadAsync', (url) => {
     requestedUrls.push(url)
-    return [
-      table,
-      computer,
-      cup,
-      Promise.resolve({ scene: new THREE.Group() }),
-      Promise.resolve({ scene: new THREE.Group() }),
-      note,
-      roomWallWindow,
-      roomWallStraight,
-      roomFloor,
-      roomCeiling,
-      lamp,
-    ][calls++]
+    return [scene, Promise.resolve({ scene: new THREE.Group() }), note][calls++]
   })
   t.mock.method(RGBELoader.prototype, 'loadAsync', () => environment)
   const changes: number[] = []
-  const loading = loadDeskAssets(true, (value) => changes.push(value))
-  assert.equal(requestedUrls[1], '/desk/models/pc-mingtu-mobile.glb')
+  const loading = loadDeskAssets(true, 'neon', (value) => changes.push(value))
+  assert.equal(requestedUrls[0], '/desk/models/variants/desk-neon-mobile.glb')
   let ready = false
   void loading.promise.then(() => {
     ready = true
@@ -77,14 +35,7 @@ test('readiness waits for every prop; late note loads after teardown are dispose
   model.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()))
   let disposed = 0
   geometry.addEventListener('dispose', () => disposed++)
-  resolveTable({ scene: new THREE.Group() })
-  resolveComputer({ scene: new THREE.Group() })
-  resolveCup({ scene: new THREE.Group() })
-  resolveRoomWallWindow({ scene: new THREE.Group() })
-  resolveRoomWallStraight({ scene: new THREE.Group() })
-  resolveRoomFloor({ scene: new THREE.Group() })
-  resolveRoomCeiling({ scene: new THREE.Group() })
-  resolveLamp({ scene: new THREE.Group() })
+  resolveScene({ scene: new THREE.Group() })
   resolveEnvironment(new THREE.DataTexture())
   await Promise.resolve()
   assert.equal(ready, false)
@@ -97,6 +48,34 @@ test('readiness waits for every prop; late note loads after teardown are dispose
   assert.equal(changes.length, progressAtExit)
   loading.dispose()
   assert.equal(disposed, 1)
+})
+
+test('Studio and Neon packs stay compact and mobile omits decorative geometry', () => {
+  for (const variant of ['studio', 'neon'] as const) {
+    const desktopPath = `public/desk/models/variants/desk-${variant}.glb`
+    const mobilePath = `public/desk/models/variants/desk-${variant}-mobile.glb`
+    const desktop = glb(desktopPath)
+    const mobile = glb(mobilePath)
+    const triangles = (model: ReturnType<typeof glb>) =>
+      model.meshes
+        .flatMap((mesh) => mesh.primitives)
+        .reduce((sum, primitive) => sum + model.accessors[primitive.indices].count / 3, 0)
+
+    assert.ok(readFileSync(desktopPath).length < 450000, `${variant}: desktop bytes`)
+    assert.ok(readFileSync(mobilePath).length < 250000, `${variant}: mobile bytes`)
+    assert.ok(triangles(desktop) < 10000, `${variant}: desktop triangles`)
+    assert.ok(triangles(mobile) < triangles(desktop), `${variant}: mobile triangles`)
+    assert.ok(desktop.nodes.some((node) => node.name === 'Desk'))
+    assert.ok(desktop.nodes.some((node) => node.name === 'Computer'))
+    assert.ok(desktop.nodes.some((node) => node.name === 'Radio'))
+    assert.ok(desktop.nodes.some((node) => node.name === 'PhotoDisplay'))
+    assert.ok(
+      desktop.nodes.some((node) =>
+        node.name?.startsWith(variant === 'studio' ? 'KeyboardKey' : 'NeonKey')
+      ),
+      `${variant}: primary controls keep their authored detail`
+    )
+  }
 })
 
 test('radio and exactly two selected note variants have bounded embedded assets', () => {
@@ -189,7 +168,7 @@ test('repeated screen sessions cancel every owned video frame callback on dispos
   for (let cycle = 0; cycle < 30; cycle++) {
     const texture = createDeskVideoTexture(video)
     assert.equal(texture.colorSpace, THREE.SRGBColorSpace)
-    assert.equal(texture.flipY, false)
+    assert.equal(texture.flipY, true)
     assert.equal(callbacks.size, 1)
     texture.dispose()
     assert.equal(callbacks.size, 0)

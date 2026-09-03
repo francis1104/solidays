@@ -2,24 +2,20 @@ import * as THREE from 'three'
 import { GLTFLoader, RGBELoader, type GLTFLoaderPlugin } from 'three-stdlib'
 
 export type DeskAssets = {
-  table: THREE.Group
-  computer: THREE.Group
-  cup: THREE.Group
-  radio: THREE.Group
+  scenePack: THREE.Group
   notePad: THREE.Group
   notePaper: THREE.Group
-  roomWallWindow: THREE.Group
-  roomWallStraight: THREE.Group
-  roomFloor: THREE.Group
-  roomCeiling: THREE.Group
-  lamp: THREE.Group
   environment: THREE.DataTexture
 }
+
+export type DeskVisualVariant = 'studio' | 'neon'
 
 export function createDeskVideoTexture(video: HTMLVideoElement) {
   const texture = new THREE.VideoTexture(video)
   texture.colorSpace = THREE.SRGBColorSpace
-  texture.flipY = false
+  // The current screen is an app-owned PlaneGeometry, not the old glTF UV
+  // surface, so browser video pixels use Three's regular vertical orientation.
+  texture.flipY = true
   return texture
 }
 
@@ -43,10 +39,14 @@ export function disposeDeskModel(model: THREE.Object3D) {
   textures.forEach((texture) => texture.dispose())
 }
 
-export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) => void) {
+export function loadDeskAssets(
+  mobile: boolean,
+  variant: DeskVisualVariant,
+  onProgress: (progress: number) => void
+) {
   let disposed = false
   const owned: Array<() => void> = []
-  const progress = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  const progress = [0, 0, 0, 0]
   const report = (index: number, value: number) => {
     progress[index] = Math.max(progress[index], value)
     if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / progress.length)
@@ -76,82 +76,33 @@ export function loadDeskAssets(mobile: boolean, onProgress: (progress: number) =
     // shared request needed by a new Desk; every late result is disposed below.
     owned.splice(0).forEach((release) => release())
   }
-  const computerPath = mobile ? '/desk/models/pc-mingtu-mobile.glb' : '/desk/models/pc-mingtu.glb'
+  const scenePath = `/desk/models/variants/desk-${variant}${mobile ? '-mobile' : ''}.glb`
   const promise = Promise.all([
-    track(loader.loadAsync('/desk/models/desk-web.glb', downloading(0)), 0, (gltf) =>
+    track(loader.loadAsync(scenePath, downloading(0)), 0, (gltf) => disposeDeskModel(gltf.scene)),
+    track(loader.loadAsync('/desk/models/note-pad.glb', downloading(1)), 1, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
-    track(loader.loadAsync(computerPath, downloading(1)), 1, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/mcdonalds-cup.glb', downloading(2)), 2, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/vintage-radio.glb', downloading(3)), 3, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/note-pad.glb', downloading(4)), 4, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/note-paper.glb', downloading(5)), 5, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/room-wall-window.glb', downloading(6)), 6, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/room-wall-straight.glb', downloading(7)), 7, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/room-floor.glb', downloading(8)), 8, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/room-ceiling.glb', downloading(9)), 9, (gltf) =>
-      disposeDeskModel(gltf.scene)
-    ),
-    track(loader.loadAsync('/desk/models/desk-lamp.glb', downloading(10)), 10, (gltf) =>
+    track(loader.loadAsync('/desk/models/note-paper.glb', downloading(2)), 2, (gltf) =>
       disposeDeskModel(gltf.scene)
     ),
     track(
       new RGBELoader(manager).loadAsync(
         `/desk/kloofendal-overcast-${mobile ? '1k' : '2k'}.hdr`,
-        downloading(11)
+        downloading(3)
       ),
-      11,
+      3,
       (texture) => texture.dispose()
     ),
   ])
-    .then(
-      ([
-        table,
-        computer,
-        cup,
-        radio,
-        notePad,
-        notePaper,
-        roomWallWindow,
-        roomWallStraight,
-        roomFloor,
-        roomCeiling,
-        lamp,
+    .then(([scenePack, notePad, notePaper, environment]) => {
+      environment.mapping = THREE.EquirectangularReflectionMapping
+      return {
+        scenePack: scenePack.scene,
+        notePad: notePad.scene,
+        notePaper: notePaper.scene,
         environment,
-      ]) => {
-        environment.mapping = THREE.EquirectangularReflectionMapping
-        return {
-          table: table.scene,
-          computer: computer.scene,
-          cup: cup.scene,
-          radio: radio.scene,
-          notePad: notePad.scene,
-          notePaper: notePaper.scene,
-          roomWallWindow: roomWallWindow.scene,
-          roomWallStraight: roomWallStraight.scene,
-          roomFloor: roomFloor.scene,
-          roomCeiling: roomCeiling.scene,
-          lamp: lamp.scene,
-          environment,
-        }
       }
-    )
+    })
     .catch((error: unknown) => {
       dispose()
       throw error

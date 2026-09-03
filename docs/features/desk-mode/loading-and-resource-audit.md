@@ -105,3 +105,28 @@ trace，因此不把 demand 模式断言为所有“运镜消失”的唯一原�
   Chrome DevTools MCP 本会话未提供，以上通过独立 Chrome 的 CDP 实测，并非 MCP。
 
 参考：[Three.js 资源释放](https://threejs.org/manual/en/how-to-dispose-of-objects.html)。
+
+## 双视觉包资源审查（2026-09-03）
+
+旧版首屏同时请求桌子、约 83k-tris 电脑、杯子、收音机、多个房间模块和台灯；物件来源、
+材质密度与造型语言各不相同。新版本将每个主题离线合并为一个自包含 GLB，当前实测：
+
+| 主题   |                Desktop |                 Mobile |
+| ------ | ---------------------: | ---------------------: |
+| Studio | 397,032 B / 8,269 tris | 231,912 B / 3,857 tris |
+| Neon   | 295,944 B / 5,275 tris | 184,720 B / 2,693 tris |
+
+2026-09-03 第二轮视觉精修把三角形预算集中给视线中心：主桌、电脑、收音终端、灯具和
+输入设备使用小倒角，Studio 键帽与 Neon 控制键为离线生成的轻量几何；窗外建筑和房间
+外壳不增加细分。Studio 开放桌架替换封闭柜体桌，保持 1.81 的既有桌面高度，因此热点、
+便签、屏幕和镜头坐标无需运行时补偿。四个包仍小于 400 KiB，移动包仍低于 4k tris。
+
+当前首屏仍加载两张原有便签（约 0.70 MiB）和 HDR（手机 1K、桌面 2K），但不会加载未选中
+主题或旧电脑/桌子/杯子/收音机。主题切换请求另一份约 0.15–0.26 MiB 场景包，保持同一个
+Canvas/WebGL context；切换完成前加载遮罩继续由真实下载、解析、shader compile 和首帧
+readiness 驱动。
+
+动态层只使用一组远景光点、极慢的城市光带和一组低数量 dust points；桌面端在 Overview
+保持低成本连续帧，移动端继续使用 demand frameloop、DPR 1、关闭 MSAA 和移动专用 GLB。
+没有 shadow map、后处理、体积雾、物理、自由 Orbit 或同时解码多个视频。Computer 视频
+仍只有一个 HTMLVideoElement / VideoTexture，切换与退出继续走原释放路径。

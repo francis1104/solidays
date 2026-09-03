@@ -1,10 +1,49 @@
 # Desk Mode：3D 桌面互动体验方案
 
-- 状态：第一版 Graybox 已实现，正在 DEV 验收
+- 状态：双视觉版本正在 DEV 验收
 - 日期：2026-08-29
 - 目标分支：`cloudflare-worker-DEV`
 - Feature 名称：Desk Mode / The Desk
-- 实施状态：Phase 0–4 的首版已落地；Phase 5 的 Room Shell / 窗户 / 台灯第一切片正在 DEV 验收。桌面与交互继续使用现有实现，外部模型通过 Blender CLI 统一处理后再接入。模型源文件保留在 `assets/3d/`，页面只加载 `public/desk/models/` 下自包含的 GLB；未上传模型到 R2。
+- 实施状态：交互状态机与四个业务目标保持不变；视觉层已拆成 Studio / Neon 两套完整低模布景，正在 DEV 验收。外部模型通过 Blender CLI 统一编排后再接入。模型源文件保留在 `assets/3d/`，页面只加载 `public/desk/models/` 下自包含的 GLB；未上传模型到 R2。
+
+## 2026-09-03：双视觉版本边界
+
+Desk 不再继续混搭旧曲面电脑、写实杯子、独立收音机和占位房间。当前提供两套可在
+Overview 切换、但共享同一业务状态机的完整布景：
+
+- `Studio`：深木色、炭灰设备、暖桌灯与冷窗光组成的夜间个人工作室；
+- `Neon`：深蓝工作台、青/粉边缘光、太空站式设备组成的赛博工作台。
+
+两套版本分别使用同一来源包内的低模物件，桌子、电脑、收音设备、照片显示器、座椅和
+背景道具不跨风格混用。窗口、灯光和配色属于版本主题；Computer / Radio / Photos /
+Message command、媒体状态、聊天状态和镜头状态机仍只保留一套。主题切换只允许发生在
+Overview，并复用同一个 WebGL Canvas，避免切换时销毁 context。
+
+低模只用于控制网页预算，不等于展示原始硬边模型。第二轮精修将有限几何集中到主物件：
+桌面、显示器、键盘、收音设备、照片终端和灯具在 Blender 中增加小倒角；Studio 使用
+开放桌架、独立键帽和桌垫，Neon 保留源颜色图集并增加发光控制键。背景建筑保持低模，
+页面用材质分层、褶皱窗帘、接触阴影和灯光建立完成度，不依靠堆满高模道具。
+
+模型包由下面的可重复命令生成：
+
+```bash
+node .yarn/releases/yarn-3.6.1.cjs desk:build-visual-variants
+```
+
+该命令读取被 Git 忽略的 `assets/3d/packs/kenney/` CC0 源包，在 Blender 中将每个物件
+统一为底部中心原点、Desk 世界坐标和语义化节点名，然后输出：
+
+```text
+public/desk/models/variants/
+├── desk-studio.glb
+├── desk-studio-mobile.glb
+├── desk-neon.glb
+└── desk-neon-mobile.glb
+```
+
+页面不逐个请求几十个道具；每个主题只请求一个场景 GLB。移动版在 Blender 导出阶段省略
+椅子、地毯、地板板件、管线和部分远景建筑，不依赖运行时隐藏高模。`BLENDER_BIN` 可以
+覆盖默认 Blender 可执行路径。处理脚本和最终 GLB 进入 Git；上游源包不进入 Git。
 
 ### 资产处理约定
 

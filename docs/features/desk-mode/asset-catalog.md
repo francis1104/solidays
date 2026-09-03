@@ -1,7 +1,26 @@
 # Desk 3D 素材目录
 
-整理日期：2026-08-31。桌面已使用麦当劳纸杯、复古收音机和两张便签；本轮加入
-受控夜间 Room Shell、窗户夜景卡和低模台灯。
+整理日期：2026-09-03。旧桌面模型保留为历史素材；当前 `/desk` 使用两套由 Kenney
+CC0 源包统一编排的低模视觉包，以及原有两张可交互便签。
+
+## 当前网页使用的双版本资源
+
+| 版本     | 模型来源                                                                     | 视觉用途                                                     |                桌面产物 |                移动产物 |
+| -------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------: | ----------------------: |
+| Studio   | [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit)               | 开放桌架、电脑、收音设备、照片显示器、灯、音箱、书架、植物、座椅 | 约 388 KiB / 8,269 tris | 约 227 KiB / 3,857 tris |
+| Neon     | [Kenney Space Station Kit](https://kenney.nl/assets/space-station-kit)       | 工作台、宽屏电脑、收音终端、照片终端、控制台、容器、座椅        | 约 289 KiB / 5,275 tris | 约 180 KiB / 2,693 tris |
+| 两者远景 | [Kenney City Kit (Commercial)](https://kenney.nl/assets/city-kit-commercial) | 窗外低模城市剪影                                             |          已并入主题 GLB |             只保留 5 栋 |
+
+上述页面标注均为 Kenney 官方页面声明的 CC0 资产。源 ZIP 与解包文件位于
+`assets/3d/packs/kenney/`，该目录被 Git 忽略；网页不会远程加载第三方模型，也不会在
+运行时解析 FBX。`scripts/desk/build-visual-variants.py` 是选择、定位、命名和导出的唯一
+清单，`build-visual-variants.mjs` 负责安全调用 Blender。
+
+主物件并非直接使用源包的原始硬边灰模。Blender 打包阶段只对桌面、屏幕、键盘、收音
+设备、照片终端、灯和音箱增加 1～2 段小倒角；Studio 额外生成桌垫、金属前缘和独立
+键帽，Neon 额外生成控制台与双色状态键。背景建筑仍保留原始低面数。页面保留 Neon
+源模型的颜色图集，并按木材、深色金属、亮金属分别处理 Studio 材质，不再把一件物品
+内的所有材质压成同一种颜色。
 
 ## 目录与使用规则
 
@@ -40,6 +59,11 @@ assets/3d/                              # 本地素材库，现有 .gitignore �
 
 public/desk/                           # 仅当前实际使用的网页资产，进入 Git
 ├── models/
+│   ├── variants/
+│   │   ├── desk-studio.glb
+│   │   ├── desk-studio-mobile.glb
+│   │   ├── desk-neon.glb
+│   │   └── desk-neon-mobile.glb
 │   ├── desk-web.glb
 │   ├── pc-mingtu.glb
 │   ├── mcdonalds-cup.glb
@@ -62,6 +86,8 @@ public/desk/                           # 仅当前实际使用的网页资产，
   新 checkout 如需重新处理模型，要先恢复本地素材库备份。
 - 新模型接入页面前按[Blender CLI 流程](./desktop-world-plan.md#资产处理约定)
   处理，再复制经过验证的最终产物到 `public/desk/models/`。不能用 `archive/` 覆盖当前网页版本。
+- `desk-web.glb`、`pc-mingtu*.glb`、麦当劳杯、旧收音机和旧 Room Shell 目前属于历史网页
+  产物，不再由 `/desk` 请求；在完成一次 DEV/生产回滚窗口前暂不删除。
 
 ## 现在有哪些
 

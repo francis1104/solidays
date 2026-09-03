@@ -25,6 +25,7 @@ import {
   type DeskTarget,
 } from '@/lib/desk'
 import { mediaUrl, privateMediaUrl } from '@/lib/media'
+import type { DeskVisualVariant } from './desk-assets'
 
 const DeskCanvas = dynamic(() => import('./desk-canvas'), {
   ssr: false,
@@ -168,6 +169,7 @@ export default function DeskExperience() {
   const [sceneReady, setSceneReady] = useState(false)
   const [loadProgress, setLoadProgress] = useState(0)
   const [simpleMode, setSimpleMode] = useState(false)
+  const [visualVariant, setVisualVariant] = useState<DeskVisualVariant>('studio')
   const [activeClip, setActiveClip] = useState<GalleryItem | undefined>()
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoError, setVideoError] = useState(false)
@@ -481,6 +483,16 @@ export default function DeskExperience() {
     }
   }, [])
 
+  const selectVisualVariant = useCallback(
+    (nextVariant: DeskVisualVariant) => {
+      if (phaseRef.current !== 'overview' || nextVariant === visualVariant) return
+      setSceneReady(false)
+      setLoadProgress(0)
+      setVisualVariant(nextVariant)
+    },
+    [visualVariant]
+  )
+
   useEffect(() => {
     const handleChatClosed = () => {
       if (targetRef.current === 'note' && phaseRef.current === 'focused') exitFocus(false)
@@ -561,6 +573,7 @@ export default function DeskExperience() {
       data-desk-mode
       data-desk-phase={phase}
       data-desk-target={target ?? 'overview'}
+      data-desk-variant={visualVariant}
       className="fixed inset-0 z-10 overflow-hidden bg-[#080b10] text-white"
     >
       {!simpleMode && currentPosterSource ? (
@@ -569,6 +582,7 @@ export default function DeskExperience() {
           style={{ pointerEvents: phase === 'overview' || isFocused ? 'auto' : 'none' }}
         >
           <DeskCanvas
+            visualVariant={visualVariant}
             posterUrl={currentPosterSource}
             phase={phase}
             target={target}
@@ -665,11 +679,30 @@ export default function DeskExperience() {
           </button>
         </div>
 
-        <div className="absolute top-5 right-5 text-right sm:top-8 sm:right-8">
+        <div className="pointer-events-auto absolute top-5 right-5 text-right sm:top-8 sm:right-8">
           <p className="text-[0.6rem] tracking-[0.35em] text-white/45 uppercase">The Desk</p>
           <p className="mt-1 text-xs text-white/70">
             {isMoving ? 'Moving camera' : target ? DESK_TARGET_LABELS[target] : 'Overview'}
           </p>
+          {phase === 'overview' ? (
+            <div className="mt-3 ml-auto flex w-fit rounded-full border border-white/10 bg-black/25 p-1 backdrop-blur-md">
+              {(['studio', 'neon'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => selectVisualVariant(option)}
+                  aria-pressed={visualVariant === option}
+                  className={`rounded-full px-2.5 py-1 text-[0.55rem] tracking-[0.14em] uppercase transition-colors ${
+                    visualVariant === option
+                      ? 'bg-white/15 text-white'
+                      : 'text-white/45 hover:text-white/80'
+                  }`}
+                >
+                  {option === 'studio' ? 'Studio' : 'Neon'}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {isFocused && target === 'computer' ? (
@@ -792,17 +825,6 @@ export default function DeskExperience() {
             </p>
             <p className="mt-2 text-sm text-white/55">The conversation is open beside the desk.</p>
           </div>
-        ) : null}
-
-        {isFocused && target === 'radio' && !simpleMode ? (
-          <a
-            className="pointer-events-auto absolute bottom-24 left-5 text-[10px] text-black/60 underline"
-            href="https://sketchfab.com/3d-models/vintage-radio-e2b64f5031fa45e8be661a89baeae3f0"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Radio model: Loïc · CC BY 4.0
-          </a>
         ) : null}
 
         <div className="desk-bottom-controls pointer-events-auto absolute right-0 bottom-5 left-0 flex justify-center px-4 sm:bottom-8">

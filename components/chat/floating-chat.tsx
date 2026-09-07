@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, useReducedMotion } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { ChatLauncher } from './chat-launcher'
 import { ChatPanel } from './chat-panel'
+import { DeskNoteChat } from './desk-note-chat'
+import { DESK_NOTE_HOST_EVENT, type DeskNoteHost } from '@/lib/desk-chat'
 import { ChatTurnstile, type ChatTurnstileHandle } from './chat-turnstile'
 import type { ChatApiMessage, ChatApiResponse, ChatMessage } from './chat-types'
 import type { ChatRealtimeEvent } from '@/lib/chat/realtime-events'
@@ -26,6 +29,9 @@ import {
 import { useChatRealtime, type RealtimeBootstrapResult } from './use-chat-realtime'
 
 const PANEL_ID = 'floating-chat-panel'
+const DESK_CHAT_OPEN_EVENT = 'solidays:desk-chat-open'
+const DESK_CHAT_CLOSE_EVENT = 'solidays:desk-chat-close'
+const DESK_CHAT_CLOSED_EVENT = 'solidays:desk-chat-closed'
 
 const initialMessages: ChatMessage[] = [
   {
@@ -143,6 +149,8 @@ async function fetchMessagesUntilOverlap(
 }
 
 export default function FloatingChat() {
+  const pathname = usePathname()
+  const isDeskRoute = pathname === '/desk'
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
@@ -175,6 +183,12 @@ export default function FloatingChat() {
   })
   const reducedMotion = useReducedMotion() ?? false
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
+  const deskChatOpenRef = useRef(false)
+  const [deskEmbedded, setDeskEmbedded] = useState(false)
+  const [deskNoteHosts, setDeskNoteHosts] = useState<{
+    history: HTMLDivElement | null
+    compose: HTMLDivElement | null
+  }>({ history: null, compose: null })
 
   const applyConversationHistory = useCallback(
     (
@@ -213,11 +227,47 @@ export default function FloatingChat() {
 
   const closeChat = useCallback(() => {
     setOpen(false)
+    deskChatOpenRef.current = false
+    window.dispatchEvent(new Event(DESK_CHAT_CLOSED_EVENT))
   }, [])
 
   const openChat = useCallback(() => {
     setOpen(true)
   }, [])
+
+  useEffect(() => {
+    const handleDeskChatOpen = (event: Event) => {
+      deskChatOpenRef.current = true
+      setDeskEmbedded(Boolean((event as CustomEvent<{ embedded?: boolean }>).detail?.embedded))
+      openChat()
+    }
+    const handleDeskChatClose = () => {
+      deskChatOpenRef.current = false
+      closeChat()
+    }
+    const handleNoteHost = (event: Event) => {
+      const { kind, element } = (event as CustomEvent<DeskNoteHost>).detail
+      if (kind !== 'history' && kind !== 'compose') return
+      setDeskNoteHosts((current) =>
+        current[kind] === element ? current : { ...current, [kind]: element }
+      )
+    }
+
+    window.addEventListener(DESK_NOTE_HOST_EVENT, handleNoteHost)
+    window.addEventListener(DESK_CHAT_OPEN_EVENT, handleDeskChatOpen)
+    window.addEventListener(DESK_CHAT_CLOSE_EVENT, handleDeskChatClose)
+    return () => {
+      window.removeEventListener(DESK_NOTE_HOST_EVENT, handleNoteHost)
+      window.removeEventListener(DESK_CHAT_OPEN_EVENT, handleDeskChatOpen)
+      window.removeEventListener(DESK_CHAT_CLOSE_EVENT, handleDeskChatClose)
+    }
+  }, [closeChat, openChat])
+
+  useEffect(() => {
+    if (isDeskRoute || !deskChatOpenRef.current) return
+    deskChatOpenRef.current = false
+    setOpen(false)
+  }, [isDeskRoute])
 
   const requestScrollToLatest = useCallback(() => {
     setScrollToLatestRequest((request) => request + 1)
@@ -725,32 +775,41 @@ export default function FloatingChat() {
     return () => window.clearTimeout(focusTimer)
   }, [open, reducedMotion])
 
+  const panelProps = {
+    messages,
+    hasMoreHistory,
+    isLoadingMoreHistory,
+    input,
+    panelId: PANEL_ID,
+    textareaRef,
+    onChange: setInput,
+    onClose: closeChat,
+    onLoadMoreHistory: loadMoreHistory,
+    onSubmit: sendMessage,
+    isSending,
+    error,
+    reducedMotion,
+    scrollToLatestRequest,
+    smoothScrollPending,
+    onSmoothScrollComplete: completeSmoothScrollTransaction,
+  }
+  const useNotePresentation = isDeskRoute && deskEmbedded
+
   return (
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <ChatTurnstile ref={turnstileRef} siteKey={siteKey} />
+      {open && useNotePresentation && deskNoteHosts.history && deskNoteHosts.compose ? (
+        <DeskNoteChat
+          {...panelProps}
+          historyHost={deskNoteHosts.history}
+          composeHost={deskNoteHosts.compose}
+        />
+      ) : null}
       <LayoutGroup id="floating-chat">
         <AnimatePresence initial={false}>
-          {open ? (
-            <ChatPanel
-              key="chat-panel"
-              messages={messages}
-              hasMoreHistory={hasMoreHistory}
-              isLoadingMoreHistory={isLoadingMoreHistory}
-              input={input}
-              panelId={PANEL_ID}
-              textareaRef={textareaRef}
-              onChange={setInput}
-              onClose={closeChat}
-              onLoadMoreHistory={loadMoreHistory}
-              onSubmit={sendMessage}
-              isSending={isSending}
-              error={error}
-              reducedMotion={reducedMotion}
-              scrollToLatestRequest={scrollToLatestRequest}
-              smoothScrollPending={smoothScrollPending}
-              onSmoothScrollComplete={completeSmoothScrollTransaction}
-            />
-          ) : (
+          {open && !useNotePresentation ? (
+            <ChatPanel key="chat-panel" {...panelProps} />
+          ) : isDeskRoute ? null : (
             <ChatLauncher
               key="chat-launcher"
               ref={launcherRef}

@@ -8,6 +8,35 @@ import { isScannerPath } from './lib/scanner-path'
 
 const MAX_PURGE_BATCHES_PER_RUN = 10
 const MUSIC_MEDIA_PATH = /^\/media\/music\/[A-Za-z0-9._/-]+$/
+const GALLERY_VIDEO_PATH = /^\/media\/(?:gaming|gallery-phase2)\/[A-Za-z0-9._/-]+\.mp4$/
+const GALLERY_MEDIA_BASE_URL = 'https://media.solidays.win'
+
+async function proxyGalleryVideo(request: Request) {
+  const url = new URL(request.url)
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return null
+  }
+
+  if (!GALLERY_VIDEO_PATH.test(url.pathname)) return null
+
+  const headers = new Headers()
+  for (const name of ['range', 'if-range', 'if-none-match', 'if-modified-since']) {
+    const value = request.headers.get(name)
+    if (value) headers.set(name, value)
+  }
+
+  const upstreamUrl = `${GALLERY_MEDIA_BASE_URL}/${url.pathname.slice('/media/'.length)}${url.search}`
+  const response = await fetch(upstreamUrl, {
+    method: request.method,
+    headers,
+  })
+
+  // Return the upstream ranged response directly. The upstream Content-Length
+  // is important to Chromium's media loader and must not be lost in the
+  // OpenNext Node response adapter.
+  return response
+}
 
 function createFixedLengthBody(body: ReadableStream<Uint8Array>, size: number) {
   const fixedLength = new FixedLengthStream(size)
@@ -81,6 +110,9 @@ export default {
         },
       })
     }
+
+    const galleryVideoResponse = await proxyGalleryVideo(request)
+    if (galleryVideoResponse) return galleryVideoResponse
 
     // OpenNext's Node response adapter cannot construct a 101 upgrade. Route
     // realtime requests directly so the platform WebSocket handle survives.

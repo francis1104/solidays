@@ -7,6 +7,7 @@ import { Play, Pause, SkipBack, SkipForward, X } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSongContext } from '@/contexts/SongContext'
+import { usePathname } from 'next/navigation'
 import {
   finiteMediaTime,
   formatMediaTime,
@@ -17,6 +18,8 @@ import {
 
 const MusicDock = () => {
   const reducedMotion = useReducedMotion() ?? false
+  const pathname = usePathname()
+  const isDeskRoute = pathname === '/desk'
   const [isDockOpen, setIsDockOpen] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -466,6 +469,7 @@ const MusicDock = () => {
   }
 
   if (!hasAnyPlayableSource(cards) && !playingSong && playlist.length === 0) return null
+  if (isDeskRoute) return null
 
   return (
     <div

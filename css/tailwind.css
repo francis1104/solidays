@@ -1,13 +1,14 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Core theme configuration */
 @theme {
   /* Font families */
-  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
 
   /* Colors */
   /* Copied from https://tailwindcss.com/docs/theme#default-theme-variable-reference */
@@ -130,6 +131,73 @@
 
 .data-footnote-backref {
   @apply no-underline;
+}
+
+@layer components {
+  .desk-glass-panel {
+    @apply rounded-2xl border border-white/15 bg-[#111722]/75 text-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  }
+
+  .desk-glass-button {
+    @apply rounded-full border border-white/15 bg-black/20 px-3 py-2 text-white/70 shadow-lg backdrop-blur-md transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-[#f03e91];
+  }
+
+  .desk-control-button {
+    @apply flex size-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white/70 transition-colors hover:border-white/30 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-[#f03e91] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .desk-solid-button {
+    @apply inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-[#080b10] transition-colors hover:bg-[#f4d35e] focus-visible:outline-2 focus-visible:outline-[#f03e91];
+  }
+}
+
+.desk-frame-overlay {
+  transform: translateX(-50%);
+}
+
+/* Keep focused Desk controls inside the viewport on short landscape screens. */
+@media (max-height: 520px) {
+  [data-desk-mode][data-desk-phase='focused'] .desk-back-control {
+    display: none;
+  }
+
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls {
+    left: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    padding: 0;
+  }
+
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls button:disabled,
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls span {
+    display: none;
+  }
+
+  [data-desk-mode] .desk-computer-overlay {
+    top: 2rem;
+    width: min(88vw, calc((100vh - 130px) * 16 / 9));
+  }
+
+  [data-desk-mode] .desk-computer-overlay > a {
+    display: none;
+  }
+
+  [data-desk-mode] .desk-frame-overlay {
+    top: 2rem;
+    width: min(72vw, calc((100vh - 180px) * 0.8));
+  }
+
+  [data-desk-mode] .desk-frame-overlay[data-frame-presentation='object'] {
+    top: auto;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    width: min(calc(100vw - 116px), 390px);
+    transform: none;
+  }
+
+  [data-desk-mode] .desk-frame-overlay > a {
+    display: none;
+  }
 }
 
 .csl-entry {
@@ -301,7 +369,7 @@ input:-webkit-autofill:focus {
   }
 
   .floating-control-surface:hover {
-    @apply bg-white/80 shadow-primary-500/10;
+    @apply shadow-primary-500/10 bg-white/80;
   }
 
   .dark .floating-control-surface {
@@ -309,11 +377,11 @@ input:-webkit-autofill:focus {
   }
 
   .dark .floating-control-surface:hover {
-    @apply bg-gray-950/80 shadow-primary-500/20;
+    @apply shadow-primary-500/20 bg-gray-950/80;
   }
 
   .floating-control-focus:focus-visible {
-    @apply outline-2 outline-offset-2 outline-primary-500;
+    @apply outline-primary-500 outline-2 outline-offset-2;
   }
 
   /* Keep the mobile chat launcher above the expanded dock without moving the dock. */
@@ -324,9 +392,10 @@ input:-webkit-autofill:focus {
   }
 }
 
-::view-transition-old(root), ::view-transition-new(root) {
-    animation: none;
-    mix-blend-mode: normal;
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 html.theme-transitioning [data-chat-surface] {
@@ -447,4 +516,191 @@ html.dark.theme-transitioning [data-chat-surface] {
     right: auto !important;
     left: 15% !important;
   }
+}
+
+/* Desk-only ink overlays: transparent DOM attached to the actual model planes.
+   No glass surface, fixed viewport panel, or styles leaking to Floating Chat. */
+.desk-note-ink,
+.desk-note-host {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  color: #40351e;
+  color-scheme: light;
+}
+.desk-note-label {
+  position: absolute;
+  inset: 28px 12px;
+  font-family: Georgia, serif;
+  font-size: 30px;
+}
+.desk-note-label span {
+  display: block;
+  margin-top: 12px;
+  font-size: 18px;
+}
+.desk-note-chat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  color: #40351e;
+}
+.desk-note-chat header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid #64502840;
+  flex-shrink: 0;
+}
+.desk-note-chat h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.desk-note-chat header p {
+  font-size: 14px;
+  margin-top: 4px;
+}
+.desk-note-chat header button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+.desk-note-chat button:focus-visible {
+  outline: 2px solid #40351e;
+  outline-offset: 2px;
+}
+.desk-note-chat [data-slot='bubble-content'] {
+  border: 0;
+  border-radius: 0;
+  color: #40351e;
+  background: transparent;
+  padding: 6px 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.desk-note-chat [data-align='end'] > [data-slot='bubble-content'] {
+  border-bottom: 1px dashed #64502870;
+}
+.desk-note-history > div > div[aria-hidden='true'] {
+  background: none;
+}
+.desk-note-chat form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 4px 8px;
+  background: none;
+  border: 0;
+}
+.desk-note-chat form > div {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(transparent 0 29px, #64502825 29px 30px);
+  box-shadow: none;
+  padding: 0;
+  align-items: flex-end;
+}
+.desk-note-chat form textarea {
+  color: #40351e;
+  font-size: 20px;
+  line-height: 30px;
+  padding: 0 4px;
+  align-self: flex-start;
+  min-width: 0;
+  width: 0;
+}
+.desk-note-chat form button {
+  background: #544429;
+  color: #fff5cb;
+  width: 42px;
+  height: 42px;
+}
+.desk-note-chat form p {
+  color: #655535;
+  font-size: 12px;
+}
+.desk-note-chat form [role='alert'] {
+  color: #9f3022;
+}
+/* Override Drei's inline overflow:hidden: focus must not scroll its perspective root. */
+.desk-model-html {
+  overflow: clip !important;
+}
+.desk-radio-face {
+  position: relative;
+  width: 400px;
+  height: 240px;
+  color: #efe2b7;
+  color-scheme: dark;
+}
+.desk-radio-display {
+  position: absolute;
+  left: 274px;
+  top: 49px;
+  width: 106px;
+  height: 68px;
+  border-radius: 4px;
+  background: #121d1d;
+  border: 1px solid #a3b49180;
+  padding: 10px 4px;
+  text-align: center;
+  box-shadow: inset 0 0 12px #0008;
+}
+.desk-radio-display p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+.desk-radio-display span {
+  font-family: monospace;
+  font-size: 11px;
+}
+.desk-radio-face button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: transparent;
+  color: #f4e2ac;
+}
+.desk-radio-face button svg {
+  width: 18px;
+  height: 18px;
+}
+.desk-radio-face button:hover,
+.desk-radio-face button:focus-visible {
+  outline: 2px solid #ead194;
+  background: #332f2080;
+}
+.desk-radio-power {
+  left: 266px;
+  top: 149px;
+}
+.desk-radio-mute {
+  left: 342px;
+  top: 149px;
+}
+.desk-radio-face .desk-radio-previous,
+.desk-radio-face .desk-radio-next {
+  top: 173px;
+  width: 58px;
+  height: 35px;
+  border-radius: 4px;
+  color: #171c20;
+}
+.desk-radio-previous {
+  left: 44px;
+}
+.desk-radio-next {
+  left: 132px;
 }

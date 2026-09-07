@@ -21,7 +21,9 @@ node .yarn/releases/yarn-3.6.1.cjs test:chat-realtime
 node .yarn/releases/yarn-3.6.1.cjs test:chat-local-concurrent
 ```
 
-`worker:dev` 会先构建，再启动 Wrangler；`wrangler.jsonc` 中的 R2 和 AI 是
+`worker:dev` 会先构建，再启动 Wrangler，并默认监听 `0.0.0.0:8787`，因此同一局域网内
+的手机可以通过“电脑局域网 IP:8787”访问（例如先用 `ipconfig getifaddr en0` 查看 IP）。
+`wrangler.jsonc` 中的 R2 和 AI 是
 `remote: true`，本地调试可能访问真实 Cloudflare 资源，不要在未确认时做上传、删除
 或 AI 调用。当前 `worker:dev` 还会只在本地命令行覆盖
 `CHAT_REALTIME_ENABLED=true`，用于验收聊天 WebSocket；生产开关由

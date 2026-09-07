@@ -1,13 +1,14 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Core theme configuration */
 @theme {
   /* Font families */
-  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
 
   /* Colors */
   /* Copied from https://tailwindcss.com/docs/theme#default-theme-variable-reference */
@@ -150,6 +151,10 @@
   }
 }
 
+.desk-frame-overlay {
+  transform: translateX(-50%);
+}
+
 /* Keep focused Desk controls inside the viewport on short landscape screens. */
 @media (max-height: 520px) {
   [data-desk-mode][data-desk-phase='focused'] .desk-back-control {
@@ -157,6 +162,14 @@
   }
 
   [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls {
+    left: auto;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    padding: 0;
+  }
+
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls button:disabled,
+  [data-desk-mode][data-desk-phase='focused'] .desk-bottom-controls span {
     display: none;
   }
 
@@ -172,6 +185,14 @@
   [data-desk-mode] .desk-frame-overlay {
     top: 2rem;
     width: min(72vw, calc((100vh - 180px) * 0.8));
+  }
+
+  [data-desk-mode] .desk-frame-overlay[data-frame-presentation='object'] {
+    top: auto;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    width: min(calc(100vw - 116px), 390px);
+    transform: none;
   }
 
   [data-desk-mode] .desk-frame-overlay > a {
@@ -348,7 +369,7 @@ input:-webkit-autofill:focus {
   }
 
   .floating-control-surface:hover {
-    @apply bg-white/80 shadow-primary-500/10;
+    @apply shadow-primary-500/10 bg-white/80;
   }
 
   .dark .floating-control-surface {
@@ -356,11 +377,11 @@ input:-webkit-autofill:focus {
   }
 
   .dark .floating-control-surface:hover {
-    @apply bg-gray-950/80 shadow-primary-500/20;
+    @apply shadow-primary-500/20 bg-gray-950/80;
   }
 
   .floating-control-focus:focus-visible {
-    @apply outline-2 outline-offset-2 outline-primary-500;
+    @apply outline-primary-500 outline-2 outline-offset-2;
   }
 
   /* Keep the mobile chat launcher above the expanded dock without moving the dock. */
@@ -371,9 +392,10 @@ input:-webkit-autofill:focus {
   }
 }
 
-::view-transition-old(root), ::view-transition-new(root) {
-    animation: none;
-    mix-blend-mode: normal;
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 html.theme-transitioning [data-chat-surface] {
@@ -613,70 +635,72 @@ html.dark.theme-transitioning [data-chat-surface] {
 .desk-radio-face {
   position: relative;
   width: 400px;
-  height: 180px;
+  height: 240px;
   color: #efe2b7;
   color-scheme: dark;
 }
 .desk-radio-display {
   position: absolute;
-  left: 105px;
-  top: 50px;
-  width: 190px;
-  height: 60px;
-  background: #25251bee;
-  border: 1px solid #d5bd8066;
-  padding: 5px 8px;
+  left: 274px;
+  top: 49px;
+  width: 106px;
+  height: 68px;
+  border-radius: 4px;
+  background: #121d1d;
+  border: 1px solid #a3b49180;
+  padding: 10px 4px;
   text-align: center;
+  box-shadow: inset 0 0 12px #0008;
 }
 .desk-radio-display p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 18px;
+  font-size: 16px;
 }
 .desk-radio-display span {
   font-family: monospace;
-  font-size: 13px;
+  font-size: 11px;
 }
 .desk-radio-face button {
   position: absolute;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   cursor: pointer;
-  background: #16181238;
+  background: transparent;
   color: #f4e2ac;
 }
 .desk-radio-face button svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 .desk-radio-face button:hover,
 .desk-radio-face button:focus-visible {
   outline: 2px solid #ead194;
-  background: #332f20aa;
+  background: #332f2080;
 }
 .desk-radio-power {
-  left: 58px;
-  top: 74px;
+  left: 266px;
+  top: 149px;
 }
 .desk-radio-mute {
-  right: 58px;
-  top: 74px;
+  left: 342px;
+  top: 149px;
 }
 .desk-radio-face .desk-radio-previous,
 .desk-radio-face .desk-radio-next {
-  top: 116px;
-  height: 34px;
-  border-radius: 3px;
-  background: #c1bba588;
-  color: #312b20;
+  top: 173px;
+  width: 58px;
+  height: 35px;
+  border-radius: 4px;
+  color: #171c20;
 }
 .desk-radio-previous {
-  left: 134px;
+  left: 44px;
 }
 .desk-radio-next {
-  right: 134px;
+  left: 132px;
 }

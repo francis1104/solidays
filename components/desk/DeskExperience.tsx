@@ -25,6 +25,7 @@ import {
   type DeskTarget,
 } from '@/lib/desk'
 import { mediaUrl, privateMediaUrl } from '@/lib/media'
+import mediaImageLoader from '@/lib/media-image-loader'
 import type { DeskVisualVariant } from './desk-assets'
 
 const DeskCanvas = dynamic(() => import('./desk-canvas'), {
@@ -584,6 +585,15 @@ export default function DeskExperience() {
           <DeskCanvas
             visualVariant={visualVariant}
             posterUrl={currentPosterSource}
+            photoUrl={mediaImageLoader({
+              src: privateMediaUrl(
+                new URL(activeFrame.image, 'https://solidays.win').pathname.replace(
+                  /^\/media\//,
+                  ''
+                )
+              ),
+              width: 640,
+            })}
             phase={phase}
             target={target}
             reducedMotion={reducedMotion}
@@ -762,25 +772,30 @@ export default function DeskExperience() {
         ) : null}
 
         {isFocused && target === 'frame' ? (
-          <div className="desk-frame-overlay pointer-events-auto absolute top-[13%] left-1/2 w-[min(72vw,390px)] -translate-x-1/2 sm:top-[12%]">
+          <div
+            data-frame-presentation={simpleMode ? 'panel' : 'object'}
+            className={`desk-frame-overlay pointer-events-auto absolute left-1/2 w-[min(90vw,390px)] ${simpleMode ? 'top-[13%]' : 'bottom-28'}`}
+          >
             <div className="desk-glass-panel overflow-hidden p-3">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-white/10">
-                {/* The frame intentionally uses one current image and preloads only the next image. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={activeFrame.image}
-                  alt={activeFrame.title}
-                  className="h-full w-full object-cover"
-                />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={nextFrame.image}
-                  alt=""
-                  aria-hidden="true"
-                  className="hidden"
-                  loading="eager"
-                />
-              </div>
+              {simpleMode ? (
+                <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-white/10">
+                  {/* The frame intentionally uses one current image and preloads only the next image. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activeFrame.image}
+                    alt={activeFrame.title}
+                    className="h-full w-full object-cover"
+                  />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={nextFrame.image}
+                    alt=""
+                    aria-hidden="true"
+                    className="hidden"
+                    loading="eager"
+                  />
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-3 px-2 pt-4 pb-2">
                 <div>
                   <p className="text-sm font-medium">{activeFrame.title}</p>
@@ -829,17 +844,19 @@ export default function DeskExperience() {
 
         <div className="desk-bottom-controls pointer-events-auto absolute right-0 bottom-5 left-0 flex justify-center px-4 sm:bottom-8">
           <div className="desk-glass-panel flex max-w-full items-center gap-1 overflow-x-auto rounded-full p-1.5">
-            {(Object.keys(DESK_TARGET_LABELS) as DeskTarget[]).map((deskTarget) => (
-              <button
-                key={deskTarget}
-                type="button"
-                onClick={() => focusObject(deskTarget)}
-                disabled={phase !== 'overview'}
-                className={`rounded-full px-3 py-2 text-[0.62rem] tracking-[0.12em] whitespace-nowrap uppercase transition-colors sm:px-4 ${target === deskTarget && isFocused ? 'bg-white/15 text-white' : 'text-white/55 hover:bg-white/10 hover:text-white'} disabled:cursor-not-allowed disabled:opacity-35`}
-              >
-                {DESK_TARGET_LABELS[deskTarget]}
-              </button>
-            ))}
+            {(Object.keys(DESK_TARGET_LABELS) as DeskTarget[])
+              .filter((deskTarget) => !isFocused || deskTarget === target)
+              .map((deskTarget) => (
+                <button
+                  key={deskTarget}
+                  type="button"
+                  onClick={() => focusObject(deskTarget)}
+                  disabled={phase !== 'overview'}
+                  className={`rounded-full px-3 py-2 text-[0.62rem] tracking-[0.12em] whitespace-nowrap uppercase transition-colors sm:px-4 ${target === deskTarget && isFocused ? 'bg-white/15 text-white' : 'text-white/55 hover:bg-white/10 hover:text-white'} disabled:cursor-not-allowed disabled:opacity-35`}
+                >
+                  {DESK_TARGET_LABELS[deskTarget]}
+                </button>
+              ))}
             {isFocused ? (
               <>
                 <span className="mx-1 h-4 w-px bg-white/15" />

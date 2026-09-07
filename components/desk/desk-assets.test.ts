@@ -61,10 +61,28 @@ test('Studio and Neon packs stay compact and mobile omits decorative geometry', 
         .flatMap((mesh) => mesh.primitives)
         .reduce((sum, primitive) => sum + model.accessors[primitive.indices].count / 3, 0)
 
-    assert.ok(readFileSync(desktopPath).length < 450000, `${variant}: desktop bytes`)
-    assert.ok(readFileSync(mobilePath).length < 250000, `${variant}: mobile bytes`)
-    assert.ok(triangles(desktop) < 10000, `${variant}: desktop triangles`)
-    assert.ok(triangles(mobile) < triangles(desktop), `${variant}: mobile triangles`)
+    assert.ok(readFileSync(desktopPath).length < 2 * 1024 * 1024, `${variant}: desktop bytes`)
+    assert.ok(readFileSync(mobilePath).length < 1024 * 1024, `${variant}: mobile bytes`)
+    assert.ok(triangles(desktop) < 65000, `${variant}: desktop triangles`)
+    assert.ok(triangles(mobile) < 22000, `${variant}: mobile triangles`)
+    assert.ok(triangles(mobile) < triangles(desktop) * 0.4, `${variant}: mobile triangles`)
+    assert.ok(
+      desktop.meshes.flatMap((mesh) => mesh.primitives).length < 80,
+      `${variant}: draw calls`
+    )
+    assert.ok(
+      desktop.materials.some(
+        (material) =>
+          material.name === 'Desk / Brushed brass' || material.name === 'Desk / Brushed titanium'
+      )
+    )
+    assert.ok(
+      desktop.materials.some(
+        (material) =>
+          material.name === 'Desk / Woven speaker cloth' &&
+          material.pbrMetallicRoughness.baseColorTexture
+      )
+    )
     assert.ok(desktop.nodes.some((node) => node.name === 'Desk'))
     assert.ok(desktop.nodes.some((node) => node.name === 'Computer'))
     assert.ok(desktop.nodes.some((node) => node.name === 'Radio'))

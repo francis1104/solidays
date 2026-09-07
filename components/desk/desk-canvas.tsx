@@ -43,14 +43,14 @@ const DESK_THEMES = {
     glass: '#132a3b',
     glassOpacity: 0.28,
     ambient: '#a8b5c5',
-    ambientIntensity: 0.38,
+    ambientIntensity: 0.16,
     key: '#ffd6a0',
     keyIntensity: 20,
     window: '#6f9fd0',
     windowIntensity: 11,
     accent: '#e7a96b',
     secondary: '#7ea3b8',
-    environmentIntensity: 0.48,
+    environmentIntensity: 0.32,
   },
   neon: {
     background: '#050711',
@@ -62,14 +62,14 @@ const DESK_THEMES = {
     glass: '#081a2f',
     glassOpacity: 0.34,
     ambient: '#7a82bb',
-    ambientIntensity: 0.3,
+    ambientIntensity: 0.13,
     key: '#ff4fb8',
     keyIntensity: 17,
     window: '#55d9ff',
     windowIntensity: 16,
     accent: '#ff4fb8',
     secondary: '#55d9ff',
-    environmentIntensity: 0.34,
+    environmentIntensity: 0.27,
   },
 } as const
 
@@ -165,7 +165,7 @@ function getPose(
 
     return narrow
       ? { position: [1.2, 6.9, 19.8], lookAt: [0, 0.65, -2.8] }
-      : { position: [2.6, 4.7, 11], lookAt: [0, 1.8, -4.2] }
+      : { position: [2.6, 5.3, 11.7], lookAt: [0, 1.6, -3.8] }
   }
 
   if (target === 'note') {
@@ -197,6 +197,14 @@ function getPose(
     return {
       position: [layout.radio[0] + 0.35, layout.radio[1] + 1.05, layout.radio[2] + distance],
       lookAt: [layout.radio[0], layout.radio[1] + 0.62, layout.radio[2]],
+    }
+  }
+  if (target === 'frame') {
+    const halfFov = THREE.MathUtils.degToRad((compact ? 44 : narrow ? 48 : 42) / 2)
+    const distance = Math.max(4.8, 1.9 / (2 * Math.tan(halfFov) * aspect * 0.8))
+    return {
+      position: [layout.frame[0], layout.frame[1] + 0.08, layout.frame[2] + distance],
+      lookAt: [layout.frame[0], layout.frame[1] - 0.12, layout.frame[2]],
     }
   }
   if (!narrow) return targetPose[target]
@@ -357,15 +365,15 @@ const DESK_ROOM_CEILING_Y = 8.2
 const DESK_LAYOUT = {
   studio: {
     surfaceY: 1.81,
-    screen: { position: [0, 3.08, -3.96], size: [3.1, 1.78] },
+    screen: { position: [0, 3.22, -4.105], size: [3.54, 1.99125] },
     radio: [-3.65, 1.81, -3.65] as [number, number, number],
-    frame: [3.2, 2.55, -3.88] as [number, number, number],
+    frame: [3.15, 2.98, -4.29] as [number, number, number],
   },
   neon: {
     surfaceY: 1.64,
-    screen: { position: [0, 2.86, -3.12], size: [3.2, 1.68] },
+    screen: { position: [0, 3.08, -4.005], size: [3.54, 1.99125] },
     radio: [-3.55, 1.64, -3.45] as [number, number, number],
-    frame: [3.35, 2.45, -3.5] as [number, number, number],
+    frame: [3.15, 2.81, -4.29] as [number, number, number],
   },
 } as const
 
@@ -376,7 +384,7 @@ function DeskEnvironment({
   environment: THREE.Texture
   variant: DeskVisualVariant
 }) {
-  const { invalidate, scene } = useThree()
+  const { invalidate, scene, gl } = useThree()
   const theme = DESK_THEMES[variant]
 
   useEffect(() => {
@@ -389,6 +397,7 @@ function DeskEnvironment({
     // Keep the HDR for reflections/IBL, but let the room shell own the visible
     // backdrop. Showing the HDR as the background makes the desk read like a
     // model floating in an environment viewer instead of a room.
+    gl.toneMappingExposure = variant === 'studio' ? 1.1 : 1.18
     scene.background = background
     scene.backgroundIntensity = 1
     scene.environment = environment
@@ -402,7 +411,7 @@ function DeskEnvironment({
       scene.environmentIntensity = previousEnvironmentIntensity
       invalidate()
     }
-  }, [environment, invalidate, scene, theme.background, theme.environmentIntensity])
+  }, [environment, gl, invalidate, scene, theme.background, theme.environmentIntensity, variant])
 
   return null
 }
@@ -424,95 +433,38 @@ function createGroundingTexture() {
 function DeskVisualPack({ scene, variant }: { scene: THREE.Group; variant: DeskVisualVariant }) {
   const model = useMemo(() => {
     const clone = scene.clone(true)
-    const studioPalette: Record<string, string> = {
-      Desk: '#4a3028',
-      DeskMat: '#14191c',
-      DeskTrim: '#7d5538',
-      Computer: '#20272c',
-      Keyboard: '#252d31',
-      KeyboardKey: '#161b1e',
-      Mouse: '#30383b',
-      Radio: '#8a4d32',
-      PhotoDisplay: '#242b30',
-      Lamp: '#4a4037',
-      DeskSpeakerLeft: '#273035',
-      DeskSpeakerRight: '#273035',
-      Bookcase: '#3f3029',
-      Books: '#72594d',
-      Plant: '#435b4b',
-      Chair: '#55493e',
-      Rug: '#31383b',
-    }
-    const neonPalette: Record<string, string> = {
-      Desk: '#1d263c',
-      Computer: '#283452',
-      Radio: '#30324e',
-      PhotoDisplay: '#252f4a',
-      ConsoleLeft: '#27334f',
-      ConsoleRight: '#27334f',
-      ContainerLeft: '#312d48',
-      ContainerRight: '#312d48',
-      Chair: '#252b43',
-      FloorPanelLeft: '#151c30',
-      FloorPanelRight: '#151c30',
-      PipeLeft: '#343655',
-      PipeRight: '#343655',
-      NeonDeck: '#121b36',
-      NeonKeyCyan: '#35c8ef',
-      NeonKeyPink: '#f03e91',
-    }
-    const palette = variant === 'studio' ? studioPalette : neonPalette
     clone.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return
-      const semantic = object.name.split('__')[0]
+      // Preserve authored PBR finishes. Recolor only the distant CC0 skyline.
       const materials = [object.material].flat().map((source) => {
         const material = source.clone()
-        if (material instanceof THREE.MeshStandardMaterial) {
-          const materialName = material.name.toLowerCase()
-          const authoredMap = material.map
-          material.roughness = variant === 'studio' ? 0.68 : 0.52
-          material.metalness = variant === 'studio' ? 0.08 : 0.28
-          if (semantic.startsWith('CityBuilding')) {
-            material.color.set(variant === 'studio' ? '#26343b' : '#182447')
-            material.emissive.set(variant === 'studio' ? '#111a20' : '#162654')
-            material.emissiveIntensity = variant === 'studio' ? 0.28 : 0.8
-          } else if (variant === 'neon' && authoredMap) {
-            // The space-station models use a compact color atlas for edge,
-            // panel and control detail. Tint it into the room palette instead
-            // of flattening the entire prop to one color.
-            material.color.set('#aebbd6')
-            material.roughness = 0.48
-            material.metalness = 0.22
-          } else {
-            const sourceLightness = material.color.getHSL({ h: 0, s: 0, l: 0 }).l
-            const base = new THREE.Color(
-              palette[semantic] ?? (variant === 'studio' ? '#343b3d' : '#293451')
-            )
-            const finish = materialName.includes('metaldark')
-              ? 0.54
-              : materialName.includes('metal')
-                ? 0.82
-                : materialName.includes('wood')
-                  ? 1.04
-                  : 0.76 + sourceLightness * 0.4
-            base.multiplyScalar(finish)
-            material.color.copy(base)
-            if (materialName.includes('metal')) {
-              material.roughness = variant === 'studio' ? 0.42 : 0.38
-              material.metalness = variant === 'studio' ? 0.48 : 0.56
-            }
-            if (variant === 'neon' || semantic.startsWith('NeonKey')) {
-              material.emissive.set('#090f28')
-              material.emissiveIntensity = semantic.startsWith('NeonKey') ? 1.8 : 0.2
-              if (semantic === 'NeonKeyCyan') material.emissive.set('#35c8ef')
-              if (semantic === 'NeonKeyPink') material.emissive.set('#f03e91')
-            }
+        if (
+          material instanceof THREE.MeshStandardMaterial &&
+          object.name.startsWith('CityBuilding')
+        ) {
+          material.color.set(variant === 'studio' ? '#26343b' : '#182447')
+          material.roughness = 0.85
+        }
+        if (
+          variant === 'studio' &&
+          material instanceof THREE.MeshStandardMaterial &&
+          !material.name.startsWith('Desk /') &&
+          !object.name.startsWith('CityBuilding')
+        ) {
+          const semantic = object.name.split('__')[0]
+          const colors: Record<string, string> = {
+            Rug: '#303c40',
+            Bookcase: '#44362c',
+            Books: '#65766e',
+            Plant: '#455e43',
           }
+          if (colors[semantic]) material.color.set(colors[semantic])
+          material.roughness = 0.88
         }
         return material
       })
       object.material = Array.isArray(object.material) ? materials : materials[0]
-      object.castShadow = false
+      object.castShadow = !object.name.startsWith('CityBuilding')
       object.receiveShadow = true
     })
     return clone
@@ -532,7 +484,7 @@ function DeskVisualPack({ scene, variant }: { scene: THREE.Group; variant: DeskV
 }
 
 function createCurtainGeometry(width: number, height: number, direction: -1 | 1) {
-  const geometry = new THREE.PlaneGeometry(width, height, 12, 3)
+  const geometry = new THREE.PlaneGeometry(width, height, 48, 8)
   const positions = geometry.attributes.position as THREE.BufferAttribute
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index)
@@ -558,46 +510,6 @@ function DeskCurtain({ side }: { side: -1 | 1 }) {
     >
       <meshStandardMaterial color="#25252b" roughness={0.94} side={THREE.DoubleSide} />
     </mesh>
-  )
-}
-
-function DeskPropContactShadows({ variant }: { variant: DeskVisualVariant }) {
-  const texture = useMemo(() => createGroundingTexture(), [])
-  const layout = DESK_LAYOUT[variant]
-  const shadows =
-    variant === 'studio'
-      ? [
-          { position: [0, layout.surfaceY + 0.012, -4.0], size: [4.9, 2.15] },
-          { position: [-3.65, layout.surfaceY + 0.014, -3.58], size: [2.75, 1.85] },
-          { position: [3.55, layout.surfaceY + 0.014, -3.85], size: [3.5, 2.25] },
-        ]
-      : [
-          { position: [0, layout.surfaceY + 0.012, -3.0], size: [5.3, 2.55] },
-          { position: [-3.55, layout.surfaceY + 0.014, -3.42], size: [3.0, 2.25] },
-          { position: [3.35, layout.surfaceY + 0.014, -3.72], size: [3.2, 2.25] },
-        ]
-
-  useEffect(() => () => texture.dispose(), [texture])
-
-  return (
-    <>
-      {shadows.map(({ position, size }, index) => (
-        <mesh
-          key={index}
-          position={position as [number, number, number]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={size as [number, number]} />
-          <meshBasicMaterial
-            map={texture}
-            transparent
-            opacity={variant === 'studio' ? 0.42 : 0.3}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-      ))}
-    </>
   )
 }
 
@@ -733,7 +645,7 @@ function DeskRoomShell({
   return (
     <>
       <DeskWindowLife variant={variant} reducedMotion={reducedMotion} />
-      <mesh position={[0, DESK_ROOM_FLOOR_TOP - 0.12, 3]}>
+      <mesh receiveShadow position={[0, DESK_ROOM_FLOOR_TOP - 0.12, 3]}>
         <boxGeometry args={[24, 0.24, 26]} />
         <meshStandardMaterial
           color={theme.floor}
@@ -917,8 +829,8 @@ function DeskRadio({
       <Html
         transform
         wrapperClass="desk-model-html"
-        position={variant === 'studio' ? [0, 0.55, 0.56] : [0, 0.68, 0.98]}
-        distanceFactor={variant === 'studio' ? 2.05 : 2.25}
+        position={[0, 0.64, 0.635]}
+        distanceFactor={2.05}
         zIndexRange={[5, 1]}
         pointerEvents={interactive ? 'auto' : 'none'}
       >
@@ -932,29 +844,57 @@ function DeskRadio({
 
 function DeskFrame({
   variant,
+  photoUrl,
   onSelect,
 }: {
   variant: DeskVisualVariant
+  photoUrl: string
   onSelect: (target: DeskTarget) => void
 }) {
-  const handleClick = clickTarget(onSelect, 'frame')
-  const position = DESK_LAYOUT[variant].frame
-
+  const { invalidate } = useThree()
+  const [photo, setPhoto] = useState<THREE.Texture | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    new THREE.TextureLoader().load(
+      photoUrl,
+      (texture) => {
+        if (cancelled) {
+          texture.dispose()
+          return
+        }
+        texture.colorSpace = THREE.SRGBColorSpace
+        setPhoto(texture)
+        invalidate()
+      },
+      undefined,
+      () => {
+        if (!cancelled) {
+          setPhoto(null)
+          invalidate()
+        }
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [photoUrl, invalidate])
+  useEffect(() => () => photo?.dispose(), [photo])
+  const image = photo?.image as HTMLImageElement | undefined
+  const aspect = image ? image.width / image.height : 0.8
+  const width = Math.min(1.33, 1.74 * aspect)
+  const height = width / aspect
   return (
-    <group position={position} rotation={[0, -0.1, 0]} onClick={handleClick}>
+    <group position={DESK_LAYOUT[variant].frame} onClick={clickTarget(onSelect, 'frame')}>
       <mesh>
-        <boxGeometry args={variant === 'studio' ? [2.1, 2.3, 0.7] : [2.35, 2.0, 0.9]} />
+        <boxGeometry args={[1.65, 2.13, 0.24]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <mesh position={[0, 0, variant === 'studio' ? 0.38 : 0.5]}>
-        <planeGeometry args={variant === 'studio' ? [1.35, 1.4] : [1.55, 1.15]} />
-        <meshBasicMaterial
-          color={variant === 'studio' ? '#7993a2' : '#55d9ff'}
-          transparent
-          opacity={variant === 'studio' ? 0.3 : 0.42}
-          toneMapped={false}
-        />
-      </mesh>
+      {photo ? (
+        <mesh position={[0, 0.03, 0.012]}>
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial map={photo} toneMapped={false} />
+        </mesh>
+      ) : null}
     </group>
   )
 }
@@ -978,13 +918,21 @@ function DeskPaper({
   showLabel: boolean
   onSelect: (target: DeskTarget) => void
 }) {
+  useEffect(() => {
+    scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = true
+        object.receiveShadow = true
+      }
+    })
+  }, [scene])
   const registerHost = useCallback(
     (element: HTMLDivElement | null) => registerDeskNoteHost(kind, element),
     [kind]
   )
   return (
     <group position={position} rotation={[0, rotation, 0]} onClick={clickTarget(onSelect, 'note')}>
-      <primitive object={scene} dispose={null} />
+      <primitive object={scene} scale={[1, kind === 'history' ? 0.28 : 1, 1]} dispose={null} />
       <Html
         transform
         wrapperClass="desk-model-html"
@@ -1037,7 +985,7 @@ function DeskNotes({
         kind="history"
         position={portrait ? [3.65, surfaceY, -3.4] : [2.8, surfaceY, -2.75]}
         rotation={0.035}
-        surfaceHeight={0.426}
+        surfaceHeight={0.125}
         interactive={interactive}
         showLabel={showLabel}
         onSelect={onSelect}
@@ -1060,6 +1008,7 @@ function DeskScene({
   assets,
   variant,
   poster,
+  photoUrl,
   phase,
   target,
   reducedMotion,
@@ -1074,6 +1023,7 @@ function DeskScene({
   assets: DeskAssets
   variant: DeskVisualVariant
   poster: THREE.Texture
+  photoUrl: string
   phase: DeskPhase
   target: DeskTarget | null
   reducedMotion: boolean
@@ -1086,21 +1036,51 @@ function DeskScene({
   onReady: () => void
 }) {
   const theme = DESK_THEMES[variant]
+  const { size } = useThree()
+  const shadowSize = size.width < 768 ? 1024 : 2048
+  const lampTarget = useMemo(() => {
+    const target = new THREE.Object3D()
+    target.position.set(2.4, DESK_LAYOUT[variant].surfaceY, -2.6)
+    return target
+  }, [variant])
   return (
     <>
       <fog attach="fog" args={[theme.fog, 13, 38]} />
       <DeskEnvironment environment={assets.environment} variant={variant} />
       <ambientLight intensity={theme.ambientIntensity} color={theme.ambient} />
+      <hemisphereLight args={[theme.window, '#302017', 0.35]} />
       <directionalLight
-        position={[-4, 8, 5]}
-        intensity={variant === 'studio' ? 1.1 : 0.6}
-        color="#d7ddff"
+        castShadow
+        position={[-3.5, 7, -6]}
+        intensity={variant === 'studio' ? 2.4 : 2.2}
+        color={theme.window}
+        shadow-mapSize={[shadowSize, shadowSize]}
+        shadow-camera-left={-9}
+        shadow-camera-right={9}
+        shadow-camera-top={9}
+        shadow-camera-bottom={-9}
+        shadow-camera-near={0.5}
+        shadow-camera-far={30}
+        shadow-normalBias={0.035}
+        shadow-bias={-0.0002}
+        shadow-radius={3}
       />
-      <pointLight
-        position={[4.5, 3.8, -4.2]}
-        intensity={theme.keyIntensity}
-        distance={10}
+      <directionalLight position={[3, 6, 5]} intensity={0.7} color={theme.key} />
+      <primitive object={lampTarget} />
+      <spotLight
+        castShadow
+        target={lampTarget}
+        position={[4.62, 3.46, -4.6]}
+        intensity={theme.keyIntensity * 1.65}
+        angle={1.05}
+        penumbra={0.75}
+        distance={12}
         color={theme.key}
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-near={0.1}
+        shadow-camera-far={14}
+        shadow-normalBias={0.015}
+        shadow-bias={-0.0001}
       />
       <pointLight
         position={[-4.5, 4.5, -7.4]}
@@ -1121,7 +1101,7 @@ function DeskScene({
       <WebglLifecycle onContextLost={onContextLost} />
       <DeskRoomShell variant={variant} reducedMotion={reducedMotion} />
       <DeskVisualPack scene={assets.scenePack} variant={variant} />
-      <DeskPropContactShadows variant={variant} />
+
       <DeskComputer
         variant={variant}
         poster={poster}
@@ -1135,7 +1115,7 @@ function DeskScene({
         controls={radioControls}
         onSelect={onSelect}
       />
-      <DeskFrame variant={variant} onSelect={onSelect} />
+      <DeskFrame variant={variant} photoUrl={photoUrl} onSelect={onSelect} />
       <DeskNotes
         assets={assets}
         variant={variant}
@@ -1149,11 +1129,12 @@ function DeskScene({
 }
 
 function SceneReady({ onReady, onError }: { onReady: () => void; onError: () => void }) {
-  const { gl, scene, camera, invalidate } = useThree()
+  const { gl, scene, camera, invalidate, size } = useThree()
   const frames = useRef(0)
   const reported = useRef(false)
   useEffect(() => {
     let cancelled = false
+    gl.shadowMap.needsUpdate = true
     // Models, environment and first poster exist; warm shaders before revealing.
     void gl
       .compileAsync(scene, camera)
@@ -1169,7 +1150,7 @@ function SceneReady({ onReady, onError }: { onReady: () => void; onError: () => 
     return () => {
       cancelled = true
     }
-  }, [camera, gl, invalidate, onError, scene])
+  }, [camera, gl, invalidate, onError, scene, size.width, size.height])
   useFrame(() => {
     if (!frames.current || reported.current) return
     frames.current -= 1
@@ -1184,6 +1165,7 @@ function SceneReady({ onReady, onError }: { onReady: () => void; onError: () => 
 export default function DeskCanvas({
   visualVariant,
   posterUrl,
+  photoUrl,
   phase,
   target,
   reducedMotion,
@@ -1199,6 +1181,7 @@ export default function DeskCanvas({
 }: {
   visualVariant: DeskVisualVariant
   posterUrl: string
+  photoUrl: string
   phase: DeskPhase
   target: DeskTarget | null
   reducedMotion: boolean
@@ -1273,11 +1256,13 @@ export default function DeskCanvas({
       className="h-full w-full"
       style={{ overflow: 'clip' }}
       frameloop={videoPlaying || cameraMoving || ambientMotion ? 'always' : 'demand'}
-      dpr={mobile ? 1 : [1, 1.5]}
+      shadows="soft"
+      dpr={mobile ? 1 : [1, 1.75]}
       camera={{ position: [0, 5.2, 11.5], fov: 42, near: 0.1, far: 100 }}
       gl={{ antialias: !mobile, alpha: false, powerPreference: 'default' }}
       fallback={<div className="h-full w-full bg-[#080b10]" />}
       onCreated={({ gl }) => {
+        gl.shadowMap.autoUpdate = false
         gl.outputColorSpace = THREE.SRGBColorSpace
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = visualVariant === 'studio' ? 1.08 : 1.16
@@ -1289,6 +1274,7 @@ export default function DeskCanvas({
           assets={assets}
           variant={visualVariant}
           poster={poster}
+          photoUrl={photoUrl}
           phase={phase}
           target={target}
           reducedMotion={reducedMotion}

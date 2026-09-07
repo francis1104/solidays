@@ -90,7 +90,7 @@ site/Header · site/MusicDock · chat/floating-chat · magicui/meteors
 ### 按目录（代码 → 职责）
 
 ```text
-tailwind-nextjs-starter-blog/          # 项目名 solidays-worker
+solidays/                              # 项目名 solidays-worker
 │
 ├── app/                              # Next.js App Router：路由即文件
 │   ├── layout.tsx                    # 根布局：全局挂载 Header/MusicDock/聊天/流星
@@ -169,6 +169,7 @@ shadcn 约定的 `cn()` 工具。
 | `docs/features/anonymous-chat/admin-v2-plan.md` | V2 Admin 回复与后台实施方案（KV 门禁、/admin、组件选型） |
 | `docs/features/anonymous-chat/realtime-messaging-refactor-plan.md` | 消息实时性改造方案：会话级 Durable Object、WebSocket、Queue 与 Slack 通知 |
 | `docs/features/gallery/metadata-processing.md` | Gallery 视频元数据与 Web 处理方案（独立公开桶 `solidays-gallery`，不上 Stream） |
+| `docs/features/desk-mode/desktop-world-plan.md` | Desk Mode：把 Gallery、音乐和 FNDS 聚集到 3D 桌面的互动体验方案 |
 | `docs/performance/worker-metrics.md` | Worker 指标快照与改进方案（favicon 与扫描器早 404 已落地；/media 同 colo smoke 未做） |
 | `docs/incidents/` | 生产事故报告 |
 
@@ -191,8 +192,9 @@ shadcn 约定的 `cn()` 工具。
 7. 每次改动后检查本地浏览器控制台和终端输出，Error 和 Warning 都要定位处理，不能
    默认忽略；涉及行为取舍或无法安全判断时，先明确告诉用户再继续。
 8. 保留用户已有改动，先看 `git status --short --branch` 再操作，不使用破坏性重置命令。
-9. 提交前验证：每次代码改动提交之前，都要启动本地 Worker（`worker:dev`），通过
-   Chrome DevTools 访问 `http://localhost:8787` 并对改动部分实际测试，必要时断点
+9. 提交前验证：每次代码改动提交之前，都要启动本地 Worker（`worker:dev`，默认绑定
+   `0.0.0.0` 以支持同一局域网移动端访问），通过 Chrome DevTools 访问
+   `http://localhost:8787` 或局域网 IP 地址并对改动部分实际测试，必要时断点
    调试；本地行为测试结束后还必须通过生产配置门禁（`worker:build`、
    `worker:check:production`、Wrangler `deploy --dry-run`），确认当前 DEV commit
    可以合并生产后才允许 commit。完整流程见 `docs/testing/pre-commit-verification.md`。

@@ -5,7 +5,7 @@
 - 状态：Draft
 - 目标分支：`cloudflare-worker-DEV`
 - 范围：仅首页（`/`）与 About（`/about`）。不包含 FNDS 演出档案数据模型、`/now`、`/music`、博客恢复、AI 聊天或 Admin 改动。
-- 仓库：`solidays-worker`（路径 `/Users/francis/Documents/tailwind-nextjs-starter-blog`）
+- 仓库：`francis1104/solidays`（项目名 `solidays-worker`；路径 `/Users/francis/Documents/solidays`）
 
 > 实施更新（2026-08-27）：首页歌词卡已按用户补充的歌词扩展为《歌頌》《昨日》
 > 《今日》《每一個明天》四张；对应 MP3 已上传至私有 R2 的 `music/` 前缀，并通过
@@ -55,7 +55,7 @@
 
 ### 当前 About
 
-`app/about/page.tsx` 左侧：`mediaUrl('profile/avatar.jpg')`、Francis、**Backend Developer**、硬编码 Email、硬编码 GitHub `https://github.com/francis1104/tailwind-nextjs-starter-blog`。右侧两节：`Behind Solidays`（技术栈）和一段偏概念化的 Fear And Dreams 介绍。`data/siteMetadata.js` 的 `github` 字段与 About 硬编码 URL 目前相同，但 About 没有读取 `siteMetadata`，简历腔身份与站点实际内容脱节。
+`app/about/page.tsx` 左侧：`mediaUrl('profile/avatar.jpg')`、Francis、**Backend Developer**、硬编码 Email、硬编码 GitHub `https://github.com/francis1104/solidays`。右侧两节：`Behind Solidays`（技术栈）和一段偏概念化的 Fear And Dreams 介绍。`data/siteMetadata.js` 的 `github` 字段与 About 硬编码 URL 目前相同，但 About 没有读取 `siteMetadata`，简历腔身份与站点实际内容脱节。
 
 ### 现有约束（本方案要改写的部分）
 
@@ -174,7 +174,7 @@
 
 ### 8. GitHub URL 本轮不改
 
-**决定：** About 的 GitHub / Email **读** `siteMetadata.github` / `siteMetadata.email`。**不编辑** `data/siteMetadata.js` 的 URL 值。仓库仍叫 `tailwind-nextjs-starter-blog`。
+**决定：** About 的 GitHub / Email **读** `siteMetadata.github` / `siteMetadata.email`。**不编辑** `data/siteMetadata.js` 的 URL 值。当前仓库为 `francis1104/solidays`。
 
 ---
 
@@ -723,7 +723,7 @@ Desktop 像仪表板，和当前「一张海报居中」的气质差一截；Mob
 
 ### GitHub / siteMetadata 清理
 
-现状两边都是 `https://github.com/francis1104/tailwind-nextjs-starter-blog`。产品名是 Solidays / Worker 名是 `solidays-worker`，GitHub 仓库仍是 starter 模板名。
+现状两边都是 `https://github.com/francis1104/solidays`。产品名是 Solidays / Worker 名是 `solidays-worker`，GitHub 仓库已经改为 `solidays`。
 
 已定（KD8）：About **读**现有字段，去掉硬编码。**不编辑** `data/siteMetadata.js`。
 

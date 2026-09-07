@@ -54,6 +54,9 @@ yarn-error.log*
 .contentlayer
 __pycache__/
 
+# local 3D source assets
+/assets/3d/
+
 .dockerignore
 *.tar
 *.gz

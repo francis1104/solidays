@@ -1,25 +1,24 @@
 # Desk 3D 素材目录
 
-更新日期：2026-09-07。当前 `/desk` 的桌面主体与家具由 Blender 脚本原创生成，
-保留 Studio 暖木工作室与 Neon 金属控制台两套主题。窗外城市继续使用 Kenney CC0
-素材，纸面留言继续使用已有两张便签。旧下载模型保留为历史素材。
+更新日期：2026-09-08。当前 `/desk` 的桌面主体与家具由 Blender 脚本原创生成，
+保留 Studio 暖木工作室与 Neon 金属控制台两套主题。窗外城市使用原创高清 WebP 背景，纸面留言继续使用已有两张便签。旧下载模型保留为历史素材。
 
 ## 当前网页使用的双版本资源
 
 | 版本   |                  桌面产物 |                移动产物 | 用途                                             |
 | ------ | ------------------------: | ----------------------: | ------------------------------------------------ |
-| Studio | 1,670,096 B / 50,572 tris | 734,884 B / 13,624 tris | 胡桃木桌、黄铜收音机、亚麻灯罩、相框、书架与植物 |
-| Neon   | 1,453,620 B / 51,835 tris | 477,936 B / 13,756 tris | 阳极金属桌、背光键盘、收音终端、任务灯与设备机架 |
+| Studio | 1,700,620 B / 53,542 tris | 730,776 B / 14,484 tris | 胡桃木桌、黄铜收音机、亚麻灯罩、相框、书架与植物 |
+| Neon   | 1,437,560 B / 53,205 tris | 459,856 B / 14,156 tris | 阳极金属桌、背光键盘、收音终端、任务灯与设备机架 |
 
 - `scripts/desk/hero_assets.py`：原创几何、固定种子的胡桃木/网罩纹理、PBR 材质、
   主体三段倒角与加权法线；移动端一段倒角，减少圆周细分、植物叶片，省略文字与线缆。
-- `scripts/desk/build-visual-variants.py`：导入 CC0 城市、调用主体生成器、导出四份自包含 GLB。
+- `scripts/desk/build-visual-variants.py`：调用主体及室内陈设生成器、导出四份自包含 GLB。
   `build-visual-variants.mjs` 调用本机 Blender；运行 `yarn desk:build-visual-variants`（使用仓库 Yarn）。
 - 小零件按物品合并并保留材质槽，避免每个键帽、网孔、机架通风槽独立产生 draw call。
   每份 GLB 不超过 80 个材质 primitive；桌面预算 2 MiB / 65k tris，移动预算 1 MiB / 22k tris。
-- 窗外素材来自 [Kenney City Kit (Commercial)](https://kenney.nl/assets/city-kit-commercial)，
-  为已有 CC0 本地素材。来源 ZIP 位于忽略的 `assets/3d/packs/kenney/`；手机只保留五栋。
-  本次未下载新的第三方模型/纹理。
+- 窗外使用 `public/desk/backdrops/` 的原创 imagegen 背景：电脑端 1536×1024、
+  手机端 960×640，分别约 198/311 KB 与 68/96 KB。生成提示词与来源见精修记录。
+  历史 Kenney CC0 城市素材保留在本地忽略目录，已不再导出或加载。
 - 浏览器保留原创材质，不再根据物品名称覆盖木材、塑料、织物与金属的 PBR 参数。
   照片使用同源 `/media/fnds/…?variant=card&width=640`，复用既有 Images 卡片变体，
   不把原始 4K 图片上传为 WebGL 纹理。HTML 大图仅用于 2D fallback。

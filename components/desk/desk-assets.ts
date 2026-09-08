@@ -5,6 +5,7 @@ export type DeskAssets = {
   scenePack: THREE.Group
   notePad: THREE.Group
   notePaper: THREE.Group
+  backdrop: THREE.Texture
   environment: THREE.DataTexture
 }
 
@@ -46,7 +47,7 @@ export function loadDeskAssets(
 ) {
   let disposed = false
   const owned: Array<() => void> = []
-  const progress = [0, 0, 0, 0]
+  const progress = [0, 0, 0, 0, 0]
   const report = (index: number, value: number) => {
     progress[index] = Math.max(progress[index], value)
     if (!disposed) onProgress(progress.reduce((sum, part) => sum + part, 0) / progress.length)
@@ -93,14 +94,24 @@ export function loadDeskAssets(
       3,
       (texture) => texture.dispose()
     ),
+    track(
+      new THREE.TextureLoader(manager).loadAsync(
+        `/desk/backdrops/${variant}${mobile ? '-mobile' : ''}.webp`
+      ),
+      4,
+      (texture) => texture.dispose()
+    ),
   ])
-    .then(([scenePack, notePad, notePaper, environment]) => {
+    .then(([scenePack, notePad, notePaper, environment, backdrop]) => {
+      backdrop.colorSpace = THREE.SRGBColorSpace
+
       environment.mapping = THREE.EquirectangularReflectionMapping
       return {
         scenePack: scenePack.scene,
         notePad: notePad.scene,
         notePaper: notePaper.scene,
         environment,
+        backdrop,
       }
     })
     .catch((error: unknown) => {

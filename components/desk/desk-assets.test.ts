@@ -23,6 +23,13 @@ test('readiness waits for the visual pack and notes; late loads after teardown a
     return [scene, Promise.resolve({ scene: new THREE.Group() }), note][calls++]
   })
   t.mock.method(RGBELoader.prototype, 'loadAsync', () => environment)
+  const backdrop = new THREE.Texture()
+  let backdropDisposed = 0
+  backdrop.addEventListener('dispose', () => backdropDisposed++)
+  t.mock.method(THREE.TextureLoader.prototype, 'loadAsync', (url) => {
+    assert.equal(url, '/desk/backdrops/neon-mobile.webp')
+    return Promise.resolve(backdrop)
+  })
   const changes: number[] = []
   const loading = loadDeskAssets(true, 'neon', (value) => changes.push(value))
   assert.equal(requestedUrls[0], '/desk/models/variants/desk-neon-mobile.glb')
@@ -48,6 +55,7 @@ test('readiness waits for the visual pack and notes; late loads after teardown a
   assert.equal(changes.length, progressAtExit)
   loading.dispose()
   assert.equal(disposed, 1)
+  assert.equal(backdropDisposed, 1)
 })
 
 test('Studio and Neon packs stay compact and mobile omits decorative geometry', () => {

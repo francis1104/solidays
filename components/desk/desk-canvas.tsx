@@ -513,127 +513,23 @@ function DeskCurtain({ side }: { side: -1 | 1 }) {
   )
 }
 
-function DeskWindowLife({
-  variant,
-  reducedMotion,
-}: {
-  variant: DeskVisualVariant
-  reducedMotion: boolean
-}) {
-  const movingGroup = useRef<THREE.Group>(null)
-  const glow = useRef<THREE.MeshBasicMaterial>(null)
-  const { size } = useThree()
-  const mobile = size.width < 768
-  const dust = useMemo(() => {
-    const count = mobile ? 40 : 130
-    const values = new Float32Array(count * 3)
-    for (let index = 0; index < count; index += 1) {
-      values[index * 3] = (Math.random() - 0.5) * 18
-      values[index * 3 + 1] = Math.random() * 10 - 2.5
-      values[index * 3 + 2] = Math.random() * 8 - 8
-    }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(values, 3))
-    return geometry
-  }, [mobile])
-  const cityLights = useMemo(() => {
-    const count = mobile ? 36 : 84
-    const values = new Float32Array(count * 3)
-    for (let index = 0; index < count; index += 1) {
-      const column = index % 14
-      const row = Math.floor(index / 14)
-      values[index * 3] = -7.4 + column * 1.12 + Math.sin(index * 2.17) * 0.18
-      values[index * 3 + 1] = -0.8 + row * 0.72 + (index % 3) * 0.08
-      values[index * 3 + 2] = -15.2 - (index % 4) * 0.22
-    }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(values, 3))
-    return geometry
-  }, [mobile])
-
-  useEffect(
-    () => () => {
-      dust.dispose()
-      cityLights.dispose()
-    },
-    [cityLights, dust]
-  )
-
-  useFrame(({ clock }) => {
-    if (reducedMotion) return
-    const elapsed = clock.getElapsedTime()
-    if (movingGroup.current) {
-      movingGroup.current.position.x = Math.sin(elapsed * 0.08) * 0.24
-      movingGroup.current.position.y = Math.sin(elapsed * 0.13) * 0.08
-    }
-    if (glow.current) {
-      glow.current.opacity = (variant === 'neon' ? 0.42 : 0.18) + Math.sin(elapsed * 1.2) * 0.04
-    }
-  })
-
+// One distant plate replaces the skyline meshes. It stays fixed in world space,
+// so camera focus moves retain natural window-frame parallax without city drift.
+function DeskWindowLife({ backdrop }: { backdrop: THREE.Texture }) {
   return (
-    <>
-      <mesh position={[0, 3.2, -21]}>
-        <planeGeometry args={[28, 16]} />
-        <meshBasicMaterial
-          color={variant === 'studio' ? '#0c1d2b' : '#05061a'}
-          toneMapped={false}
-        />
-      </mesh>
-      <group ref={movingGroup}>
-        <mesh position={variant === 'studio' ? [-4.8, 4.2, -14] : [-3.9, 4.6, -13.2]}>
-          <planeGeometry args={variant === 'studio' ? [3.4, 0.18] : [4.6, 0.22]} />
-          <meshBasicMaterial
-            ref={glow}
-            color={variant === 'studio' ? '#e1a05c' : '#ff4fb8'}
-            transparent
-            opacity={variant === 'studio' ? 0.18 : 0.42}
-            toneMapped={false}
-          />
-        </mesh>
-        {variant === 'neon' ? (
-          <>
-            <mesh position={[3.8, 3.5, -14.4]} rotation={[0, 0, -0.08]}>
-              <planeGeometry args={[3.2, 0.16]} />
-              <meshBasicMaterial color="#55d9ff" transparent opacity={0.42} toneMapped={false} />
-            </mesh>
-            <mesh position={[0.8, 6.2, -16]}>
-              <planeGeometry args={[0.12, 3.6]} />
-              <meshBasicMaterial color="#8d6cff" transparent opacity={0.3} toneMapped={false} />
-            </mesh>
-          </>
-        ) : null}
-        <points geometry={cityLights}>
-          <pointsMaterial
-            color={variant === 'studio' ? '#e5b66e' : '#60dfff'}
-            size={variant === 'studio' ? 0.09 : 0.12}
-            transparent
-            opacity={variant === 'studio' ? 0.6 : 0.76}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </points>
-      </group>
-      <points geometry={dust}>
-        <pointsMaterial
-          color={variant === 'studio' ? '#d5d9d3' : '#72dcff'}
-          size={variant === 'studio' ? 0.025 : 0.035}
-          transparent
-          opacity={variant === 'studio' ? 0.28 : 0.35}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </points>
-    </>
+    <mesh position={[0, -2, -30]}>
+      <planeGeometry args={[40, 80 / 3]} />
+      <meshBasicMaterial map={backdrop} toneMapped={false} fog={false} />
+    </mesh>
   )
 }
 
 function DeskRoomShell({
   variant,
-  reducedMotion,
+  backdrop,
 }: {
   variant: DeskVisualVariant
-  reducedMotion: boolean
+  backdrop: THREE.Texture
 }) {
   const { size } = useThree()
   const compact = size.height < 520
@@ -644,7 +540,7 @@ function DeskRoomShell({
 
   return (
     <>
-      <DeskWindowLife variant={variant} reducedMotion={reducedMotion} />
+      <DeskWindowLife backdrop={backdrop} />
       <mesh receiveShadow position={[0, DESK_ROOM_FLOOR_TOP - 0.12, 3]}>
         <boxGeometry args={[24, 0.24, 26]} />
         <meshStandardMaterial
@@ -718,8 +614,8 @@ function DeskRoomShell({
         <>
           <DeskCurtain side={-1} />
           <DeskCurtain side={1} />
-          <mesh position={[-8.25, 2.2, DESK_ROOM_BACK_Z + 0.34]}>
-            <boxGeometry args={[1.7, 0.12, 0.36]} />
+          <mesh position={[-9.0, 2.2, DESK_ROOM_BACK_Z + 0.34]}>
+            <boxGeometry args={[1.45, 0.12, 0.36]} />
             <meshStandardMaterial color="#3d302a" roughness={0.72} />
           </mesh>
         </>
@@ -1099,7 +995,7 @@ function DeskScene({
         onSettled={onSettled}
       />
       <WebglLifecycle onContextLost={onContextLost} />
-      <DeskRoomShell variant={variant} reducedMotion={reducedMotion} />
+      <DeskRoomShell variant={variant} backdrop={assets.backdrop} />
       <DeskVisualPack scene={assets.scenePack} variant={variant} />
 
       <DeskComputer

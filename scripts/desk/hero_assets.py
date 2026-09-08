@@ -279,21 +279,18 @@ def build(variant, mobile):
             box('Book spine',(x,.35+h/2,-5.92),(.16,h+.03,.035),cover,.012)
             for dy in [-.22,.22]:
                 box('Book spine foil',(x,.35+h/2+dy,-5.90),(.11,.015,.005),brass,.002)
-        # A low listening cabinet fills the left corner without covering the radio.
-        box('Record cabinet',(-7.7,-1.91,-5.9),(2.45,2.75,1.3),wood,.06)
-        box('Cabinet inset',(-7.7,-1.82,-5.228),(2.17,2.28,.045),rubber,.015)
-        box('Cabinet divider',(-7.7,-1.85,-5.48),(.09,2.3,.55),wood,.015)
-        for i in range(10 if mobile else 14):
-            x=-8.66+i*.137
+        # Keep a separate left furnishing bay, clear of the desk legs and curtain.
+        box('Record cabinet',(-8.8,-1.91,-5.9),(1.7,2.75,1.3),wood,.06)
+        box('Cabinet inset',(-8.8,-1.82,-5.228),(1.46,2.28,.045),rubber,.015)
+        for i in range(9):
+            x=-9.4+i*.145
             box('LP sleeve',(x,-1.58,-5.48),(.085,1.72,.66),cream if i%3 else wood,.007)
-        box('Displayed record sleeve',(-7.68,.17,-5.95),(1.15,1.28,.065),cream,.018)
-        cylinder('Vinyl record',(-7.68,.20,-5.902),.48,.022,rubber,True)
-        cylinder('Record label',(-7.68,.20,-5.885),.15,.013,brass,True)
-        box('Display shelf',(-8.25,4.0,-7.72),(1.9,.12,.62),wood,.025)
+        box('Display shelf',(-9.0,4.0,-7.72),(1.45,.12,.62),wood,.025)
         for i in range(4):
-            box('Display book',(-8.77+i*.2,2.68,-7.75),(.15,.83,.32),cream if i%2 else wood,.012)
-        cylinder('Display vase',(-8.22,4.42,-7.72),.22,.72,cream,top_radius=.12)
-        line('Dried branch',[(-8.22,4.7,-7.72),(-8.3,5.15,-7.7),(-8.05,5.5,-7.7)],.018,brass)
+            box('Display book',(-9.37+i*.2,2.68,-7.75),(.15,.83,.32),cream if i%2 else wood,.012)
+        cylinder('Display vase',(-9.0,4.42,-7.72),.22,.72,cream,top_radius=.12)
+        line('Dried branch',[(-9.0,4.7,-7.72),(-9.08,5.15,-7.7),(-8.83,5.5,-7.7)],.018,brass)
+        plant_start = set(bpy.context.scene.objects)
         pot=material('Stoneware',(.22,.19,.14),.86)
         leaf=material('Leaf jade',(.038,.13,.07),.65)
         cylinder('Planter',(-6.3,-2.85,-6.3),.43,1.06,pot,top_radius=.57)
@@ -308,6 +305,10 @@ def build(variant, mobile):
             obj.scale=(.24,.065,.52)
             obj.rotation_euler=(.5*cos(angle),.5*sin(angle),angle)
             finish(obj,'Leaf',leaf)
+        # Move the complete plant onto the cabinet and scale around its floor anchor.
+        for obj in set(bpy.context.scene.objects) - plant_start:
+            obj.location = Vector(loc((-8.8,-.535,-5.9))) + .42 * (obj.location - Vector(loc((-6.3,-3.38,-6.3))))
+            obj.scale *= .42
         if not mobile:
             rug=material('Wool slate',(.043,.061,.065),1)
             box('Woven rug',(0,-3.35,-1.8),(13,.04,8),rug,.015)
@@ -320,13 +321,13 @@ def build(variant, mobile):
             box('Telemetry bar',(-6.95+i*.115,1.43+(i%3)*.04,-6.429),(.055,.2+(i%3)*.08,.012),accent,.004)
         box('Telemetry header',(-6.6,1.98,-6.429),(1.1,.025,.012),pink,.004)
         for y in [2.1,4.05]:
-            box('Equipment display shelf',(-8.4,y,-7.48),(1.75,.1,.78),dark,.03)
-            box('Shelf light',(-8.4,y-.045,-7.07),(1.6,.025,.025),accent,.004)
+            box('Equipment display shelf',(-9.15,y,-7.48),(1.45,.1,.78),dark,.03)
+            box('Shelf light',(-9.15,y-.045,-7.07),(1.3,.025,.025),accent,.004)
         for i in range(3):
-            box('Archive cartridge',(-8.88+i*.39,2.59,-7.43),(.28,.85,.4),brass,.03)
-            box('Cartridge identifier',(-8.88+i*.39,2.65,-7.222),(.15,.035,.012),accent,.004)
-        cylinder('Display pedestal',(-8.4,4.17,-7.43),.43,.15,dark)
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1 if mobile else 2,radius=.40,location=loc((-8.4,4.68,-7.43)))
+            box('Archive cartridge',(-9.54+i*.39,2.59,-7.43),(.28,.85,.4),brass,.03)
+            box('Cartridge identifier',(-9.54+i*.39,2.65,-7.222),(.15,.035,.012),accent,.004)
+        cylinder('Display pedestal',(-9.15,4.17,-7.43),.43,.15,dark)
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1 if mobile else 2,radius=.40,location=loc((-9.15,4.68,-7.43)))
         finish(bpy.context.object,'Faceted artifact',brass)
         for side in [-1,1]:
             x=side*6.6

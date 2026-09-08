@@ -87,3 +87,10 @@ Neon prompt:
 验收：本地 `worker:dev`；本次 Chrome 连接不可用，使用 Codex 内置 Chromium 浏览器实际检查两主题总览、相框聚焦与换图、手机 390×844 两套轻量资源和留言入口。画布尺寸与视口一致，四张背景请求均 200，浏览器无应用 Error/Warning。CLI 的 Scheduled Workers 提示为本地 Cron 不自动触发的预期提示；Node 测试的模块类型探测提示通过限定 `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON` 运行消除，不更改项目模块制式。Desk 12 项测试通过，生产门禁结果随本次提交验证。
 
 最终门禁：`worker:build`、`worker:check:production`、Wrangler `deploy --dry-run` 均通过。生产构建的 TypeScript project references 提示由已有 `tsconfig.json` 的 `composite: true` 触发（已核对 Next `runTypeCheck.js`），实际增量类型检查通过。另实测收音机播放/暂停与 Gallery 视频播放（readyState 4、时间推进），没有发送测试留言。
+
+## 2026-09-08：修正左侧陈设重叠
+
+根据用户标注，Studio 两层板统一移到 x=-9、宽度缩至 1.45，避开左窗帘；唱片柜移到 x=-8.8、宽度缩至 1.7，移除被桌沿遮挡的柜顶唱片展示，植物缩至 42% 并完整安放在柜顶。Neon 两层陈列架移到 x=-9.15、宽度缩至 1.45，与原有竖向声学板分离。四份 GLB 同步重建。
+
+本地 Worker + 内置 Chromium 实测 1440×900 两主题总览、Neon 收音机聚焦、390×844 Studio 总览；标注的层板与背景装饰已留出可见间隙，柜体不再被桌腿遮挡。浏览器无 Error/Warning，终端仅有已记录的本地 Cron 提示。Desk 12 项测试及组件 ESLint 通过。
+生产 `worker:build`、`worker:check:production` 和 Wrangler dry-run 均通过；构建中已有的 composite 增量类型提示来源同上。

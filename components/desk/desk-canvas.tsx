@@ -614,8 +614,8 @@ function DeskRoomShell({
         <>
           <DeskCurtain side={-1} />
           <DeskCurtain side={1} />
-          <mesh position={[-8.25, 2.2, DESK_ROOM_BACK_Z + 0.34]}>
-            <boxGeometry args={[1.7, 0.12, 0.36]} />
+          <mesh position={[-9.0, 2.2, DESK_ROOM_BACK_Z + 0.34]}>
+            <boxGeometry args={[1.45, 0.12, 0.36]} />
             <meshStandardMaterial color="#3d302a" roughness={0.72} />
           </mesh>
         </>
